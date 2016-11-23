@@ -1,0 +1,18 @@
+SET NOCOUNT ON
+
+DECLARE @DateFrom DATE, @DateTo DATE;
+
+SET @DateFrom = CONVERT(DATE, '2012-12-23')
+SET @DateTo = GETDATE();
+WITH T(Date)
+AS
+(
+	SELECT @DateFrom
+	UNION ALL
+	SELECT DATEADD(day, 1, T.Date) FROM T WHERE T.Date < @DateTo
+)
+SELECT
+	T.[Date] AS [Date],
+	1 AS [Days]
+FROM T
+OPTION(MAXRECURSION 32767);

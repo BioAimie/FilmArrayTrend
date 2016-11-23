@@ -1,0 +1,460 @@
+REGION TYPE,REGION,YEAR,WEEK,TOTAL SPECIMENS,TOTAL A,TOTAL B,PERCENT POSITIVE,PERCENT A,PERCENT B
+Census Regions,New England,2015,40,693,2,3,0.721501,0.29,0.43
+Census Regions,Mid-Atlantic,2015,40,1583,5,1,0.379027,0.32,0.06
+Census Regions,East North Central,2015,40,1918,13,3,0.834202,0.68,0.16
+Census Regions,West North Central,2015,40,978,3,1,0.408998,0.31,0.1
+Census Regions,South Atlantic,2015,40,2403,20,12,1.33167,0.83,0.5
+Census Regions,East South Central,2015,40,614,4,4,1.30293,0.65,0.65
+Census Regions,West South Central,2015,40,1265,7,14,1.66008,0.55,1.11
+Census Regions,Mountain,2015,40,943,1,1,0.212089,0.11,0.11
+Census Regions,Pacific,2015,40,1609,29,4,2.05096,1.8,0.25
+Census Regions,New England,2015,41,752,11,4,1.99468,1.46,0.53
+Census Regions,Mid-Atlantic,2015,41,1830,5,3,0.437158,0.27,0.16
+Census Regions,East North Central,2015,41,2114,13,6,0.89877,0.61,0.28
+Census Regions,West North Central,2015,41,1046,7,5,1.14723,0.67,0.48
+Census Regions,South Atlantic,2015,41,2728,34,14,1.75953,1.25,0.51
+Census Regions,East South Central,2015,41,665,5,3,1.20301,0.75,0.45
+Census Regions,West South Central,2015,41,1305,8,15,1.76245,0.61,1.15
+Census Regions,Mountain,2015,41,1040,3,0,0.288462,0.29,0
+Census Regions,Pacific,2015,41,1591,30,4,2.13702,1.89,0.25
+Census Regions,New England,2015,42,708,4,3,0.988701,0.56,0.42
+Census Regions,Mid-Atlantic,2015,42,1836,4,3,0.381264,0.22,0.16
+Census Regions,East North Central,2015,42,2222,4,7,0.49505,0.18,0.32
+Census Regions,West North Central,2015,42,1137,7,1,0.703606,0.62,0.09
+Census Regions,South Atlantic,2015,42,2807,55,19,2.63627,1.96,0.68
+Census Regions,East South Central,2015,42,746,8,2,1.34048,1.07,0.27
+Census Regions,West South Central,2015,42,1269,5,15,1.57604,0.39,1.18
+Census Regions,Mountain,2015,42,1056,2,2,0.378788,0.19,0.19
+Census Regions,Pacific,2015,42,1634,8,0,0.489596,0.49,0
+Census Regions,New England,2015,43,716,1,1,0.27933,0.14,0.14
+Census Regions,Mid-Atlantic,2015,43,1826,8,5,0.711939,0.44,0.27
+Census Regions,East North Central,2015,43,2352,12,6,0.765306,0.51,0.26
+Census Regions,West North Central,2015,43,1133,5,5,0.882613,0.44,0.44
+Census Regions,South Atlantic,2015,43,2783,42,22,2.29968,1.51,0.79
+Census Regions,East South Central,2015,43,725,5,5,1.37931,0.69,0.69
+Census Regions,West South Central,2015,43,1234,17,4,1.70178,1.38,0.32
+Census Regions,Mountain,2015,43,1084,2,1,0.276753,0.18,0.09
+Census Regions,Pacific,2015,43,1645,6,3,0.547112,0.36,0.18
+Census Regions,New England,2015,44,781,0,1,0.128041,0,0.13
+Census Regions,Mid-Atlantic,2015,44,1856,8,3,0.592672,0.43,0.16
+Census Regions,East North Central,2015,44,2331,13,9,0.943801,0.56,0.39
+Census Regions,West North Central,2015,44,1211,2,5,0.578035,0.17,0.41
+Census Regions,South Atlantic,2015,44,3112,42,27,2.21722,1.35,0.87
+Census Regions,East South Central,2015,44,914,3,11,1.53173,0.33,1.2
+Census Regions,West South Central,2015,44,1388,13,6,1.36888,0.94,0.43
+Census Regions,Mountain,2015,44,1266,4,2,0.473934,0.32,0.16
+Census Regions,Pacific,2015,44,1778,12,4,0.899888,0.67,0.22
+Census Regions,New England,2015,45,682,2,1,0.439883,0.29,0.15
+Census Regions,Mid-Atlantic,2015,45,1906,8,2,0.524659,0.42,0.1
+Census Regions,East North Central,2015,45,2366,23,3,1.0989,0.97,0.13
+Census Regions,West North Central,2015,45,1119,1,0,0.0893655,0.09,0
+Census Regions,South Atlantic,2015,45,3300,50,49,3,1.52,1.48
+Census Regions,East South Central,2015,45,841,8,10,2.14031,0.95,1.19
+Census Regions,West South Central,2015,45,1539,16,15,2.01429,1.04,0.97
+Census Regions,Mountain,2015,45,1337,3,0,0.224383,0.22,0
+Census Regions,Pacific,2015,45,1931,11,6,0.880373,0.57,0.31
+Census Regions,New England,2015,46,779,1,1,0.256739,0.13,0.13
+Census Regions,Mid-Atlantic,2015,46,2018,5,6,0.545094,0.25,0.3
+Census Regions,East North Central,2015,46,2459,15,8,0.93534,0.61,0.33
+Census Regions,West North Central,2015,46,1085,2,4,0.552995,0.18,0.37
+Census Regions,South Atlantic,2015,46,3121,32,53,2.72349,1.03,1.7
+Census Regions,East South Central,2015,46,1005,5,6,1.09453,0.5,0.6
+Census Regions,West South Central,2015,46,1365,16,17,2.41758,1.17,1.25
+Census Regions,Mountain,2015,46,1313,0,0,0,0,0
+Census Regions,Pacific,2015,46,2069,8,3,0.531658,0.39,0.14
+Census Regions,New England,2015,47,788,2,1,0.380711,0.25,0.13
+Census Regions,Mid-Atlantic,2015,47,1825,11,5,0.876712,0.6,0.27
+Census Regions,East North Central,2015,47,2263,9,5,0.618648,0.4,0.22
+Census Regions,West North Central,2015,47,1002,1,1,0.199601,0.1,0.1
+Census Regions,South Atlantic,2015,47,3361,74,55,3.83814,2.2,1.64
+Census Regions,East South Central,2015,47,954,2,11,1.36268,0.21,1.15
+Census Regions,West South Central,2015,47,1648,9,11,1.21359,0.55,0.67
+Census Regions,Mountain,2015,47,1398,4,1,0.357654,0.29,0.07
+Census Regions,Pacific,2015,47,1939,7,2,0.464157,0.36,0.1
+Census Regions,New England,2015,48,780,2,1,0.384615,0.26,0.13
+Census Regions,Mid-Atlantic,2015,48,2149,19,4,1.07027,0.88,0.19
+Census Regions,East North Central,2015,48,2574,15,4,0.738151,0.58,0.16
+Census Regions,West North Central,2015,48,1197,5,1,0.501253,0.42,0.08
+Census Regions,South Atlantic,2015,48,2943,53,35,2.99015,1.8,1.19
+Census Regions,East South Central,2015,48,1042,13,14,2.59117,1.25,1.34
+Census Regions,West South Central,2015,48,1704,10,10,1.17371,0.59,0.59
+Census Regions,Mountain,2015,48,1530,10,3,0.849673,0.65,0.2
+Census Regions,Pacific,2015,48,2238,18,9,1.20643,0.8,0.4
+Census Regions,New England,2015,49,821,2,5,0.852619,0.24,0.61
+Census Regions,Mid-Atlantic,2015,49,2252,16,4,0.888099,0.71,0.18
+Census Regions,East North Central,2015,49,2676,14,6,0.747384,0.52,0.22
+Census Regions,West North Central,2015,49,1170,7,3,0.854701,0.6,0.26
+Census Regions,South Atlantic,2015,49,3306,59,50,3.29704,1.78,1.51
+Census Regions,East South Central,2015,49,1021,6,13,1.86092,0.59,1.27
+Census Regions,West South Central,2015,49,1769,11,12,1.30017,0.62,0.68
+Census Regions,Mountain,2015,49,1503,10,7,1.13107,0.67,0.47
+Census Regions,Pacific,2015,49,2104,13,6,0.903042,0.62,0.29
+Census Regions,New England,2015,50,842,1,2,0.356295,0.12,0.24
+Census Regions,Mid-Atlantic,2015,50,2402,13,6,0.791007,0.54,0.25
+Census Regions,East North Central,2015,50,2642,14,4,0.681302,0.53,0.15
+Census Regions,West North Central,2015,50,1210,10,3,1.07438,0.83,0.25
+Census Regions,South Atlantic,2015,50,3816,157,116,7.15409,4.11,3.04
+Census Regions,East South Central,2015,50,970,6,15,2.16495,0.62,1.55
+Census Regions,West South Central,2015,50,1839,7,13,1.08755,0.38,0.71
+Census Regions,Mountain,2015,50,1495,8,15,1.53846,0.54,1
+Census Regions,Pacific,2015,50,2089,26,16,2.01053,1.24,0.77
+Census Regions,New England,2015,51,886,9,2,1.24153,1.02,0.23
+Census Regions,Mid-Atlantic,2015,51,2263,11,6,0.751215,0.49,0.27
+Census Regions,East North Central,2015,51,2533,20,7,1.06593,0.79,0.28
+Census Regions,West North Central,2015,51,1136,6,4,0.880282,0.53,0.35
+Census Regions,South Atlantic,2015,51,3362,96,83,5.32421,2.86,2.47
+Census Regions,East South Central,2015,51,989,4,6,1.01112,0.4,0.61
+Census Regions,West South Central,2015,51,1896,15,20,1.84599,0.79,1.05
+Census Regions,Mountain,2015,51,1426,25,13,2.6648,1.75,0.91
+Census Regions,Pacific,2015,51,2341,34,22,2.39214,1.45,0.94
+Census Regions,New England,2015,52,991,6,1,0.706357,0.61,0.1
+Census Regions,Mid-Atlantic,2015,52,2415,29,17,1.90476,1.2,0.7
+Census Regions,East North Central,2015,52,2998,13,6,0.633756,0.43,0.2
+Census Regions,West North Central,2015,52,1266,6,2,0.631912,0.47,0.16
+Census Regions,South Atlantic,2015,52,3823,110,96,5.38844,2.88,2.51
+Census Regions,East South Central,2015,52,1082,3,14,1.57116,0.28,1.29
+Census Regions,West South Central,2015,52,1796,15,14,1.6147,0.84,0.78
+Census Regions,Mountain,2015,52,1713,30,19,2.86048,1.75,1.11
+Census Regions,Pacific,2015,52,2721,52,31,3.05035,1.91,1.14
+Census Regions,New England,2016,1,1181,12,5,1.43946,1.02,0.42
+Census Regions,Mid-Atlantic,2016,1,3026,30,7,1.22274,0.99,0.23
+Census Regions,East North Central,2016,1,3091,54,11,2.10288,1.75,0.36
+Census Regions,West North Central,2016,1,1381,9,4,0.941347,0.65,0.29
+Census Regions,South Atlantic,2016,1,3431,91,45,3.96386,2.65,1.31
+Census Regions,East South Central,2016,1,1012,6,10,1.58103,0.59,0.99
+Census Regions,West South Central,2016,1,1886,28,13,2.17391,1.48,0.69
+Census Regions,Mountain,2016,1,1883,60,30,4.77961,3.19,1.59
+Census Regions,Pacific,2016,1,2849,106,59,5.79151,3.72,2.07
+Census Regions,New England,2016,2,1025,35,3,3.70732,3.41,0.29
+Census Regions,Mid-Atlantic,2016,2,2734,56,12,2.4872,2.05,0.44
+Census Regions,East North Central,2016,2,2899,48,5,1.82822,1.66,0.17
+Census Regions,West North Central,2016,2,1275,17,2,1.4902,1.33,0.16
+Census Regions,South Atlantic,2016,2,3314,186,53,7.21183,5.61,1.6
+Census Regions,East South Central,2016,2,904,15,12,2.98673,1.66,1.33
+Census Regions,West South Central,2016,2,1812,29,15,2.42826,1.6,0.83
+Census Regions,Mountain,2016,2,1739,40,35,4.31282,2.3,2.01
+Census Regions,Pacific,2016,2,2965,145,87,7.82462,4.89,2.93
+Census Regions,New England,2016,3,1097,39,9,4.37557,3.56,0.82
+Census Regions,Mid-Atlantic,2016,3,2533,68,10,3.07935,2.68,0.39
+Census Regions,East North Central,2016,3,2887,77,10,3.01351,2.67,0.35
+Census Regions,West North Central,2016,3,1300,26,2,2.15385,2,0.15
+Census Regions,South Atlantic,2016,3,3136,202,71,8.70536,6.44,2.26
+Census Regions,East South Central,2016,3,850,12,9,2.47059,1.41,1.06
+Census Regions,West South Central,2016,3,1783,29,24,2.97252,1.63,1.35
+Census Regions,Mountain,2016,3,1924,83,42,6.49688,4.31,2.18
+Census Regions,Pacific,2016,3,3245,180,138,9.79969,5.55,4.25
+Census Regions,New England,2016,4,1273,67,7,5.81304,5.26,0.55
+Census Regions,Mid-Atlantic,2016,4,2599,103,13,4.46326,3.96,0.5
+Census Regions,East North Central,2016,4,3312,159,18,5.3442,4.8,0.54
+Census Regions,West North Central,2016,4,1333,34,6,3.00075,2.55,0.45
+Census Regions,South Atlantic,2016,4,3607,277,88,10.1192,7.68,2.44
+Census Regions,East South Central,2016,4,912,16,12,3.07018,1.75,1.32
+Census Regions,West South Central,2016,4,1977,46,37,4.19828,2.33,1.87
+Census Regions,Mountain,2016,4,2171,99,78,8.15292,4.56,3.59
+Census Regions,Pacific,2016,4,3553,233,153,10.8641,6.56,4.31
+Census Regions,New England,2016,5,1266,102,4,8.37283,8.06,0.32
+Census Regions,Mid-Atlantic,2016,5,2691,176,24,7.43218,6.54,0.89
+Census Regions,East North Central,2016,5,3719,280,39,8.57757,7.53,1.05
+Census Regions,West North Central,2016,5,1521,46,10,3.68179,3.02,0.66
+Census Regions,South Atlantic,2016,5,3946,445,132,14.6224,11.28,3.35
+Census Regions,East South Central,2016,5,844,15,11,3.08057,1.78,1.3
+Census Regions,West South Central,2016,5,1995,60,57,5.86466,3.01,2.86
+Census Regions,Mountain,2016,5,2603,169,130,11.4867,6.49,4.99
+Census Regions,Pacific,2016,5,3614,279,179,12.6729,7.72,4.95
+Census Regions,New England,2016,6,1402,85,28,8.05991,6.06,2
+Census Regions,Mid-Atlantic,2016,6,3126,281,43,10.3647,8.99,1.38
+Census Regions,East North Central,2016,6,4025,389,43,10.7329,9.66,1.07
+Census Regions,West North Central,2016,6,1723,78,9,5.04933,4.53,0.52
+Census Regions,South Atlantic,2016,6,4477,569,140,15.8365,12.71,3.13
+Census Regions,East South Central,2016,6,877,24,18,4.78905,2.74,2.05
+Census Regions,West South Central,2016,6,2093,101,97,9.46011,4.83,4.63
+Census Regions,Mountain,2016,6,2933,308,180,16.6383,10.5,6.14
+Census Regions,Pacific,2016,6,4202,428,302,17.3727,10.19,7.19
+Census Regions,New England,2016,7,1311,161,24,14.1114,12.28,1.83
+Census Regions,Mid-Atlantic,2016,7,3357,423,70,14.6857,12.6,2.09
+Census Regions,East North Central,2016,7,4666,630,72,15.045,13.5,1.54
+Census Regions,West North Central,2016,7,1923,143,19,8.42434,7.44,0.99
+Census Regions,South Atlantic,2016,7,4563,620,138,16.6119,13.59,3.02
+Census Regions,East South Central,2016,7,1021,66,9,7.34574,6.46,0.88
+Census Regions,West South Central,2016,7,2438,179,209,15.9147,7.34,8.57
+Census Regions,Mountain,2016,7,3487,385,197,16.6906,11.04,5.65
+Census Regions,Pacific,2016,7,4381,525,354,20.0639,11.98,8.08
+Census Regions,New England,2016,8,1726,260,26,16.5701,15.06,1.51
+Census Regions,Mid-Atlantic,2016,8,4066,729,75,19.7737,17.93,1.84
+Census Regions,East North Central,2016,8,5638,999,113,19.7233,17.72,2
+Census Regions,West North Central,2016,8,2116,208,18,10.6805,9.83,0.85
+Census Regions,South Atlantic,2016,8,5489,961,184,20.8599,17.51,3.35
+Census Regions,East South Central,2016,8,1177,116,36,12.9142,9.86,3.06
+Census Regions,West South Central,2016,8,2322,202,160,15.59,8.7,6.89
+Census Regions,Mountain,2016,8,3572,381,228,17.0493,10.67,6.38
+Census Regions,Pacific,2016,8,4812,550,433,20.4281,11.43,9
+Census Regions,New England,2016,9,1997,332,69,20.0801,16.62,3.46
+Census Regions,Mid-Atlantic,2016,9,4644,1043,133,25.323,22.46,2.86
+Census Regions,East North Central,2016,9,6392,1353,156,23.6076,21.17,2.44
+Census Regions,West North Central,2016,9,2229,254,44,13.3692,11.4,1.97
+Census Regions,South Atlantic,2016,9,6084,1046,225,20.8909,17.19,3.7
+Census Regions,East South Central,2016,9,1198,124,36,13.3556,10.35,3.01
+Census Regions,West South Central,2016,9,2496,249,238,19.5112,9.98,9.54
+Census Regions,Mountain,2016,9,4002,574,289,21.5642,14.34,7.22
+Census Regions,Pacific,2016,9,4770,547,436,20.608,11.47,9.14
+Census Regions,New England,2016,10,2480,565,102,26.8952,22.78,4.11
+Census Regions,Mid-Atlantic,2016,10,5329,1286,255,28.9172,24.13,4.79
+Census Regions,East North Central,2016,10,7383,1679,236,25.938,22.74,3.2
+Census Regions,West North Central,2016,10,2620,373,69,16.8702,14.24,2.63
+Census Regions,South Atlantic,2016,10,6677,1252,366,24.2324,18.75,5.48
+Census Regions,East South Central,2016,10,1460,195,54,17.0548,13.36,3.7
+Census Regions,West South Central,2016,10,2524,264,273,21.2758,10.46,10.82
+Census Regions,Mountain,2016,10,3824,601,270,22.7772,15.72,7.06
+Census Regions,Pacific,2016,10,4418,463,393,19.3753,10.48,8.9
+Census Regions,New England,2016,11,2527,469,118,23.2291,18.56,4.67
+Census Regions,Mid-Atlantic,2016,11,5136,1079,285,26.5576,21.01,5.55
+Census Regions,East North Central,2016,11,6432,1089,226,20.4447,16.93,3.51
+Census Regions,West North Central,2016,11,2386,255,59,13.1601,10.69,2.47
+Census Regions,South Atlantic,2016,11,5861,872,297,19.9454,14.88,5.07
+Census Regions,East South Central,2016,11,1390,145,52,14.1727,10.43,3.74
+Census Regions,West South Central,2016,11,2362,221,196,17.6545,9.36,8.3
+Census Regions,Mountain,2016,11,3712,535,240,20.8782,14.41,6.47
+Census Regions,Pacific,2016,11,4360,381,316,15.9862,8.74,7.25
+Census Regions,New England,2016,12,2462,398,128,21.3647,16.17,5.2
+Census Regions,Mid-Atlantic,2016,12,4878,868,278,23.4932,17.79,5.7
+Census Regions,East North Central,2016,12,5163,691,203,17.3155,13.38,3.93
+Census Regions,West North Central,2016,12,2114,208,43,11.8732,9.84,2.03
+Census Regions,South Atlantic,2016,12,5170,684,288,18.8008,13.23,5.57
+Census Regions,East South Central,2016,12,1259,142,43,14.6942,11.28,3.42
+Census Regions,West South Central,2016,12,1996,141,153,14.7295,7.06,7.67
+Census Regions,Mountain,2016,12,3416,472,219,20.2283,13.82,6.41
+Census Regions,Pacific,2016,12,3651,315,295,16.7078,8.63,8.08
+Census Regions,New England,2016,13,2380,352,141,20.7143,14.79,5.92
+Census Regions,Mid-Atlantic,2016,13,4418,595,267,19.5111,13.47,6.04
+Census Regions,East North Central,2016,13,4506,510,154,14.7359,11.32,3.42
+Census Regions,West North Central,2016,13,1983,168,51,11.0439,8.47,2.57
+Census Regions,South Atlantic,2016,13,4462,448,272,16.1363,10.04,6.1
+Census Regions,East South Central,2016,13,1295,93,53,11.2741,7.18,4.09
+Census Regions,West South Central,2016,13,2087,187,171,17.1538,8.96,8.19
+Census Regions,Mountain,2016,13,2955,371,195,19.154,12.55,6.6
+Census Regions,Pacific,2016,13,3465,239,209,12.9293,6.9,6.03
+Census Regions,New England,2016,14,1964,184,132,16.0896,9.37,6.72
+Census Regions,Mid-Atlantic,2016,14,3581,343,236,16.1687,9.58,6.59
+Census Regions,East North Central,2016,14,4054,344,140,11.9388,8.49,3.45
+Census Regions,West North Central,2016,14,1676,101,53,9.18854,6.03,3.16
+Census Regions,South Atlantic,2016,14,4386,316,307,14.2043,7.2,7
+Census Regions,East South Central,2016,14,995,69,44,11.3568,6.93,4.42
+Census Regions,West South Central,2016,14,1980,170,164,16.8687,8.59,8.28
+Census Regions,Mountain,2016,14,2194,254,147,18.2771,11.58,6.7
+Census Regions,Pacific,2016,14,3101,188,164,11.3512,6.06,5.29
+Census Regions,New England,2016,15,1743,142,154,16.9822,8.15,8.84
+Census Regions,Mid-Atlantic,2016,15,3186,250,263,16.1017,7.85,8.25
+Census Regions,East North Central,2016,15,3524,348,166,14.5857,9.88,4.71
+Census Regions,West North Central,2016,15,1549,97,58,10.0065,6.26,3.74
+Census Regions,South Atlantic,2016,15,4127,257,298,13.448,6.23,7.22
+Census Regions,East South Central,2016,15,903,41,46,9.63455,4.54,5.09
+Census Regions,West South Central,2016,15,1864,114,164,14.9142,6.12,8.8
+Census Regions,Mountain,2016,15,2046,142,109,12.2678,6.94,5.33
+Census Regions,Pacific,2016,15,2689,114,106,8.18148,4.24,3.94
+Census Regions,New England,2016,16,1602,114,147,16.2921,7.12,9.18
+Census Regions,Mid-Atlantic,2016,16,2908,186,290,16.3686,6.4,9.97
+Census Regions,East North Central,2016,16,3020,208,164,12.3179,6.89,5.43
+Census Regions,West North Central,2016,16,1449,54,63,8.07453,3.73,4.35
+Census Regions,South Atlantic,2016,16,3940,221,334,14.0863,5.61,8.48
+Census Regions,East South Central,2016,16,888,43,46,10.0225,4.84,5.18
+Census Regions,West South Central,2016,16,1941,112,105,11.1798,5.77,5.41
+Census Regions,Mountain,2016,16,1750,88,109,11.2571,5.03,6.23
+Census Regions,Pacific,2016,16,2316,94,70,7.08117,4.06,3.02
+Census Regions,New England,2016,17,1354,79,127,15.2142,5.83,9.38
+Census Regions,Mid-Atlantic,2016,17,2720,103,231,12.2794,3.79,8.49
+Census Regions,East North Central,2016,17,2673,130,178,11.5226,4.86,6.66
+Census Regions,West North Central,2016,17,1183,29,50,6.67794,2.45,4.23
+Census Regions,South Atlantic,2016,17,3751,130,314,11.8368,3.47,8.37
+Census Regions,East South Central,2016,17,752,13,32,5.98404,1.73,4.26
+Census Regions,West South Central,2016,17,1763,84,92,9.98298,4.76,5.22
+Census Regions,Mountain,2016,17,1455,44,57,6.94158,3.02,3.92
+Census Regions,Pacific,2016,17,2276,89,61,6.59051,3.91,2.68
+Census Regions,New England,2016,18,1139,45,92,12.0281,3.95,8.08
+Census Regions,Mid-Atlantic,2016,18,2275,59,179,10.4615,2.59,7.87
+Census Regions,East North Central,2016,18,2217,55,109,7.39738,2.48,4.92
+Census Regions,West North Central,2016,18,1051,17,21,3.6156,1.62,2
+Census Regions,South Atlantic,2016,18,3130,73,234,9.80831,2.33,7.48
+Census Regions,East South Central,2016,18,722,19,28,6.5097,2.63,3.88
+Census Regions,West South Central,2016,18,1556,63,74,8.80463,4.05,4.76
+Census Regions,Mountain,2016,18,1226,44,38,6.68842,3.59,3.1
+Census Regions,Pacific,2016,18,2030,52,47,4.87685,2.56,2.32
+Census Regions,New England,2016,19,1028,27,86,10.9922,2.63,8.37
+Census Regions,Mid-Atlantic,2016,19,2040,34,122,7.64706,1.67,5.98
+Census Regions,East North Central,2016,19,1947,29,97,6.47149,1.49,4.98
+Census Regions,West North Central,2016,19,962,7,17,2.4948,0.73,1.77
+Census Regions,South Atlantic,2016,19,3011,59,211,8.96712,1.96,7.01
+Census Regions,East South Central,2016,19,641,11,20,4.83619,1.72,3.12
+Census Regions,West South Central,2016,19,1510,59,59,7.81457,3.91,3.91
+Census Regions,Mountain,2016,19,1140,17,19,3.15789,1.49,1.67
+Census Regions,Pacific,2016,19,1784,37,30,3.75561,2.07,1.68
+Census Regions,New England,2016,20,851,13,70,9.75323,1.53,8.23
+Census Regions,Mid-Atlantic,2016,20,1844,23,85,5.85683,1.25,4.61
+Census Regions,East North Central,2016,20,1636,20,69,5.4401,1.22,4.22
+Census Regions,West North Central,2016,20,873,9,7,1.83276,1.03,0.8
+Census Regions,South Atlantic,2016,20,2618,49,151,7.63942,1.87,5.77
+Census Regions,East South Central,2016,20,599,9,22,5.17529,1.5,3.67
+Census Regions,West South Central,2016,20,1460,66,53,8.15068,4.52,3.63
+Census Regions,Mountain,2016,20,1028,11,21,3.11284,1.07,2.04
+Census Regions,Pacific,2016,20,1607,24,27,3.17362,1.49,1.68
+Census Regions,New England,2016,21,701,5,35,5.70613,0.71,4.99
+Census Regions,Mid-Atlantic,2016,21,1576,9,72,5.13959,0.57,4.57
+Census Regions,East North Central,2016,21,1489,11,40,3.42512,0.74,2.69
+Census Regions,West North Central,2016,21,809,3,8,1.3597,0.37,0.99
+Census Regions,South Atlantic,2016,21,2637,56,157,8.07736,2.12,5.95
+Census Regions,East South Central,2016,21,536,3,14,3.17164,0.56,2.61
+Census Regions,West South Central,2016,21,1287,31,35,5.12821,2.41,2.72
+Census Regions,Mountain,2016,21,947,8,14,2.32313,0.84,1.48
+Census Regions,Pacific,2016,21,1575,13,32,2.85714,0.83,2.03
+Census Regions,New England,2016,22,521,3,9,2.30326,0.58,1.73
+Census Regions,Mid-Atlantic,2016,22,1481,8,30,2.56583,0.54,2.03
+Census Regions,East North Central,2016,22,1118,2,17,1.69946,0.18,1.52
+Census Regions,West North Central,2016,22,731,3,9,1.64159,0.41,1.23
+Census Regions,South Atlantic,2016,22,2287,29,100,5.64058,1.27,4.37
+Census Regions,East South Central,2016,22,452,3,10,2.87611,0.66,2.21
+Census Regions,West South Central,2016,22,1225,24,35,4.81633,1.96,2.86
+Census Regions,Mountain,2016,22,836,0,5,0.598086,0,0.6
+Census Regions,Pacific,2016,22,1395,9,10,1.36201,0.65,0.72
+Census Regions,New England,2016,23,391,0,7,1.79028,0,1.79
+Census Regions,Mid-Atlantic,2016,23,1389,4,11,1.07991,0.29,0.79
+Census Regions,East North Central,2016,23,1073,1,12,1.21156,0.09,1.12
+Census Regions,West North Central,2016,23,693,5,3,1.1544,0.72,0.43
+Census Regions,South Atlantic,2016,23,2083,18,116,6.43303,0.86,5.57
+Census Regions,East South Central,2016,23,354,0,2,0.564972,0,0.56
+Census Regions,West South Central,2016,23,1234,26,35,4.94327,2.11,2.84
+Census Regions,Mountain,2016,23,630,3,4,1.11111,0.48,0.63
+Census Regions,Pacific,2016,23,1309,13,17,2.29183,0.99,1.3
+Census Regions,New England,2016,24,367,3,2,1.3624,0.82,0.54
+Census Regions,Mid-Atlantic,2016,24,1232,8,10,1.46104,0.65,0.81
+Census Regions,East North Central,2016,24,1058,2,3,0.47259,0.19,0.28
+Census Regions,West North Central,2016,24,604,2,0,0.331126,0.33,0
+Census Regions,South Atlantic,2016,24,1752,18,51,3.93836,1.03,2.91
+Census Regions,East South Central,2016,24,333,2,5,2.1021,0.6,1.5
+Census Regions,West South Central,2016,24,1117,12,17,2.59624,1.07,1.52
+Census Regions,Mountain,2016,24,656,1,0,0.152439,0.15,0
+Census Regions,Pacific,2016,24,1234,11,6,1.37763,0.89,0.49
+Census Regions,New England,2016,25,296,1,2,1.01351,0.34,0.68
+Census Regions,Mid-Atlantic,2016,25,1146,2,8,0.8726,0.17,0.7
+Census Regions,East North Central,2016,25,929,2,2,0.430571,0.22,0.22
+Census Regions,West North Central,2016,25,509,1,2,0.589391,0.2,0.39
+Census Regions,South Atlantic,2016,25,1541,16,48,4.15315,1.04,3.11
+Census Regions,East South Central,2016,25,357,1,2,0.840336,0.28,0.56
+Census Regions,West South Central,2016,25,933,11,11,2.35798,1.18,1.18
+Census Regions,Mountain,2016,25,534,2,1,0.561798,0.37,0.19
+Census Regions,Pacific,2016,25,1165,8,7,1.28755,0.69,0.6
+Census Regions,New England,2016,26,268,1,0,0.373134,0.37,0
+Census Regions,Mid-Atlantic,2016,26,1021,1,4,0.489716,0.1,0.39
+Census Regions,East North Central,2016,26,728,1,2,0.412088,0.14,0.27
+Census Regions,West North Central,2016,26,513,0,1,0.194932,0,0.19
+Census Regions,South Atlantic,2016,26,1224,13,27,3.26797,1.06,2.21
+Census Regions,East South Central,2016,26,276,0,1,0.362319,0,0.36
+Census Regions,West South Central,2016,26,673,3,10,1.93165,0.45,1.49
+Census Regions,Mountain,2016,26,596,2,0,0.33557,0.34,0
+Census Regions,Pacific,2016,26,989,5,6,1.11223,0.51,0.61
+Census Regions,New England,2016,27,246,1,0,0.406504,0.41,0
+Census Regions,Mid-Atlantic,2016,27,807,2,1,0.371747,0.25,0.12
+Census Regions,East North Central,2016,27,734,0,1,0.13624,0,0.14
+Census Regions,West North Central,2016,27,473,0,3,0.634249,0,0.63
+Census Regions,South Atlantic,2016,27,1240,11,20,2.5,0.89,1.61
+Census Regions,East South Central,2016,27,260,1,0,0.384615,0.38,0
+Census Regions,West South Central,2016,27,804,3,4,0.870647,0.37,0.5
+Census Regions,Mountain,2016,27,560,2,0,0.357143,0.36,0
+Census Regions,Pacific,2016,27,801,3,1,0.499376,0.37,0.12
+Census Regions,New England,2016,28,228,0,0,0,0,0
+Census Regions,Mid-Atlantic,2016,28,899,2,2,0.444939,0.22,0.22
+Census Regions,East North Central,2016,28,860,1,1,0.232558,0.12,0.12
+Census Regions,West North Central,2016,28,507,1,1,0.394477,0.2,0.2
+Census Regions,South Atlantic,2016,28,1161,10,9,1.63652,0.86,0.78
+Census Regions,East South Central,2016,28,261,1,0,0.383142,0.38,0
+Census Regions,West South Central,2016,28,740,5,8,1.75676,0.68,1.08
+Census Regions,Mountain,2016,28,562,1,1,0.355872,0.18,0.18
+Census Regions,Pacific,2016,28,1046,3,9,1.14723,0.29,0.86
+Census Regions,New England,2016,29,95,1,1,2.10526,1.05,1.05
+Census Regions,Mid-Atlantic,2016,29,830,0,3,0.361446,0,0.36
+Census Regions,East North Central,2016,29,694,1,0,0.144092,0.14,0
+Census Regions,West North Central,2016,29,453,2,1,0.662252,0.44,0.22
+Census Regions,South Atlantic,2016,29,1186,6,17,1.93929,0.51,1.43
+Census Regions,East South Central,2016,29,250,1,0,0.4,0.4,0
+Census Regions,West South Central,2016,29,671,2,2,0.596125,0.3,0.3
+Census Regions,Mountain,2016,29,557,3,1,0.718133,0.54,0.18
+Census Regions,Pacific,2016,29,1084,8,1,0.830258,0.74,0.09
+Census Regions,New England,2016,30,112,0,0,0,0,0
+Census Regions,Mid-Atlantic,2016,30,836,1,0,0.119617,0.12,0
+Census Regions,East North Central,2016,30,694,2,0,0.288184,0.29,0
+Census Regions,West North Central,2016,30,492,0,0,0,0,0
+Census Regions,South Atlantic,2016,30,1139,8,16,2.10711,0.7,1.4
+Census Regions,East South Central,2016,30,265,2,0,0.754717,0.75,0
+Census Regions,West South Central,2016,30,666,2,5,1.05105,0.3,0.75
+Census Regions,Mountain,2016,30,539,0,0,0,0,0
+Census Regions,Pacific,2016,30,944,5,4,0.95339,0.53,0.42
+Census Regions,New England,2016,31,99,0,1,1.0101,0,1.01
+Census Regions,Mid-Atlantic,2016,31,793,1,0,0.126103,0.13,0
+Census Regions,East North Central,2016,31,729,4,1,0.685871,0.55,0.14
+Census Regions,West North Central,2016,31,418,3,0,0.717703,0.72,0
+Census Regions,South Atlantic,2016,31,1131,11,11,1.94518,0.97,0.97
+Census Regions,East South Central,2016,31,239,1,0,0.41841,0.42,0
+Census Regions,West South Central,2016,31,577,5,5,1.7331,0.87,0.87
+Census Regions,Mountain,2016,31,553,5,0,0.904159,0.9,0
+Census Regions,Pacific,2016,31,915,3,2,0.546448,0.33,0.22
+Census Regions,New England,2016,32,89,0,0,0,0,0
+Census Regions,Mid-Atlantic,2016,32,837,0,0,0,0,0
+Census Regions,East North Central,2016,32,760,3,0,0.394737,0.39,0
+Census Regions,West North Central,2016,32,445,0,0,0,0,0
+Census Regions,South Atlantic,2016,32,1194,7,20,2.26131,0.59,1.68
+Census Regions,East South Central,2016,32,271,3,1,1.47601,1.11,0.37
+Census Regions,West South Central,2016,32,582,3,3,1.03093,0.52,0.52
+Census Regions,Mountain,2016,32,525,1,0,0.190476,0.19,0
+Census Regions,Pacific,2016,32,843,4,6,1.18624,0.47,0.71
+Census Regions,New England,2016,33,86,0,0,0,0,0
+Census Regions,Mid-Atlantic,2016,33,793,5,1,0.75662,0.63,0.13
+Census Regions,East North Central,2016,33,689,6,0,0.870827,0.87,0
+Census Regions,West North Central,2016,33,465,0,0,0,0,0
+Census Regions,South Atlantic,2016,33,1248,12,13,2.00321,0.96,1.04
+Census Regions,East South Central,2016,33,284,1,0,0.352113,0.35,0
+Census Regions,West South Central,2016,33,585,2,4,1.02564,0.34,0.68
+Census Regions,Mountain,2016,33,574,0,0,0,0,0
+Census Regions,Pacific,2016,33,864,0,3,0.347222,0,0.35
+Census Regions,New England,2016,34,63,0,0,0,0,0
+Census Regions,Mid-Atlantic,2016,34,732,0,1,0.136612,0,0.14
+Census Regions,East North Central,2016,34,832,2,1,0.360577,0.24,0.12
+Census Regions,West North Central,2016,34,470,0,0,0,0,0
+Census Regions,South Atlantic,2016,34,1355,19,17,2.65683,1.4,1.25
+Census Regions,East South Central,2016,34,324,1,1,0.617284,0.31,0.31
+Census Regions,West South Central,2016,34,704,30,4,4.82955,4.26,0.57
+Census Regions,Mountain,2016,34,621,1,0,0.161031,0.16,0
+Census Regions,Pacific,2016,34,813,7,1,0.98401,0.86,0.12
+Census Regions,New England,2016,35,90,1,0,1.11111,1.11,0
+Census Regions,Mid-Atlantic,2016,35,731,3,0,0.410397,0.41,0
+Census Regions,East North Central,2016,35,794,5,2,0.881612,0.63,0.25
+Census Regions,West North Central,2016,35,508,0,0,0,0,0
+Census Regions,South Atlantic,2016,35,1244,8,23,2.49196,0.64,1.85
+Census Regions,East South Central,2016,35,397,1,2,0.755668,0.25,0.5
+Census Regions,West South Central,2016,35,1014,45,12,5.6213,4.44,1.18
+Census Regions,Mountain,2016,35,779,3,0,0.385109,0.39,0
+Census Regions,Pacific,2016,35,935,11,0,1.17647,1.18,0
+Census Regions,New England,2016,36,141,1,0,0.70922,0.71,0
+Census Regions,Mid-Atlantic,2016,36,752,0,1,0.132979,0,0.13
+Census Regions,East North Central,2016,36,717,1,1,0.27894,0.14,0.14
+Census Regions,West North Central,2016,36,586,3,0,0.511945,0.51,0
+Census Regions,South Atlantic,2016,36,1437,20,35,3.82742,1.39,2.44
+Census Regions,East South Central,2016,36,404,0,0,0,0,0
+Census Regions,West South Central,2016,36,1035,16,15,2.99517,1.55,1.45
+Census Regions,Mountain,2016,36,786,3,0,0.381679,0.38,0
+Census Regions,Pacific,2016,36,865,10,2,1.38728,1.16,0.23
+Census Regions,New England,2016,37,181,0,0,0,0,0
+Census Regions,Mid-Atlantic,2016,37,915,6,2,0.874317,0.66,0.22
+Census Regions,East North Central,2016,37,862,5,4,1.04408,0.58,0.46
+Census Regions,West North Central,2016,37,594,0,0,0,0,0
+Census Regions,South Atlantic,2016,37,1598,27,34,3.81727,1.69,2.13
+Census Regions,East South Central,2016,37,450,6,2,1.77778,1.33,0.44
+Census Regions,West South Central,2016,37,1108,10,14,2.16606,0.9,1.26
+Census Regions,Mountain,2016,37,876,3,0,0.342466,0.34,0
+Census Regions,Pacific,2016,37,908,12,2,1.54185,1.32,0.22
+Census Regions,New England,2016,38,235,1,0,0.425532,0.43,0
+Census Regions,Mid-Atlantic,2016,38,972,1,1,0.205761,0.1,0.1
+Census Regions,East North Central,2016,38,636,4,3,1.10063,0.63,0.47
+Census Regions,West North Central,2016,38,568,3,1,0.704225,0.53,0.18
+Census Regions,South Atlantic,2016,38,1451,37,35,4.9621,2.55,2.41
+Census Regions,East South Central,2016,38,325,2,2,1.23077,0.62,0.62
+Census Regions,West South Central,2016,38,918,2,18,2.17865,0.22,1.96
+Census Regions,Mountain,2016,38,785,4,0,0.509554,0.51,0
+Census Regions,Pacific,2016,38,883,21,0,2.37826,2.38,0

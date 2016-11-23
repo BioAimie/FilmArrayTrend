@@ -1,0 +1,7 @@
+RSV = NY State
+HumanMetapneumo = Northeast region (NY, PA, NJ, CT, RI, MA, VT, NH, ME)
+Adeno_National = National
+ParaFlu1_National = National
+ParaFlu2_National = National
+ParaFlu3_National = National
+

@@ -1,0 +1,441 @@
+# DATA WERE READ IN ON 11/7/2016
+# At that time, there were 7 sites with data (6 to include in the poster):
+# 7-MUSC (2015-51), 13-Nationwide Children's (2016-10), 25-LA Children's (2016-01), 31-NYU Langone (2015-51), 33-IHC (2016-23),
+# 34-UC San Diego (2016-31), 41-IHC (2016-01)
+
+# set the path and load libraries and functions
+if(TRUE) {
+  workDir <-'G:/Departments/PostMarket/DataScienceGroup/Data Science Products/InProcess/Aimie/20160721_TrendExternal2016/AMP/'
+  setwd(workDir)
+  
+  # load libraries
+  library(RODBC)
+  library(lubridate)
+  library(ggplot2)
+  library(grid)
+  library(scales)
+  library(GGally)
+  library(gtable)
+  library(gridExtra)
+  library(dplyr)
+  library(RColorBrewer)
+  library(binom)
+  library(car)
+  library(caret)
+  library(rpart)
+  library(party)
+  library(randomForest)
+  library(nnet)
+  library(devtools)
+  library(RCurl)
+  install_github('BioAimie/dateManip')
+  library(dateManip)
+  
+  # load user-defined functions
+  source('../NewFunctions/normalizeBurnRate.R')
+  source('../NewFunctions/generateCombos.R')
+  source('../NewFunctions/createPaletteOfVariableLength.R')
+  
+  # dual axes for ILI overlay plots
+  hinvert_title_grob <- function(grob){
+    
+    # Swap the widths
+    widths <- grob$widths
+    grob$widths[1] <- widths[3]
+    grob$widths[3] <- widths[1]
+    grob$vp[[1]]$layout$widths[1] <- widths[3]
+    grob$vp[[1]]$layout$widths[3] <- widths[1]
+    
+    # Fix the justification
+    grob$children[[1]]$hjust <- 1 - grob$children[[1]]$hjust 
+    grob$children[[1]]$vjust <- 1 - grob$children[[1]]$vjust 
+    grob$children[[1]]$x <- unit(1, "npc") - grob$children[[1]]$x
+    grob
+  }
+  # source_url('https://gist.githubusercontent.com/fawda123/7471137/raw/466c1474d0a505ff044412703516c34f1a4684a5/nnet_plot_update.r')
+  # source_url('https://gist.githubusercontent.com/fawda123/6206737/raw/d6f365c283a8cae23fb20892dc223bc5764d50c7/gar_fun.r')
+  # root.url<-'https://gist.githubusercontent.com/fawda123'
+  # raw.fun<-paste(
+  #   root.url,
+  #   '5086859/raw/cc1544804d5027d82b70e74b83b3941cd2184354/nnet_plot_fun.r',
+  #   sep='/'
+  # )
+  # script<-getURL(raw.fun, ssl.verifypeer = FALSE)
+  # eval(parse(text = script))
+  # rm('script','raw.fun')
+}
+
+# GET DATA ---------------------------------------------------------------------------------------------------------------
+if(TRUE) {
+  # read in the data from FilmArray Data Warehouse DB (ODBC object in Windows "FA_DW")
+  FADWcxn <- odbcConnect(dsn = 'FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD')
+  queryVector <- scan('../DataSources/AllSitesGITrendableRuns.txt',what=character(),quote="")
+  query <- paste(queryVector,collapse=" ")
+  runs.df <- sqlQuery(FADWcxn,query)
+  queryVector <- scan('../DataSources/PositiveBugsGI.txt',what=character(),quote="")
+  query <- paste(queryVector,collapse=" ")
+  bugs.df <- sqlQuery(FADWcxn,query)
+  queryVector <- scan('../DataSources/ShortNames.txt',what=character(),quote="")
+  query <- paste(queryVector,collapse=" ")
+  shortnames.df <- sqlQuery(FADWcxn,query)
+  queryVector <- scan('../DataSources/DualDetectionsGI.txt',what=character(),quote="")
+  query <- paste(queryVector,collapse=" ")
+  dual.df <- sqlQuery(FADWcxn,query)
+  odbcClose(FADWcxn)
+  
+  # read in data from PMS PROD server
+  PMScxn <- odbcConnect('PMS_PROD')
+  queryVector <- scan('../DataSources/AllSitesRegionKey.txt',what=character(),quote="")
+  query <- paste(queryVector,collapse=" ")
+  regions.df <- sqlQuery(PMScxn,query)
+  # queryVector <- scan('../DataSources/calendarDates.txt',what=character(),quote="")
+  # query <- paste(queryVector,collapse=" ")
+  # calendar.df <- sqlQuery(PMScxn,query)
+  odbcClose(PMScxn)
+}
+
+# FORMAT RUN  DATA INTO EPI WEEKS
+if(TRUE) {
+  # add regions to the runs.df data frame as well as "even" weeks and years
+  calendar.df <- createCalendarLikeMicrosoft(2012, 'Week')
+  calendar.df <- transformToEpiWeeks(calendar.df)
+  calendar.df$YearWeek <- with(calendar.df, ifelse(Week < 10, paste(Year, Week, sep='-0'), paste(Year, Week, sep='-')))
+  calendar.df <- calendar.df[calendar.df$YearWeek > '2015-50', ]
+  calendar.df$Days <- 1
+  
+  runs.reg <- merge(runs.df, data.frame(Province = regions.df$StateAbv, Region = regions.df$CensusRegionLocal), by='Province')
+  runs.reg$Record <- 1
+  runs.reg.date <- merge(runs.reg[,c('RunDataId','Instrument','Date','Name','CustomerSiteId','Region','Record')], calendar.df[,c('Date','Year','Week','YearWeek')], by='Date')
+  
+  # create a data frame that will show site name and id with its region and census region
+  sitesByCensusRegions.etc <- unique(merge(unique(runs.reg.date[,c('CustomerSiteId','Name','Region')]), regions.df, by.x='Region', by.y='CensusRegionLocal')[,c('CustomerSiteId','Name','Region','CensusRegionNational')])
+  
+  # ADDED 20161108----------------------------------------------
+  # figure out some start dates so the data are not noisy  
+  ggplot(runs.reg.date[with(runs.reg.date, order(CustomerSiteId)), ], aes(x=YearWeek, y=Record, fill=as.factor(CustomerSiteId))) + geom_bar(stat='identity') + theme(axis.text.x=element_text(angle=90))
+  startDates <- data.frame(CustomerSiteId = c('7','13','31','33','34','41'), StartDate = c('2015-01','2016-18','2016-45','2016-23','2016-31','2016-15'))
+  runs.reg.date <- do.call(rbind, lapply(1:length(startDates$CustomerSiteId), function(x) data.frame(runs.reg.date[runs.reg.date$CustomerSiteId==startDates$CustomerSiteId[x] & as.character(runs.reg.date$YearWeek) >= as.character(startDates[startDates$CustomerSiteId==startDates$CustomerSiteId[x],'StartDate']), ])))
+}
+
+# -------------------------------------------------------- FIGURES FOR PUBLICATION -------------------------------------------------------------------------
+# TIME SERIES OF PREVALENCE
+if(TRUE) {
+  
+  # # --------------------------- FROM IDSA/PUBLICATION ----------------- THERES NOT ENOUGH DATA TO DO THIS YET FOR GI... IT REMOVES SOME SITES
+  if(FALSE) {
+    # var <- 'CustomerSiteId'
+    # sites <- unique(runs.reg.date$CustomerSiteId)
+    # 
+    # runs.reg.norm <- c()
+    # for(i in 1:length(sites)) {
+    # 
+    #   site.norm <- normalizeBurnRate(runs.reg.date, var, sites[i])
+    #   runs.reg.norm <- rbind(runs.reg.norm, site.norm)
+    # }
+
+    # site.starts <- c()
+    # for(i in 1:length(sites)) {
+    #   
+    #   site <- sites[i]
+    #   first.date <- min(runs.reg.norm[runs.reg.norm$CustomerSiteId == site,'YearWeek'])
+    #   temp <- data.frame(SiteId = site, StartDate = first.date)
+    #   site.starts <- rbind(site.starts, temp)
+    # }
+    # 
+    # # using only sites with enough data, find the prevalence of organisms  
+    # sites <- site.starts[!(is.na(site.starts$StartDate)) & substring(site.starts$StartDate, 1, 4) < 2016, 'SiteId']
+    # bugs.reg <- c()
+    # for(i in 1:length(sites)) {
+    #   
+    #   site <- sites[i]
+    #   temp <- runs.reg.date[runs.reg.date$CustomerSiteId == site, ]
+    #   bugs.site <- merge(temp, bugs.df, by='RunDataId')
+    #   bugs.reg <- rbind(bugs.reg, bugs.site)
+    # }
+    # 
+    # # make a combined category so that do.call can be used to fill in empty dates
+    # colsToCat <- c('Region','Name','CustomerSiteId','BugPositive')
+    # bugs.reg.trim <- bugs.reg[,c('YearWeek', colsToCat)]
+    # bugs.reg.trim$combocat <- do.call(paste, c(bugs.reg.trim[,colsToCat], sep=','))
+    # bugs.reg.trim$Record <- 1
+    # bugs.reg.combo <- do.call(rbind, lapply(1:length(unique(bugs.reg.trim$combocat)), function(x) cbind(merge(unique(calendar.df[,c('YearWeek','Year')]), bugs.reg.trim[bugs.reg.trim$combocat == unique(bugs.reg.trim$combocat)[x], c('YearWeek','Record')], by='YearWeek', all.x=TRUE), ComboCat = unique(bugs.reg.trim$combocat)[x])))
+    # deCombo <- as.data.frame(sapply(1:length(colsToCat), function(x) do.call(rbind, strsplit(as.character(bugs.reg.combo$ComboCat), split=','))[,x]))
+    # colnames(deCombo) <- colsToCat
+    # bugs.reg.fill <- cbind(bugs.reg.combo[,c('YearWeek','Record')], deCombo)
+    # bugs.reg.fill[is.na(bugs.reg.fill$Record),'Record'] <- 0
+    # bugs.reg.agg <- with(bugs.reg.fill, aggregate(Record~YearWeek+Region+Name+CustomerSiteId+BugPositive, FUN=sum))
+    # bugs <- as.character(unique(bugs.reg.agg$BugPositive))[order(as.character(unique(bugs.reg.agg$BugPositive)))]
+    # bugs.reg.roll <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(1:length(bugs), function(y) data.frame(YearWeek = bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'][2:(length(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'])-1)], CustomerSiteId = sites[x], Region = unique(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x],'Region']), Name = unique(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x],'Name']), Bug = bugs[y], Code = letters[y], Positives = sapply(2:(length(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'])-1), function(z) sum(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y],'Record'][(z-1):(z+1)])))))))
+    # runs.reg.roll <- runs.reg.norm[,c('YearWeek','CustomerSiteId','RollRuns')]
+    # colnames(runs.reg.roll) <- c('YearWeek','CustomerSiteId','Runs')
+    # # get the 3-week centered moving sum of bug positives and runs
+    # positives.count.all <- merge(runs.reg.roll, bugs.reg.roll, by=c('YearWeek','CustomerSiteId'))
+    # 
+    # decoder <- data.frame(Bug = bugs, Code = letters[1:length(bugs)])
+    # prevalence.reg.agg <- merge(subset(positives.count.all, as.character(YearWeek) >= '2014-01'), cdc.reg.count.df, by=c('YearWeek','Region'), all.x=TRUE)
+    # prevalence.reg.agg$Rate <- with(prevalence.reg.agg, ILITotal/TotalPatients)
+    # prevalence.reg.agg$Prevalence <- with(prevalence.reg.agg, Positives/Runs)
+    # prevalence.reg.wrap <- merge(prevalence.reg.agg[,c('Bug','Code','YearWeek','CustomerSiteId','Rate','Prevalence')], shortnames.df, by.x='Bug', by.y='Organism')
+    # prevalence.nat.individual.wrap <- with(prevalence.reg.wrap, aggregate(cbind(Rate, Prevalence)~YearWeek+Bug+Code+ShortName, FUN=mean))
+    # 
+  }
+  # # ---------------------------
+  
+  # ----------------------------- DOING THIS BECAUSE THERE AREN'T ENOUGH DATA TO DO A NORMALIZATION AND THAT'S NOT A CHART ON THE POSTER
+  sites <- as.character(unique(runs.reg.date$CustomerSiteId))
+  sites <- sites[order(sites)]
+  bugs.reg <- c()
+  for(i in 1:length(sites)) {
+    
+    site <- sites[i]
+    temp <- runs.reg.date[runs.reg.date$CustomerSiteId == site, ]
+    bugs.site <- merge(temp, bugs.df, by='RunDataId')
+    bugs.reg <- rbind(bugs.reg, bugs.site)
+  }
+  
+  # make a combined category so that do.call can be used to fill in empty dates
+  colsToCat <- c('Region','Name','CustomerSiteId','BugPositive')
+  bugs.reg.trim <- bugs.reg[,c('YearWeek', colsToCat)]
+  bugs.reg.trim$Record <- 1
+  names <- c("Nationwide Children's Hospital","Children's Hospital Los Angeles ","NYU Langone Medical Center ","Intermountain Healthcare","UC San Diego ","Intermountain Healthcare","Medical University of South Carolina")
+  # bugs.reg.trim <- rbind(bugs.reg.trim, merge(data.frame(YearWeek=rep('2016-01',length(sites)), Name=names, CustomerSiteId=sites, BugPositive=rep('E. histolytica',length(sites)), Record=rep(0, length(sites))), unique(bugs.reg.trim[,c('CustomerSiteId','Region')]), by='CustomerSiteId')[,c('YearWeek','Region','Name','CustomerSiteId','BugPositive','Record')])
+  bugs.reg.trim <- rbind(bugs.reg.trim, do.call(rbind, lapply(1:length(sites), function(x) data.frame(YearWeek=max(unique(bugs.reg.trim$YearWeek)), Region = unique(bugs.reg.trim[bugs.reg.trim$CustomerSiteId==sites[x],'Region']), Name = unique(bugs.reg.trim[bugs.reg.trim$CustomerSiteId==sites[x],'Name']), CustomerSiteId = sites[x], BugPositive = bugs, Record = 0))))
+  bugs.reg.trim$combocat <- do.call(paste, c(bugs.reg.trim[,colsToCat], sep=','))
+  bugs.reg.combo <- do.call(rbind, lapply(1:length(unique(bugs.reg.trim$combocat)), function(x) cbind(merge(unique(calendar.df[,c('YearWeek','Year')]), bugs.reg.trim[bugs.reg.trim$combocat == unique(bugs.reg.trim$combocat)[x], c('YearWeek','Record')], by='YearWeek', all.x=TRUE), ComboCat = unique(bugs.reg.trim$combocat)[x])))
+  deCombo <- as.data.frame(sapply(1:length(colsToCat), function(x) do.call(rbind, strsplit(as.character(bugs.reg.combo$ComboCat), split=','))[,x]))
+  colnames(deCombo) <- colsToCat
+  bugs.reg.fill <- cbind(bugs.reg.combo[,c('YearWeek','Record')], deCombo)
+  bugs.reg.fill[is.na(bugs.reg.fill$Record),'Record'] <- 0
+  bugs.reg.agg <- with(bugs.reg.fill, aggregate(Record~YearWeek+Region+Name+CustomerSiteId+BugPositive, FUN=sum))
+  bugs <- as.character(unique(bugs.reg.agg$BugPositive))[order(as.character(unique(bugs.reg.agg$BugPositive)))]
+  bugs.reg.roll <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(1:length(bugs), function(y) data.frame(YearWeek = bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'][2:(length(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'])-1)], CustomerSiteId = sites[x], Region = unique(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x],'Region']), Name = names[x], Bug = bugs[y], Code = letters[y], Positives = sapply(2:(length(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'])-1), function(z) sum(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y],'Record'][(z-1):(z+1)])))))))
+  runs.reg.agg <- with(runs.reg.date, aggregate(Record~YearWeek+CustomerSiteId, FUN=sum))
+  runs.reg.fill <- merge(unique(bugs.reg.roll[,c('YearWeek','CustomerSiteId')]), runs.reg.agg, by=c('YearWeek','CustomerSiteId'), all.x=TRUE, all.y=TRUE)
+  runs.reg.fill[is.na(runs.reg.fill$Record),'Record'] <- 0
+  runs.reg.fill <- runs.reg.fill[with(runs.reg.fill, order(CustomerSiteId, YearWeek)), ]
+  runs.reg.roll <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(YearWeek = runs.reg.fill[runs.reg.fill$CustomerSiteId==sites[x],'YearWeek'][2:(length(runs.reg.fill[runs.reg.fill$CustomerSiteId==sites[x],'YearWeek'])-1)], CustomerSiteId = sites[x], Runs = sapply(2:(length(runs.reg.fill[runs.reg.fill$CustomerSiteId==sites[x],'YearWeek'])-1), function(y) sum(runs.reg.fill[runs.reg.fill$CustomerSiteId==sites[x],'Record'][(y-1):(y+1)])))))
+    
+  # get the 3-week centered moving sum of bug positives and runs
+  positives.count.all <- merge(runs.reg.roll, bugs.reg.roll, by=c('YearWeek','CustomerSiteId'))
+  # this has to be done to minimize the impact of low run count sites
+  threshold <- 10
+  positives.count.all <- positives.count.all[positives.count.all$Runs > threshold, ]
+
+  decoder <- data.frame(Bug = bugs, Code = letters[1:length(bugs)])
+  prevalence.reg.agg <- positives.count.all
+  prevalence.reg.agg$Prevalence <- with(prevalence.reg.agg, Positives/Runs)
+  prevalence.reg.wrap <- merge(prevalence.reg.agg[,c('Bug','Code','YearWeek','CustomerSiteId','Prevalence')], shortnames.df, by.x='Bug', by.y='Organism')
+  prevalence.reg.wrap <- prevalence.reg.wrap[with(prevalence.reg.wrap, order(YearWeek, Bug, CustomerSiteId)), ]
+  prevalence.nat.individual.wrap <- with(prevalence.reg.wrap, aggregate(Prevalence~YearWeek+Bug+Code+ShortName, FUN=mean))
+  
+  bug.individual.Pal <- createPaletteOfVariableLength(prevalence.nat.individual.wrap, 'ShortName')
+  # dateBreaks <- as.character(unique(prevalence.nat.individual.wrap$YearWeek))[order(as.character(unique(prevalence.nat.individual.wrap$YearWeek)))][seq(1, length(as.character(unique(prevalence.nat.individual.wrap$YearWeek))), 8)]
+  dateBreaks <- c('2016-01', '2016-13','2016-26','2016-40','2016-52')
+  dateLabels <- c('Jan-2016','Mar-2016','Jun-2016','Sept-2016','Dec-2016')
+  
+  p.PercentDetectionTrend <- ggplot(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(label=percent) + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='Percent Detection of Organisms in Trend Population', y='Percent Detection', x='Date')
+  
+  # Break out by organism types
+  bacterias <- c('Campy','C. diff', 'P. shigelloides','Salmonella','Y. enterocolitica', 'Vibrio','V. cholerae')
+  diarrheagenics <- c('EAEC', 'EPEC', 'ETEC', 'STEC', 'E. coli O157', 'Shigella/EIEC')
+  parasites <- c('Crypto', 'C. cayetanensis', 'E. hisolytica', 'G. lamblia')
+  viruses <- c('Adeno F', 'Astro', 'Noro', 'Rota A', 'Sapovirus')
+  
+  # make the same chart as above but by group
+  families <- data.frame(ShortName=c(bacterias, diarrheagenics, parasites, viruses))
+  families$Group <- with(families, ifelse(ShortName %in% bacterias, 'Bacteria', ifelse(ShortName %in% diarrheagenics, 'Diarrheagenics E. coli/Shigella', ifelse(ShortName %in% parasites, 'Parasites', 'Viruses'))))
+  
+  prevalence.reg.group.wrap <- merge(merge(positives.count.all, shortnames.df, by.x='Bug', by.y='Organism'), families, by='ShortName')
+  prevalence.reg.groups.positives <- with(prevalence.reg.group.wrap, aggregate(Positives~CustomerSiteId+YearWeek+Group, FUN=sum))
+  prevalence.reg.groups.runs <- with(prevalence.reg.group.wrap, aggregate(Runs~CustomerSiteId+YearWeek+Group, FUN=mean))
+  prevalence.reg.group.wrap <- merge(prevalence.reg.groups.runs, prevalence.reg.groups.positives, by=c('CustomerSiteId','YearWeek','Group')) 
+  prevalence.reg.group.wrap$Prevalence <- with(prevalence.reg.group.wrap, Positives/Runs)
+  prevalence.nat.group.wrap <- with(prevalence.reg.group.wrap, aggregate(Prevalence~YearWeek+Group, FUN=mean))
+  
+  bug.groups.Pal <- createPaletteOfVariableLength(prevalence.nat.group.wrap, 'Group')
+  
+  p.PercentDetectionTrend_Grouped <- ggplot(prevalence.nat.group.wrap[with(prevalence.nat.group.wrap, order(Group, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=Group, group=Group, order=Group), stat='identity', position='stack') + scale_fill_manual(values=bug.groups.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(label=percent) + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='Percent Detection of Organism Groups in Trend Population', y='Percent Detection', x='Date')
+  
+  # break out charts by specific organism in groups
+  p.PercentDetectionTrend_Bacteria <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)), ], ShortName %in% bacterias), aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName)) + scale_fill_manual(values=bug.individual.Pal, name='') + scale_y_continuous(labels=percent) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(text=element_text(size=26, face='bold'), axis.text=element_text(size=26, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90), panel.background=element_rect(fill='white',color='white'), legend.position='bottom') + labs(title='Percent Detection of Bacterial Organisms at FilmArray Trend Sites', x='Date',y='Percent Detection')
+  p.PercentDetectionTrend_Diarrheagenic <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)), ], ShortName %in% diarrheagenics), aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName)) + scale_fill_manual(values=bug.individual.Pal, name='') + scale_y_continuous(labels=percent) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(text=element_text(size=26, face='bold'), axis.text=element_text(size=26, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90), panel.background=element_rect(fill='white',color='white'), legend.position='bottom') + labs(title='Percent Detection of Diarrheagenic E. coli/Shigella Organisms at FilmArray Trend Sites', x='Date',y='Percent Detection')
+  p.PercentDetectionTrend_Parasite <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)), ], ShortName %in% parasites), aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName)) + scale_fill_manual(values=bug.individual.Pal, name='') + scale_y_continuous(labels=percent) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(text=element_text(size=26, face='bold'), axis.text=element_text(size=26, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90), panel.background=element_rect(fill='white',color='white'), legend.position='bottom') + labs(title='Percent Detection of Parasitic Organisms at FilmArray Trend Sites', x='Date',y='Percent Detection')
+  p.PercentDetectionTrend_Virus <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)), ], ShortName %in% viruses), aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName)) + scale_fill_manual(values=bug.individual.Pal, name='') + scale_y_continuous(labels=percent) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(text=element_text(size=26, face='bold'), axis.text=element_text(size=26, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90), panel.background=element_rect(fill='white',color='white'), legend.position='bottom') + labs(title='Percent Detection of Viral Organisms at FilmArray Trend Sites', x='Date',y='Percent Detection')
+}
+
+# PREVALENCE OF ORGANISMS - PARETO-ISH TYPE CHARTS
+if(TRUE) {
+  
+  start.year <- 2016
+  
+  # use data from all time and show a pareto of prevalence
+  prev.pareto.all <- positives.count.all
+  prev.bug.count <- with(prev.pareto.all, aggregate(Positives~CustomerSiteId+Bug, FUN=sum))
+  prev.run.count <- with(unique(prev.pareto.all[,c('YearWeek','CustomerSiteId','Runs')]), aggregate(Runs~CustomerSiteId, FUN=sum))
+  prev.pareto.all <- merge(prev.run.count, prev.bug.count, by=c('CustomerSiteId'))
+  prev.pareto.all <- merge(prev.pareto.all, shortnames.df, by.x='Bug', by.y='Organism')
+  prev.pareto.all$Prevalence <- with(prev.pareto.all, Positives/Runs)
+  annual.threshold <- 100
+  prev.pareto.all <- prev.pareto.all[prev.pareto.all$Runs > annual.threshold, ]
+  prev.pareto.all <- with(prev.pareto.all, aggregate(Prevalence~ShortName, FUN=mean))
+  
+  # use this output to determine the order of the levels
+  label.order.all <- prev.pareto.all[with(prev.pareto.all, order(Prevalence, decreasing = TRUE)), 'ShortName']
+  prev.pareto.all$Name <- factor(prev.pareto.all$ShortName, levels = label.order.all)
+  prev.pareto.all$Key <- 'AllData'
+  p.PercentDetectionPareto <- ggplot(prev.pareto.all, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.all, 'Key'), guide=FALSE) + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims',y='Percent Detection', x='')
+}
+
+# POLYDETECTIONS
+if(TRUE) {
+
+  if(FALSE) {
+    # n <- mean(dual.df$N) # this is the number of samples
+    # 
+    # # dual detection adjusted
+    # conf.adj <- (1-0.025/choose(22, 2))
+    # dual.df$p_lower_adj <- binom.confint(dual.df$Xpredicted, n, conf.level=conf.adj, method='exact')[,5]
+    # dual.df$p_upper_adj <- binom.confint(dual.df$Xpredicted, n, conf.level=conf.adj, method='exact')[,6]
+    # plot.dual <- dual.df[with(dual.df, order(R, decreasing = TRUE)), ]
+    # plot.dual <- plot.dual[1:20, ]
+    # # the names are too long, so perform a trick to make them better
+    # plot.dual$NameAbbv <- do.call(c, lapply(1:length(strsplit(as.character(plot.dual$Name),',')), function(x) paste(as.character(shortnames.df[grep(substring(strsplit(as.character(plot.dual$Name),',')[[x]][1], 2, 100), shortnames.df$Organism), 'ShortName']), as.character(shortnames.df[grep(substring(strsplit(as.character(plot.dual$Name),',')[[x]][2], 2, 100), shortnames.df$Organism), 'ShortName']), sep=', ')))
+    # plot.dual$NameAbbv <- factor(plot.dual$NameAbbv, levels = plot.dual[with(plot.dual, order(R, decreasing=TRUE)), 'NameAbbv'])
+    # plot.dual$Color <- with(plot.dual, ifelse(R < p_lower_adj | R > p_upper_adj, 'Outside', 'Inside'))
+    # 
+    # # make a simple pareto of the top dual detections
+    # p.DualDetectionPareto <- ggplot(plot.dual, aes(x=NameAbbv, y=R, fill=Color)) + geom_bar(stat='identity') + scale_fill_manual(values=createPaletteOfVariableLength(data.frame(Value=c('Outside','Inside')), 'Value'), guide=FALSE) + geom_errorbar(aes(ymin=p_lower_adj, ymax=p_upper_adj), data=plot.dual, color='black') + theme(axis.text.x=element_text(angle=90, hjust=1), text=element_text(size=22, face='bold'), axis.text=element_text(size=16, face='bold', color='black'), panel.background=element_rect(color='white', fill='white')) + labs(title='Dual Detection Normality (120 Day)', x='', y='Dual Detection Rate') + scale_y_continuous(labels=percent)
+  }  
+  
+  # create another dual detection chart that will show all organisms broken out in order of highest -> lowest precent detection over all the data
+  # with an overlay of the percent dual detection of that organism
+  run.positive.count <- with(data.frame(merge(runs.reg.date[runs.reg.date$Year >= start.year & runs.reg.date$CustomerSiteId %in% sites, c('RunDataId','Year')], bugs.df, by='RunDataId'), Record=1), aggregate(Record~RunDataId, FUN=sum))
+  dual.detection.runs <- data.frame(bugs.df[bugs.df$RunDataId %in% run.positive.count[run.positive.count$Record>1, 'RunDataId'], ], Record = 1)
+  dual.detection.runs <- merge(dual.detection.runs, runs.reg.date[runs.reg.date$Year >= start.year & runs.reg.date$CustomerSiteId %in% sites, c('RunDataId','Year','CustomerSiteId')], by='RunDataId')
+  total.runs <- with(runs.reg.date[runs.reg.date$Year >= start.year & runs.reg.date$CustomerSiteId %in% sites, c('RunDataId','Year','CustomerSiteId','Record')], sum(Record))
+  dual.detection.agg <- with(dual.detection.runs, aggregate(Record~BugPositive, FUN=sum))
+  dual.detection.agg$PercentOfDuals <- with(dual.detection.agg, Record/total.runs)
+  dual.detection.agg <- merge(dual.detection.agg, shortnames.df, by.x='BugPositive', by.y='Organism')
+  
+  prev.pareto.all.duals <- merge(prev.pareto.all, dual.detection.agg, by='ShortName', all.x=TRUE)
+  prev.pareto.all.duals[is.na(prev.pareto.all.duals$PercentOfDuals),'PercentOfDuals'] <- 0
+  prev.pareto.all.duals$DualName <- factor(prev.pareto.all.duals$ShortName, levels=prev.pareto.all.duals[with(prev.pareto.all.duals, order(PercentOfDuals, decreasing = TRUE)),'ShortName'])
+  
+  length(unique(run.positive.count$RunDataId))/total.runs
+  length(unique(run.positive.count[run.positive.count$Record > 1, 'RunDataId']))/total.runs
+  length(unique(as.character(runs.reg.date$Instrument)))
+  length(unique(as.character(runs.df[year(runs.df$Date)==2016,'RunDataId'])))
+  mean(prevalence.nat.group.wrap[prevalence.nat.group.wrap$Group=='Bacteria','Prevalence'])
+  sd(prevalence.nat.group.wrap[prevalence.nat.group.wrap$Group=='Bacteria','Prevalence'])
+  
+  
+  # make a nifty dual-axis chart
+  p1 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=Prevalence, fill='Percent Detection')) + geom_bar(stat='identity') + scale_fill_manual(values='grey', guide=FALSE) + scale_y_continuous(label=percent) + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(fill='white', color='transparent'), panel.grid=element_blank()) + labs(title='Percent Detection and Dual Detection of Organisms at FilmArray Trend Sites', x='', y='Percent Detection')
+  p2 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=3*PercentOfDuals, color='Dual Detection Rate')) + geom_point(size=4) + scale_color_manual(values='black', guide=FALSE) + scale_y_continuous(limits=c(0,max(prev.pareto.all.duals$Prevalence)), breaks=c(0, 0.03, 0.06, 0.09, 0.12, 0.15, 0.18), labels=c('0%','1%','2%','3%','4%','5%','6%')) + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='transparent'), panel.grid=element_blank()) + labs(y='Dual Detection Rate', x='')
+  
+  # p1 <- ggplot(prev.pareto.all.duals, aes(x=DualName, y=PercentOfDuals, fill=Key)) + geom_bar(stat='identity') + scale_fill_manual(values='grey', guide=FALSE) + scale_y_continuous(label=percent) + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(title='Percent Detection and Dual Detection of Organisms at FilmArray Trend Sites', y='Dual Detection Rate of Organism', x='')
+  # p2 <- ggplot(prev.pareto.all.duals, aes(x=DualName, y=Prevalence/3, color='Percent Detection')) + geom_point(size=4) + scale_color_manual(values='black', guide=FALSE) + scale_y_continuous(limits=c(0,max(prev.pareto.all.duals$Prevalence/3)), breaks=c(0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06), labels=c('0%','3%','6%','9%','12%','15%','18%')) + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank()) + labs(y='Percent Detection')
+  
+  # Get the ggplot grobs
+  g1 <- ggplotGrob(p1)
+  g2 <- ggplotGrob(p2)
+  
+  # Get the location of the plot panel in g1.
+  # These are used later when transformed elements of g2 are put back into g1
+  pp <- c(subset(g1$layout, name == "panel", se = t:r))
+  
+  # Overlap panel for second plot on that of the first plot
+  g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+  
+  # Get the y axis title from g2
+  index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+  ylab <- g2$grobs[[index]]                # Extract that grob
+  ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
+  
+  # Put the transformed label on the right side of g1
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+  
+  # Get the y axis from g2 (axis line, tick marks, and tick mark labels)
+  index <- which(g2$layout$name == "axis-l")  # Which grob
+  yaxis <- g2$grobs[[index]]                  # Extract the grob
+  
+  # yaxis is a complex of grobs containing the axis line, the tick marks, and the tick mark labels.
+  # The relevant grobs are contained in axis$children:
+  #   axis$children[[1]] contains the axis line;
+  #   axis$children[[2]] contains the tick marks and tick mark labels.
+  
+  # First, move the axis line to the left
+  yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+  
+  # Second, swap tick marks and tick mark labels
+  ticks <- yaxis$children[[2]]
+  ticks$widths <- rev(ticks$widths)
+  ticks$grobs <- rev(ticks$grobs)
+  
+  # Third, move the tick marks
+  ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+  
+  # Fourth, swap margins and fix justifications for the tick mark labels
+  ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+  
+  # Fifth, put ticks back into yaxis
+  yaxis$children[[2]] <- ticks
+  
+  # Put the transformed yaxis on the right side of g1
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  paretoDuals <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+  
+  # Draw it
+  grid.newpage()
+  png('Figures/PercentDetectionParetoWithDualDetections_New.png', height=800, width=1400)
+  grid.draw(paretoDuals)
+  dev.off()
+}
+
+# NREVSS OVERLAID WITH PREVALENCE DATA FOR ROTAVIRUS
+if(TRUE) {
+  
+  # get the data
+  rota.nat <- read.csv('../DataSources/NREVSS/Rotavirus_National.csv', header=TRUE, sep=',')
+  rota.nat$Date <- as.Date(as.character(rota.nat$Date), format = '%m/%d/%Y')
+  rota.nat <- merge(calendar.df[,c('Date','YearWeek')], rota.nat, by='Date')
+  
+  # ROTA - let's make the BFDx data a 3-week centered moving average
+  rota <- 'Rotavirus A'
+  prevalence.bfdx.rota <- data.frame(YearWeek = unique(runs.reg.date[runs.reg.date$CustomerSiteId %in% sites, 'YearWeek']), TotalRuns = with(subset(runs.reg.date, CustomerSiteId %in% sites), aggregate(Record~YearWeek, FUN=sum))$Record)
+  prevalence.bfdx.rota <- merge(prevalence.bfdx.rota, with(merge(runs.reg.date[runs.reg.date$CustomerSiteId %in% sites, c('YearWeek','RunDataId')], data.frame(RunDataId = bugs.df[bugs.df$BugPositive == rota,'RunDataId'], Positive = 1), by='RunDataId'), aggregate(Positive~YearWeek, FUN=sum)), by='YearWeek', all.x=TRUE)
+  prevalence.bfdx.rota <- merge(unique(calendar.df[,c('YearWeek','Year')]), prevalence.bfdx.rota, by='YearWeek', all.x=TRUE)
+  prevalence.bfdx.rota[is.na(prevalence.bfdx.rota$TotalRuns), 'TotalRuns'] <- 0
+  prevalence.bfdx.rota[is.na(prevalence.bfdx.rota$Positive), 'Positive'] <- 0
+  prevalence.bfdx.rota <- prevalence.bfdx.rota[with(prevalence.bfdx.rota, order(YearWeek)), ]
+  prevalence.bfdx.rota <- data.frame(YearWeek = prevalence.bfdx.rota$YearWeek[2:(length(prevalence.bfdx.rota$YearWeek)-1)], Year = prevalence.bfdx.rota$Year[2:(length(prevalence.bfdx.rota$YearWeek)-1)], Prevalence = sapply(2:(length(prevalence.bfdx.rota$YearWeek)-1), function(x) sum(prevalence.bfdx.rota[,'Positive'][(x-1):(x+1)])/sum(prevalence.bfdx.rota[,'TotalRuns'][(x-1):(x+1)])))
+  prevalence.rota <- merge(prevalence.bfdx.rota, rota.nat, by='YearWeek')
+  p.RotaVirusOverlayNREVSS <- ggplot(subset(prevalence.rota, as.character(YearWeek) >= '2016-01'), aes(x=YearWeek, y=AntigenDetection/100, group='NREVSS Reported Antigen Detection', color='NREVSS Reported Antigen Detection')) + geom_line(lwd=1.5) + geom_line(aes(x=YearWeek, y=Prevalence, group='FilmArray Observed Data', color='FilmArray Observed Data'), data=subset(prevalence.rota, as.character(YearWeek) >= '2016-01'), lwd=1.5) + scale_color_manual(values=c('red','black'), name='') + theme(text=element_text(size=26, face='bold'), axis.text=element_text(size=26, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='white', fill='white')) + scale_y_continuous(label=percent) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + labs(title='NREVSS Reported National Prevalence of Rotavirus A vs.\nFilmArray Trend Percent Detection of Rotavirus A', x='Date', y='Prevalence, Percent Detection')
+}
+
+# # SITE MAP
+# map.sites.df <- merge(unique(runs.df[,c('CustomerSiteId','Province')]), regions.df[,c('State','StateAbv','CensusRegionLocal')], by.x='Province', by.y='StateAbv')
+# map.sites.df$region <- tolower(map.sites.df$State)
+# map.sites.df$Record <- 1
+# map.sites.df <- merge(map.sites.df, with(map.sites.df, aggregate(Record~CensusRegionLocal, FUN=sum)), by='CensusRegionLocal')[,c('CensusRegionLocal','region','Record.y')]
+# us <- map_data('state')
+# map.sites.us <- merge(us, map.sites.df, by='region', all.x=TRUE)
+# map.sites.us[is.na(map.sites.us$Record.y), 'Record.y'] <- 0
+# map.sites.us$Color <- with(map.sites.us, ifelse(Record.y == 0, 'No Data', ifelse(Record.y < 5, 'Less than 5', ifelse(Record.y < 10, 'Less than 10', 'More than 10'))))
+# map.pal <- c('honeydew4','paleturquoise','turquoise3','turquoise4')
+# names(map.pal) <- c('No Data', 'Less than 5', 'Less than 10', 'More than 10')
+# p.site.map <- ggplot(map.sites.us) + geom_map(map=us, aes(x=long, y=lat, map_id=region), fill='white', color='white', size=0.5) + geom_map(data=map.sites.us, map=us, aes(fill=Color, map_id=region), color='white', size=0.5) + scale_fill_manual(values=map.pal, name='Site Count') + theme(panel.border=element_blank(), panel.background=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(), text=element_text(size=22, face='bold')) + labs(title='Map of FilmArray Trend Participating GI Sites', x='',y='')
+
+plots <- ls()[grep('^p\\.', ls())]
+setwd('./Figures/')
+for(i in 1:length(plots)) {
+  
+  imgName <- paste(substring(plots[i],3),'.png',sep='')
+  
+  png(file=imgName, width=1200, height=800, units='px')
+  print(eval(parse(text = plots[i])))
+  dev.off()
+}
+
+setwd('..')
