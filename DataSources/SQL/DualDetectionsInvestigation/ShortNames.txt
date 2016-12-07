@@ -1,0 +1,4 @@
+SELECT 
+	[Interpretation] AS [Organism],
+	[ShortName]
+FROM [FADataWarehouse].[dbo].[InterpretationDefinitions]
