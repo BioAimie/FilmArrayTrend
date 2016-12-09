@@ -1,4 +1,4 @@
-SELECT 
+SELECT
 	R.[RunDataId],
 	P.[CustomerSiteId],
 	CAST(R.[StartTime] AS DATE) AS [Date],
@@ -13,4 +13,4 @@ SELECT
 FROM [FADataWarehouse].[dbo].[RunData] R WITH(NOLOCK) INNER JOIN [FADataWarehouse].[dbo].[SummarizedPositiveAssayResults] P WITH(NOLOCK)
 	ON R.[RunDataId] = P.[RunDataId] INNER JOIN [FADataWarehouse].[dbo].[WellData] W WITH(NOLOCK)
 			ON R.[RunDataId] = W.[RunDataId] AND P.[Interpretation] = W.[TargetName] AND P.[ResultType] = W.[ResultType]
-WHERE P.[ResultType] <> 'control' AND R.[PouchTitle] LIKE '%Resp%' AND R.[RunStatus] = 'Completed' AND R.[PositiveAssays] BETWEEN 1 AND 4 AND W.[Result] = 'Positive' AND P.[CustomerSiteId] = 
+WHERE P.[ResultType] <> 'control' AND R.[PouchTitle] LIKE '%Resp%' AND R.[RunStatus] = 'Completed' AND R.[PositiveAssays] BETWEEN 1 AND 4 AND W.[Result] = 'Positive' AND W.[IsHidden] = 0 AND P.[CustomerSiteId] = 
