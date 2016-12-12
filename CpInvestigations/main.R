@@ -250,7 +250,36 @@ for(i in 1:length(panels)) {
     }
     
     # now make some thumbnail charts
+    cp.assays.ordered.all <- merge(cp.assays.ordered.all, unique(cp.df.all[,c('RunDataId','CustomerSiteId')]), by='RunDataId')
+    cp.targets.ordered.all <- merge(cp.targets.ordered.all, unique(cp.df.all[,c('RunDataId','CustomerSiteId')]), by='RunDataId')
     
+    assays <- as.character(unique(cp.assays.ordered.all$AssayName))
+    for(k in 1:length(assays)) {
+      
+      temp.dat <- subset(cp.assays.ordered.all, AssayName==assays[k])
+      temp.plot <- ggplot(temp.dat, aes(as.factor(Index), MedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=45), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'at Trend Sites\nby Order of Detection', sep=' '), y='Median Cp', x='Order of Detection')
+      temp.file <- paste(imgDir, choose.panel, '_allSites', '_', gsub('\\/','-', assays[k]), '_DistributionCps.png', sep='')
+      png(temp.file, width = 1400, height = 800)
+      print(temp.plot)
+      dev.off()
+    }
+    
+    targets <- as.character(unique(cp.targets.ordered.all$TargetName))
+    for(k in 1:length(targets)) {
+      
+      temp.dat <- subset(cp.targets.ordered.all, TargetName==targets[k])
+      if(length(as.character(unique(temp.dat$TargetTriggerAssay)))==1) { 
+        
+        break
+      } else {
+        
+        temp.plot <- ggplot(temp.dat, aes(TargetTriggerAssay, TargetMedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=45), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', targets[k],'by','First Assay\nin Trend', choose.panel, 'Tests by Site', sep=' '), y='Median Cp', x='') + facet_wrap(~CustomerSiteId)
+        temp.file <- paste(imgDir, choose.panel, '_allSites', '_', gsub('\\/','-', targets[k]), '_DistributionCpsByTarget.png', sep='')
+        png(temp.file, width = 1400, height = 800)
+        print(temp.plot)
+        dev.off()
+      }
+    }
   }
 }
 
