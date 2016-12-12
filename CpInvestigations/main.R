@@ -149,7 +149,7 @@ for(i in 1:length(panels)) {
   # if the panel is RP, then loop through the sites and make the charts by site... also, store all cp data by site so thumbnails can be made.
   else {
     
-    choose.sites <- as.character(unique(filters.df[filters.df$PouchTitle == panels[i], 'CustomerSiteId']))[1:3]
+    choose.sites <- as.character(unique(filters.df[filters.df$PouchTitle == panels[i], 'CustomerSiteId']))
     cp.df.all <- c()
     cp.assays.ordered.all <- c()
     cp.targets.ordered.all <- c()
@@ -257,7 +257,7 @@ for(i in 1:length(panels)) {
     for(k in 1:length(assays)) {
       
       temp.dat <- subset(cp.assays.ordered.all, AssayName==assays[k])
-      temp.plot <- ggplot(temp.dat, aes(as.factor(Index), MedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=45), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'at Trend Sites\nby Order of Detection', sep=' '), y='Median Cp', x='Order of Detection')
+      temp.plot <- ggplot(temp.dat, aes(as.factor(Index), MedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=45), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'at Trend Sites\nby Order of Detection', sep=' '), y='Median Cp', x='Order of Detection') + facet_wrap(~CustomerSiteId)
       temp.file <- paste(imgDir, choose.panel, '_allSites', '_', gsub('\\/','-', assays[k]), '_DistributionCps.png', sep='')
       png(temp.file, width = 1400, height = 800)
       print(temp.plot)
