@@ -54,14 +54,17 @@ calendar.df <- calendar.df[calendar.df$YearWeek > '2012-51', ]
 calendar.df$Days <- 1
 
 # give the run data table some information about which region each site is in as this geographic classifier may be important
-runs.reg <- merge(runs.df, data.frame(Province = regions.df$StateAbv, Region = regions.df$CensusRegionLocal), by='Province')
-runs.reg$Record <- 1
-runs.reg.date <- merge(runs.reg[,c('RunDataId','Instrument','Date','Name','CustomerSiteId','Region','Record')], calendar.df[,c('Date','Year','Week','YearWeek')], by='Date')
+runs.reg <- merge(runs.df, data.frame(Province = regions.df$StateAbv, Region = regions.df$CensusRegion), by='Province')
+runs.reg$Runs <- 1
+runs.reg.date <- merge(runs.reg[,c('RunDataId','Instrument','Date','Name','CustomerSiteId','Region','Runs')], calendar.df[,c('Date','Year','Week','YearWeek')], by='Date')
 
 # give the bug data table some information about date etc...
 bugs.reg.date <- merge(runs.reg.date[,c('RunDataId','Date','Year','Week','CustomerSiteId')], subset(bugs.df, ResultType != 'Control'), by='RunDataId')
 controls.reg.date <- merge(runs.reg.date[,c('RunDataId','Date','Year','Week','CustomerSiteId')], subset(bugs.df, ResultType == 'Control'), by='RunDataId')
 
-# create some summary data
-with(bugs.reg.date, aggregate())
+# create some summary data: run count, bug positive counts, unique organisms in the period
+runs.reg.count <- with(runs.reg.date, aggregate(Runs~Year+Week+CustomerSiteId+Region, FUN=sum))
+bugs.reg.count <- with(data.frame(bugs.reg.date, Positives = 1), aggregate(Positives~Year+Week+CustomerSiteId+Target+ResultType, FUN=sum))
+bugs.reg.unique <- data.frame(unique(bugs.reg.count[bugs.reg.count$ResultType=='Organism', c('Year','Week','CustomerSiteId','Target')]), Organisms = 1)
+
 
