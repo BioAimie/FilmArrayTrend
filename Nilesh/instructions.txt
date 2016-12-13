@@ -1,0 +1,6 @@
+Instructions:
+
+Each project can get its own directory in your folder ('Nilesh')
+Your queries can be put in Data Scources/SQL/ProjectName
+Your R functions that may be used by multiple main.R files can go in Rfunctions/
+Your projects should contain the main.R file that is used as the primary analysis tool
