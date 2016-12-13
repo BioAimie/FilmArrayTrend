@@ -13,9 +13,17 @@ library(grid)
 library(reshape2)
 
 # Enter the Instrument Serial Number that has >= 3 RMA's for same customer  ----------------------------------------------
-# FA2127, FA2390, FA3511, FA2641, FA2813, FA2985, FA1322, FA2354,  FA2125, FA2148
-# 2FA00279, 2FA00411, 2FA00313, 2FA00286
-serialNumber <- "2FA00313" # "FA2127" 
+# SOUBEN: #2:  FA2813
+# WINHOS: #5: FA2390
+# MEDUSC: #7: FA3511
+# SUNYHOS: #9: FA2641
+# ALBMED: #10: FA1322
+# NATCHI: #13: FA2985, 2FA00411
+# CHIMER: #26: FA2354
+# NORLAB: #36: 2FA00279, 2FA00286, 2FA00300, 2FA00458, 2FA00482
+# NORLAB: #39: FA00313
+# INTHEA: #41: FA2125, FA2127, FA2148, FA2581, FA2582
+serialNumber <- "FA2127" # "FA2127" 
 
 # Enter parameters for output plot to be saved as jpg
 plot_printout_length <- 48; plot_printout_height <- 4; plot_resolution <- 300 # inches, inches, dpi

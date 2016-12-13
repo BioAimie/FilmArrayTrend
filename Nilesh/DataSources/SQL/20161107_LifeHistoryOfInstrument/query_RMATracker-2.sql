@@ -9,7 +9,7 @@ WHERE [ObjectName] LIKE 'Part Information' AND [PropertyName] LIKE 'Lot/Serial N
 SELECT *
 INTO #properties
 FROM [PMS1].[dbo].[vTrackers_AllPropertiesByStatus] WITH(NOLOCK)
-WHERE [PropertyName] IN ('Customer Id', 'RMA Title','RMA Type','Complaint Number','Hours Run','Service Completed','Received Date', 'Shipping Date') AND [TicketId] IN (SELECT [TicketId] FROM #serialRMAs)
+WHERE [PropertyName] IN ('Customer Id', 'RMA Title','RMA Type','Complaint Number', 'System Failure', 'Hours Run','Service Completed','Received Date', 'Shipping Date') AND [TicketId] IN (SELECT [TicketId] FROM #serialRMAs)
 
 SELECT *
 INTO #objects
@@ -36,13 +36,14 @@ PIVOT
        IN
        (
 	     [Customer Id],
-             [Received Date],
-             [RMA Title],
-             [RMA Type],
-             [Complaint Number],
-             [Hours Run],
-             [Service Completed],
-             [Shipping Date]
+         [Received Date],
+         [RMA Title],
+         [RMA Type],
+         [Complaint Number],
+		 [System Failure],
+         [Hours Run],
+         [Service Completed],
+         [Shipping Date]
        )
 ) PIV
 
@@ -72,7 +73,7 @@ PIVOT
              [Early Failure Type]
        )
 ) PIV
-WHERE [Part Number] LIKE '%FLM%-ASY-0001%' OR [Part Number] LIKE 'FA%'  
+WHERE [Part Number] LIKE '%FLM%-ASY-0001%' OR [Part Number] LIKE 'FA%'  OR [Part Number] LIKE 'HTFA-ASY-0003%' OR [Part Number] LIKE 'HTFA-SUB-0103%'
 
 SELECT 
        [TicketId],
@@ -101,6 +102,7 @@ SELECT
        CAST([Shipping Date] AS DATE) AS [ShipDate],
        [Hours Run] AS [HoursRun],
        I.[EarlyFailure],
+	   P.[System Failure],
        IIF([RMA Type] LIKE '%- Failure', 1, 
              IIF([EarlyFailure] IN ('SDOA','ELF','SELF','DOA'), 1, 
              IIF([RootCause] IS NOT NULL AND [RootCause] NOT LIKE '%n%a%', 1,
