@@ -1,7 +1,7 @@
 # Set up environment, get and format data
 if(TRUE) {
 
-  workDir <-'~/FilmArrayTrend/'
+  workDir <-'~/FilmArrayTrend/InitialPublication/'
   setwd(workDir)
   
   # load libraries
@@ -22,7 +22,7 @@ if(TRUE) {
   require(dateManip)
   
   # load custom functions
-  source('Rfunctions/normalizeBurnRate.R')
+  source('../Rfunctions/normalizeBurnRate.R')
   source('~/WebHub/AnalyticsWebHub/Rfunctions/createPaletteOfVariableLength.R')
   
   # dual axes for ILI overlay plots
@@ -250,9 +250,9 @@ if(TRUE) {
   prev.pareto.all.nat.pop.ind$Name <- factor(prev.pareto.all.nat.pop.ind$ShortName, levels=label.order.ind)
   prev.pareto.all.nat.pop.fam$Name <- factor(prev.pareto.all.nat.pop.fam$ShortName, levels=label.order.fam)
   
-  p.PercentDetectionParetoByPopulation <- ggplot(prev.pareto.all.nat.pop, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Hospital Population Type', x='', y='Percent Detection')
-  p.PercentDetectionParetoByPopulation_Individual <- ggplot(prev.pareto.all.nat.pop.ind, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Hospital Population Type', x='', y='Percent Detection')
-  p.PercentDetectionParetoByPopulation_Family <- ggplot(prev.pareto.all.nat.pop.fam, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Hospital Population Type', x='', y='Percent Detection')
+  p.PercentDetectionParetoByPopulation <- ggplot(prev.pareto.all.nat.pop, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Clinical Lab Population Type', x='', y='Percent Detection')
+  p.PercentDetectionParetoByPopulation_Individual <- ggplot(prev.pareto.all.nat.pop.ind, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Clinical Lab Population Type', x='', y='Percent Detection')
+  p.PercentDetectionParetoByPopulation_Family <- ggplot(prev.pareto.all.nat.pop.fam, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Clinical Lab Population Type', x='', y='Percent Detection')
   
   # subset by year (2014, 2015, 2016)
   prev.pareto.all.year <- with(prev.pareto.all, aggregate(Prevalence~Year+ShortName+Code, FUN=mean))
@@ -297,7 +297,8 @@ if(TRUE) {
   g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
   
   # Get the y axis title from g2
-  index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+  # index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
+  index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
   ylab <- g2$grobs[[index]]                # Extract that grob
   ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
   
@@ -342,7 +343,7 @@ if(TRUE) {
   dev.off()
 }
 
-# TIME SERIES OF PREVALENCE WITH CDC OVERLAY + FILMARRAY RP NORMALIZED TEST RATE
+ # TIME SERIES OF PREVALENCE WITH CDC OVERLAY + FILMARRAY RP NORMALIZED TEST RATE
 if(TRUE) {
   
   # BFDx - All fluAs and fluB percent detection
@@ -350,7 +351,7 @@ if(TRUE) {
   bfdx.flu.reg$FluDetections <- with(bfdx.flu.reg, j+k+l+m+n+o)
 
   # CDC - Clinical Labs (only has data from 2015+)
-  cdc.flu.reg <- read.csv('../../DataSources/RegionalInfluenzaByType.csv', header=TRUE, sep=',')
+  cdc.flu.reg <- read.csv('DataSources/RegionalInfluenzaByType.csv', header=TRUE, sep=',')
   cdc.flu.reg <- data.frame(YearWeek = with(cdc.flu.reg, ifelse(WEEK < 10, paste(YEAR, WEEK, sep='-0'), paste(YEAR, WEEK, sep='-'))), Region = cdc.flu.reg$REGION, TotalPatients = cdc.flu.reg$TOTAL.SPECIMENS, TotalFluObservations = cdc.flu.reg$TOTAL.A + cdc.flu.reg$TOTAL.B)
   cdc.flu.reg <- do.call(rbind, lapply(1:length(unique(cdc.flu.reg$Region)), function(x) data.frame(YearWeek = cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'][2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1)], Region = unique(cdc.flu.reg$Region)[x], TotalPatients = sapply(2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1), function(y) sum(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'TotalPatients'][(y-1):(y+1)])), TotalFluObservations = sapply(2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1), function(y) sum(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'TotalFluObservations'][(y-1):(y+1)])))))
   
@@ -384,7 +385,7 @@ if(TRUE) {
   g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
   
   # Get the y axis title from g2
-  index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+  index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
   ylab <- g2$grobs[[index]]                # Extract that grob
   ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
   
@@ -447,7 +448,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -508,7 +509,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -569,7 +570,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -631,7 +632,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -693,7 +694,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -755,7 +756,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -817,7 +818,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -879,7 +880,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -941,7 +942,7 @@ if(TRUE) {
     g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
     
     # Get the y axis title from g2
-    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
     ylab <- g2$grobs[[index]]                # Extract that grob
     ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
     
@@ -1004,7 +1005,7 @@ if(TRUE) {
   #   g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
   # 
   #   # Get the y axis title from g2
-  #   index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+  #   index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
   #   ylab <- g2$grobs[[index]]                # Extract that grob
   #   ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
   # 
@@ -1050,7 +1051,7 @@ if(TRUE) {
   # }
 }
 
-# DUAL DETECTIONS
+# CO-DETECTIONS
 if(TRUE) {
   
   # create a dual detection chart that will show all organisms broken out in order of highest -> lowest precent detection over all the data
@@ -1068,8 +1069,8 @@ if(TRUE) {
   length(unique(run.positive.count[run.positive.count$Record > 1, 'RunDataId']))/total.runs
   
   # make a nifty dual-axis chart
-  p1 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=Prevalence)) + geom_bar(stat='identity') + scale_fill_manual(values='grey', guide=FALSE) + scale_y_continuous(label=percent) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(title='Percent Detection and Dual Detection of Organisms in Trend Population', y='Percent Detection', x='')
-  p2 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=5*PercentOfDuals, color='Percent of Dual Detections')) + geom_point(size=4) + scale_color_manual(values='black', guide=FALSE) + scale_y_continuous(limits=c(0,5*max(prev.pareto.all.duals$PercentOfDuals)), breaks=c(0, 0.05, 0.1, 0.15,0.2,0.25), labels=c('0%','1%','2%','3%','4%','5%')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank()) + labs(y='Dual Detection Occurrence Rate')
+  p1 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=Prevalence)) + geom_bar(stat='identity') + scale_fill_manual(values='grey', guide=FALSE) + scale_y_continuous(label=percent) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(title='Percent Detection and Co-Detection of Organisms in Trend Population', y='Percent Detection', x='')
+  p2 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=5*PercentOfDuals, color='Percent of Dual Detections')) + geom_point(size=4) + scale_color_manual(values='black', guide=FALSE) + scale_y_continuous(limits=c(0,5*max(prev.pareto.all.duals$PercentOfDuals)), breaks=c(0, 0.05, 0.1, 0.15,0.2,0.25), labels=c('0%','1%','2%','3%','4%','5%')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank()) + labs(y='Co-Detection Occurrence Rate')
   
   # Get the ggplot grobs
   g1 <- ggplotGrob(p1)
@@ -1083,7 +1084,7 @@ if(TRUE) {
   g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
   
   # Get the y axis title from g2
-  index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+  index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
   ylab <- g2$grobs[[index]]                # Extract that grob
   ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
   
@@ -1129,61 +1130,70 @@ if(TRUE) {
 }
 
 # REGRESSION ANALYSIS - ILI AND BURN vs. PERCENT DETECTION OF ORGANISMS
-if(FALSE) {
+if(TRUE) {
   
   prev.predict <- with(prev.pareto.all, aggregate(Prevalence~YearWeek+Code, FUN=mean))
   prev.predict <- prev.predict[with(prev.predict, order(Code, YearWeek)), ]
   prev.predict <- data.frame(YearWeek = unique(prev.predict$YearWeek), do.call(cbind, lapply(1:length(unique(prev.predict$Code)), function(x) prev.predict[prev.predict$Code==unique(prev.predict$Code)[x],'Prevalence'])))
   colnames(prev.predict)[grep('X', colnames(prev.predict))] <- letters[1:(length(colnames(prev.predict))-1)]
   prev.predict <- merge(prev.predict, ili.burn.nat, by='YearWeek')
+  prev.predict <- prev.predict[!(is.na(prev.predict$Rate)), ]
  
-  # MACHINE LEARNING ALGORITHMS ----------------------------------------------------------------------------------------------
-  # try with Random Forest... do not utilize resampling because we do not care about overfitting the data...
-  set.seed(4042)
-  tc <- trainControl(method='repeatedcv', number=2, repeats=1)
-  ili.model.rf <- train(Rate~a+b+c+d+e+f+g+h+i+o+p+q+r+s+t+u+v, data=prev.predict, method='rf', trControl=tc, preProc=c('center','scale'))
-  ili.predict.rf <- data.frame(prev.predict, Prediction = predict(ili.model.rf))
-  print(ili.model.rf)
-  ggplot(ili.predict.rf, aes(x=YearWeek, y=Rate, group='Actual ILI', color='Actual ILI')) + geom_line() + geom_point() + geom_line(aes(x=YearWeek, y=Prediction, group='Predicted ILI', color='Predicted ILI'), data=ili.predict.rf) + geom_point(aes(x=YearWeek, y=Prediction, group='Predicted ILI', color='Predicted ILI'), data=ili.predict.rf) + scale_color_manual(values=c('black','red'))
-  # use randomForest package instead... 
-  # %IncMSE (if predictor is important in RF model, then assigining other values for that predictor randomly but 'realistically' should have a negative influence on prediction, i.e. using ht esame model to predict from data that is the same except for the given variable should give a worse prediction)
-  # IncNodePurity (at each split, calculate how much the split reduces node impurity, or the difference between RSS- residual sum of squares or sum of quared errors) before and after the split... this is summed over all splits for that variable, over all trees)
-  set.seed(4042)
-  ili.model.rf.2 <- randomForest(Rate~a+b+c+d+e+f+g+h+i+o+p+q+r+s+t+u+v, data=prev.predict, mtry=3, importance=TRUE)
-  ili.model.rf.2.df <- data.frame(importance(ili.model.rf.2))
-  ili.model.rf.2.df$Code <- rownames(ili.model.rf.2.df)
-  ili.model.rf.2.df <- merge(ili.model.rf.2.df, decoder.agg, by='Code')
-  ili.model.rf.2.df[with(ili.model.rf.2.df, order(X.IncMSE, decreasing = TRUE)), ]
+  # # MACHINE LEARNING ALGORITHMS ----------------------------------------------------------------------------------------------
+  # # try with Random Forest... do not utilize resampling because we do not care about overfitting the data...
+  # set.seed(4042)
+  # tc <- trainControl(method='repeatedcv', number=2, repeats=1)
+  # ili.model.rf <- train(Rate~a+b+c+d+e+f+g+h+i+o+p+q+r+s+t+u+v, data=prev.predict, method='rf', trControl=tc, preProc=c('center','scale'))
+  # ili.predict.rf <- data.frame(prev.predict, Prediction = predict(ili.model.rf))
+  # print(ili.model.rf)
+  # ggplot(ili.predict.rf, aes(x=YearWeek, y=Rate, group='Actual ILI', color='Actual ILI')) + geom_line() + geom_point() + geom_line(aes(x=YearWeek, y=Prediction, group='Predicted ILI', color='Predicted ILI'), data=ili.predict.rf) + geom_point(aes(x=YearWeek, y=Prediction, group='Predicted ILI', color='Predicted ILI'), data=ili.predict.rf) + scale_color_manual(values=c('black','red'))
+  # # use randomForest package instead... 
+  # # %IncMSE (if predictor is important in RF model, then assigining other values for that predictor randomly but 'realistically' should have a negative influence on prediction, i.e. using the same model to predict from data that is the same except for the given variable should give a worse prediction)
+  # # IncNodePurity (at each split, calculate how much the split reduces node impurity, or the difference between RSS- residual sum of squares or sum of squared errors) before and after the split... this is summed over all splits for that variable, over all trees)
+  # set.seed(4042)
+  # ili.model.rf.2 <- randomForest(Rate~a+b+c+d+e+f+g+h+i+o+p+q+r+s+t+u+v, data=prev.predict, mtry=3, importance=TRUE)
+  # ili.model.rf.2.df <- data.frame(importance(ili.model.rf.2))
+  # ili.model.rf.2.df$Code <- rownames(ili.model.rf.2.df)
+  # ili.model.rf.2.df <- merge(ili.model.rf.2.df, decoder.agg, by='Code')
+  # ili.model.rf.2.df[with(ili.model.rf.2.df, order(X.IncMSE, decreasing = TRUE)), ]
   
   # REGRESSION MODELING -------------------------------------------------------------------------------------------------------
   fit.vars <- c('a','b','c','d','e','f','g','h','i','o','p','q','r','s','t','u','v')
   fit.ili.all <- lm(as.formula(paste('Rate', paste(fit.vars, collapse='+'), sep='~')), prev.predict)
   fit.burn.all <- lm(as.formula(paste('NormalizedBurn', paste(fit.vars, collapse='+'), sep='~')), prev.predict)
 
-   # Model ILI with prevalence of diseases in FilmArray test population (p-value = 5.00e-2 is established stop)
-  ili.model.eval.six <- do.call(rbind, lapply(1:length(combos.six[,'Combo']), function(x) data.frame(Model = combos.six[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
-  ili.model.eval.six[ili.model.eval.six$anova.all == max(ili.model.eval.six$anova.all), ]
-  # p-value: 5.42e-5 | Flu A (all), RSV, HRV/Entero, Flu B, CoV OC43, PIV 1
-  ili.model.eval.seven <- do.call(rbind, lapply(1:length(combos.seven[,'Combo']), function(x) data.frame(Model = combos.seven[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
-  ili.model.eval.seven[ili.model.eval.seven$anova.all == max(ili.model.eval.seven$anova.all), ]
-  # p-value: 3.37e-4 | Flu A (all), RSV, HRV/Entero, Flu B, CoV OC43, PIV 1, B. pertussis
+  # read in 8-combo model possibilities
+  combos.eight <- read.csv('DataSources/compactCombos8.csv', header=TRUE, sep=',')
+  combos.nine <- read.csv('DataSources/compactCombos9.csv', header=TRUE, sep=',')
+  combos.ten <- read.csv('DataSources/compactCombos10.csv', header=TRUE, sep=',')
+  
+  # # Model ILI with prevalence of diseases in FilmArray test population (p-value = 5.00e-2 is established stop)
+  # ili.model.eval.six <- do.call(rbind, lapply(1:length(combos.six[,'Combo']), function(x) data.frame(Model = combos.six[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.six[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
+  # ili.model.eval.six[ili.model.eval.six$anova.all == max(ili.model.eval.six$anova.all), ]
+  # # p-value: 5.42e-5 | Flu A (all), RSV, HRV/Entero, Flu B, CoV OC43, PIV 1
+  # ili.model.eval.seven <- do.call(rbind, lapply(1:length(combos.seven[,'Combo']), function(x) data.frame(Model = combos.seven[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.seven[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
+  # ili.model.eval.seven[ili.model.eval.seven$anova.all == max(ili.model.eval.seven$anova.all), ]
+  # # p-value: 3.37e-4 | Flu A (all), RSV, HRV/Entero, Flu B, CoV OC43, PIV 1, B. pertussis
   ili.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
   ili.model.eval.eight[ili.model.eval.eight$anova.all == max(ili.model.eval.eight$anova.all), ]
-  # p-value: 3.33e-3 | Flu A (all), RSV, HRV/Entero, Flu B, CoV OC43, M. pneumoniae, B. pertussis, PIV 3
+  # p-value: 1.94e-3 | B. Pertussis, CoV 229E, HRV/Entero, Flu B, PIV 1, PIV 4, RSV, Flu A (all) 
   ili.model.eval.nine <- do.call(rbind, lapply(1:length(combos.nine[,'Combo']), function(x) data.frame(Model = combos.nine[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
   ili.model.eval.nine[ili.model.eval.nine$anova.all == max(ili.model.eval.nine$anova.all), ]
-  # p-value: 9.34e-3 | Flu A (all), RSV, HRV/Entero,  Flu B, CoV OC43, CoV HKU1, B. pertussis, CoV NL63, PIV 1
+  # p-value: 1.19e-2 | B. pertussis, HRV/Entero, Flu B, PIV 1, PIV 2, PIV 3, PIV 4, RSV, Flu A (all)
   ili.model.eval.ten <- do.call(rbind, lapply(1:length(combos.ten[,'Combo']), function(x) data.frame(Model = combos.ten[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
   ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), ]
-  # p-value: 1.33e-1 | Flu A (all), RSV, HRV/Entero, Flu B, CoV OC43, CoV HKU1, PIV 1, CoV NL63, B. pertussis, PIV 3
+  # p-value: 7.09e-1 | B. pertussis, CoV 229E, HRV/Entero, Flu B, PIV 1, PIV 2, PIV 3, PIV 4, RSV, Flu A (all)... 
+  # B. pertussing & CoV 229E have negative coeffs, 
+  # t value of RSV and Flu A are highest (testing whether the corresponding regression coefficient is different from 0 e.g. the liklihood that the variable is not unimportant in fitting the dependant variable)
+  # Std. Error is lowest for HRV/Entero, RSV, PIV 3, Flu A (the standard deviation of the sampling distribution of the coefficient estimate under standard regression assumptions... or measure of how close the coefficient is to its "real" value) 
 
-  # Model Burn with prevalence of diseases in FilmArray test population
-  burn.model.eval.six <- do.call(rbind, lapply(1:length(combos.six[,'Combo']), function(x) data.frame(Model = combos.six[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
-  burn.model.eval.six[burn.model.eval.six$anova.all == max(burn.model.eval.six$anova.all), ]
-  # p-value: 1.26e-3 | Flu A (all), RSV, HRV/Entero, hMPV, C. pneumoniae, PIV 1
-  burn.model.eval.seven <- do.call(rbind, lapply(1:length(combos.seven[,'Combo']), function(x) data.frame(Model = combos.seven[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
-  burn.model.eval.seven[burn.model.eval.seven$anova.all == max(burn.model.eval.seven$anova.all), ] # u, v, i, c, q, o, a (RSV, FluA HRV/Entero, C. pneumoniae, PIV 1, FluB, Adeno)
-  # p-value: 2.48e-3 | Flu A (all), RSV, HRV/Entero, Flu B, PIV 1, Adeno, C. pneumoniae
+  # # Model Burn with prevalence of diseases in FilmArray test population
+  # burn.model.eval.six <- do.call(rbind, lapply(1:length(combos.six[,'Combo']), function(x) data.frame(Model = combos.six[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict))$coeff[2:7,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.six[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
+  # burn.model.eval.six[burn.model.eval.six$anova.all == max(burn.model.eval.six$anova.all), ]
+  # # p-value: 1.26e-3 | Flu A (all), RSV, HRV/Entero, hMPV, C. pneumoniae, PIV 1
+  # burn.model.eval.seven <- do.call(rbind, lapply(1:length(combos.seven[,'Combo']), function(x) data.frame(Model = combos.seven[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict))$coeff[2:8,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.seven[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
+  # burn.model.eval.seven[burn.model.eval.seven$anova.all == max(burn.model.eval.seven$anova.all), ] # u, v, i, c, q, o, a (RSV, FluA HRV/Entero, C. pneumoniae, PIV 1, FluB, Adeno)
+  # # p-value: 2.48e-3 | Flu A (all), RSV, HRV/Entero, Flu B, PIV 1, Adeno, C. pneumoniae
   burn.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
   burn.model.eval.eight[burn.model.eval.eight$anova.all == max(burn.model.eval.eight$anova.all), ] # v, u, i, o, e, f, c, q (Flu A, RSV, HRV/Entero, Flu B, Corona HKU1, CoV NL63, C. pneumoniae, PIV 1)
   # p-value: 1.08e-2 | Flu A (all), RSV, HRV/Entero, Flu B, PIV 1, CoV HKU1, CoV NL63, C. pneumoniae
@@ -1195,21 +1205,21 @@ if(FALSE) {
   # p-value: 7.36e-2 | Flu A (all), RSV, HRV/Entero, B. pertussis, C. pneumoniae, Adeno, M. pneumoniae, PIV 2, CoV NL63, hMPV
   
   
-  summary(lm(as.formula(paste('Rate', as.character(ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))
-  summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))
-  
-  a <- summary(lm(as.formula(paste('Rate', as.character(ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
-  a <- a[row.names(a) != '(Intercept)', ]
-  a <- merge(data.frame(a, Code = row.names(a)), decoder.agg, by='Code')
-  a <- a[order(a[,'Pr...t..']), ]
-  
-  b <- summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
-  b <- b[row.names(b) != '(Intercept)', ]
-  b <- merge(data.frame(b, Code = row.names(b)), decoder.agg, by='Code')
-  b <- b[order(b[,'Pr...t..']), ]
-  
-  a <- a[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
-  b <- b[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
+  # summary(lm(as.formula(paste('Rate', as.character(ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))
+  # summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))
+  # 
+  # a <- summary(lm(as.formula(paste('Rate', as.character(ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
+  # a <- a[row.names(a) != '(Intercept)', ]
+  # a <- merge(data.frame(a, Code = row.names(a)), decoder.agg, by='Code')
+  # a <- a[order(a[,'Pr...t..']), ]
+  # 
+  # b <- summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
+  # b <- b[row.names(b) != '(Intercept)', ]
+  # b <- merge(data.frame(b, Code = row.names(b)), decoder.agg, by='Code')
+  # b <- b[order(b[,'Pr...t..']), ]
+  # 
+  # a <- a[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
+  # b <- b[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
 }
 
 # CHANGE TO SEASON-YEARS
@@ -1268,9 +1278,9 @@ if(TRUE) {
   prev.pareto.seasonal.all.nat.pop.ind$Name <- factor(prev.pareto.seasonal.all.nat.pop.ind$ShortName, levels=label.order.season.ind)
   prev.pareto.seasonal.all.nat.pop.fam$Name <- factor(prev.pareto.seasonal.all.nat.pop.fam$ShortName, levels=label.order.seasonal.fam)
   
-  p.PercentDetectionParetoByPopulationSeasonal <- ggplot(prev.pareto.seasonal.all.nat.pop, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Hospital Population Type', x='', y='Percent Detection')
-  p.PercentDetectionParetoByPopulationSeasonal_Individual <- ggplot(prev.pareto.seasonal.all.nat.pop.ind, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Hospital Population Type', x='', y='Percent Detection')
-  p.PercentDetectionParetoByPopulationSeasonal_Family <- ggplot(prev.pareto.seasonal.all.nat.pop.fam, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by Hospital Population Type', x='', y='Percent Detection')
+  p.PercentDetectionParetoByPopulationSeasonal <- ggplot(prev.pareto.seasonal.all.nat.pop, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by  Clinical Lab Population Type', x='', y='Percent Detection')
+  p.PercentDetectionParetoByPopulationSeasonal_Individual <- ggplot(prev.pareto.seasonal.all.nat.pop.ind, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by  Clinical Lab Population Type', x='', y='Percent Detection')
+  p.PercentDetectionParetoByPopulationSeasonal_Family <- ggplot(prev.pareto.seasonal.all.nat.pop.fam, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.pop, 'Key'), name='') + scale_y_continuous(label=percent) + labs(title='National Percent Detection of Organsims by  Clinical Lab Population Type', x='', y='Percent Detection')
   
   # subset by year (2014, 2015, 2016)
   prev.pareto.seasonal.all.year <- with(prev.pareto.seasonal.all, aggregate(Prevalence~SeasonYear+ShortName+Code, FUN=mean))
@@ -1317,7 +1327,7 @@ if(TRUE) {
   g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
   
   # Get the y axis title from g2
-  index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+  index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
   ylab <- g2$grobs[[index]]                # Extract that grob
   ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
   
