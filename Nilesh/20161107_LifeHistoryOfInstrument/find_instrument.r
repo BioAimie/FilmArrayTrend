@@ -77,7 +77,7 @@ dateBreaks <- unique(as.character(cust.runs.df$Date))[order(unique(as.character(
 g1 <- ggplot() +  xlab("Year-Week") +  ylab("Runs") + ggtitle(paste("Runs for [CustomerSiteId] #", CustomerSiteId, ".", sep = ""))
 g1 <- g1 + geom_bar(data = cust.runs.df, aes(x = Date, y = Runs, fill = SerialNo), stat = "identity") + scale_x_discrete(breaks=dateBreaks)
 g1 <- g1 + facet_wrap(~ SerialNo)
-g1 <- g1 + theme(text = element_text(size=20), axis.text.x = element_text(angle=90, hjust=1)) 
+g1 <- g1 + theme(text = element_text(size=12), axis.text.x = element_text(angle=90, hjust=1)) 
 g1
 
 

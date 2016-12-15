@@ -23,7 +23,7 @@ library(reshape2)
 # NORLAB: #36: 2FA00279, 2FA00286, 2FA00300, 2FA00458, 2FA00482
 # NORLAB: #39: FA00313
 # INTHEA: #41: FA2125, FA2127, FA2148, FA2581, FA2582
-serialNumber <- "FA2127" # "FA2127" 
+serialNumber <- "2FA00928" # "FA2127" 
 
 # Enter parameters for output plot to be saved as jpg
 plot_printout_length <- 48; plot_printout_height <- 4; plot_resolution <- 300 # inches, inches, dpi
@@ -245,7 +245,7 @@ if(first_shipDate %m+% months(6) >= min(freq.runs.per.day.df$Date)){
 # plot all runs and check if the instrument has an instrument error in runs for 'fill='
 #runs <- freq.runs.per.day.df
 runs$Status <- gsub('Validation', 'Completed', runs$Status)
-g2 <- g2 + geom_bar(data = runs, aes(x = Date, y = Runs, yend = 0, fill = Status),  size = 1, stat = "identity") + scale_fill_manual(values= c("darkgreen", "red"), name = "", labels=c("Completed Runs","Instrument Error")) + theme(legend.position="bottom")
+g2 <- g2 + geom_bar(data = runs, aes(x = Date, y = Runs, yend = 0, fill = Status),  size = 1, stat = "identity") + scale_fill_manual(values= c("darkgreen", "red"), name = "", labels=c("Completed Runs","Instrument Error")) + theme(legend.position="bottom") + scale_x_date(labels = date_format("%b-%Y"))
 
 # plot 'geom_segment' labels
 g2 <- g2 + geom_segment(data = date.of.mfg.df, aes(x = ManufactureDate,y = 70,     xend = ManufactureDate, yend = 0), color = 'darkgreen') + geom_text(data=date.of.mfg.df, aes(x = ManufactureDate,y = 70, xend = ManufactureDate, yend = 0, label="Birth"))
@@ -256,22 +256,45 @@ g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = QcDate,y = 35, xend = QcD
 g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = ShipDate,y = 30, xend = ShipDate, yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = ShipDate,y = 30,xend = ShipDate, yend = 0,  label="Shipped"))
 g2 <- g2 + geom_segment(data = inst.trans.df, aes(x = first_shipDate,y = 65, xend = first_shipDate, yend = 0), color = 'black') + geom_text(data=inst.trans.df, aes(x = first_shipDate,y = 65,xend = first_shipDate, yend = 0,  label="1st Shipped"))
 
+# manually adding annotations ----------------------------------------------------------------------------------------------------------------------------------------------------
+if(serialNumber == '2FA01792'){
+  g2 <- g2 + geom_text(aes(x = min(na.omit(ship.val.run.create.link$rma_created_date)),y = 30, xend = min(na.omit(ship.val.run.create.link$rma_created_date)), yend = 0,  label="Firmware \nError"), hjust = 0, lineheight=.8)
+  temp <- freq.runs.per.day.df
+  temp <- subset(temp, temp$Date >= max(na.omit(ship.val.run.create.link$validation_date)))
+  run_count <- sum(temp$Runs)
+  g2 <- g2 + geom_segment(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0), color = 'black') + geom_text(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0,  label=paste(run_count, " runs", sep="")), hjust = 0)
+}
+
+if(serialNumber == '2FA01312'){
+  g2 <- g2 + geom_text(aes(x = min(na.omit(ship.val.run.create.link$rma_created_date)), y = 5, xend =  min(na.omit(ship.val.run.create.link$rma_created_date)), yend = 0,  label="Unable to reproduce \ncustomer complaint"), hjust = 0, lineheight=.8)
+}
+if(serialNumber == 'FA3511'){
+  temp <- freq.runs.per.day.df
+  temp <- subset(temp, temp$Date >= max(na.omit(ship.val.run.create.link$validation_date)))
+  run_count <- sum(temp$Runs)
+  g2 <- g2 + geom_segment(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0), color = 'black') + geom_text(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0,  label=paste(run_count, " runs", sep="")), hjust = 0)
+}
+if(serialNumber == '2FA00928'){
+    g2 <- g2 + geom_text(aes(x = last_run_date, y = 5, xend = last_run_date, yend = 0,  label="HARD-GEN-0283"), hjust = 0)
+}
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 # Early failure type: DOA, ELF, SDOA or SELF
 for(x in 1:nrow(rma.tracker.df)){
 if((!is.na(rma.tracker.df$EarlyFailure[x]) | !is.null(rma.tracker.df$EarlyFailure[x])) & rma.tracker.df$EarlyFailure[x] != "N/A"){
     if(rma.tracker.df$EarlyFailure[x] == 'DOA'){
       i <- x
-      g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="DOA"))
+      g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="DOA"), size=10)
     } else if(rma.tracker.df$EarlyFailure[x] == 'ELF'){
       i <- x
       g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="ELF"), size=10)
     } else if(rma.tracker.df$EarlyFailure[x] == 'SDOA'){
       i <- x
-      g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="SDOA"))
+      g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="SDOA"), size=10)
     } else if(rma.tracker.df$EarlyFailure[x] == 'SELF'){
       i <- x
-      g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="SELF"))
+      g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="SELF"), size=10)
     }
    }
 }
@@ -279,11 +302,13 @@ if((!is.na(rma.tracker.df$EarlyFailure[x]) | !is.null(rma.tracker.df$EarlyFailur
 # hours run
 g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate,y = 60, xend = CreatedDate, yend = 0), color = 'red') + geom_text(data=rma.tracker.df, aes(x = CreatedDate,y = 60,xend = CreatedDate, yend = 0,  label=paste(HoursRun, 'hours', sept = " ")))
 
-g2 <- g2 + geom_segment(data = subset(ship.val.run.create.link, !is.na(as.character(validation_date))), aes(x = validation_date, y = 25, xend = validation_date, yend = 0), color = 'black') + geom_text(data=subset(ship.val.run.create.link, !is.na(as.character(validation_date))), aes(x = validation_date, y = 25, xend = validation_date, yend = 0,  label="Validation"))
+g2 <- g2 + geom_segment(data = subset(ship.val.run.create.link, !is.na(as.character(validation_date))), aes(x = validation_date, y = 25, xend = validation_date, yend = 0), color = 'black') + geom_text(data=subset(ship.val.run.create.link, !is.na(as.character(validation_date))), aes(x = validation_date, y = 25, xend = validation_date, yend = 0,  label="Validation"), hjust = 0)
 
 # 1st patient run as 1st completed run after validation date
+g2 <- g2 + geom_segment(data = data.frame(patient_run_date = ship.val.run.create.link[!is.na(as.character(ship.val.run.create.link$patient_run_date)), 'patient_run_date']), aes(x = patient_run_date,y = 20, xend = patient_run_date, yend = 0), color = 'black') + geom_text(data = data.frame(patient_run_date = ship.val.run.create.link[!is.na(as.character(ship.val.run.create.link$patient_run_date)), 'patient_run_date']), aes(x = patient_run_date, y = 20, xend = patient_run_date, yend = 0,  label = "Patient Run"), hjust = 0)
 
-g2 <- g2 + geom_segment(data = data.frame(patient_run_date = ship.val.run.create.link[!is.na(as.character(ship.val.run.create.link$patient_run_date)), 'patient_run_date']), aes(x = patient_run_date,y = 20, xend = patient_run_date, yend = 0), color = 'black') + geom_text(data = data.frame(patient_run_date = ship.val.run.create.link[!is.na(as.character(ship.val.run.create.link$patient_run_date)), 'patient_run_date']), aes(x = patient_run_date,y = 20,xend = patient_run_date, yend = 0,  label = "Patient Run"))
+
+
 
 # calculate days ----------------------------------------------------------------------------------------------------------------------------
 # function to plot days
