@@ -83,6 +83,21 @@ FROM #objects
 WHERE [ObjectName] LIKE 'Root Causes' AND [PropertyName] LIKE 'Part Number'
 
 SELECT 
+	[TicketId],
+	[RecordedValue] AS [RootCausePartNumber]
+INTO #rootCausePartNumber
+FROM #objects
+WHERE [ObjectName] LIKE 'Root Causes' AND [PropertyName] LIKE 'Part Number'
+
+SELECT
+	[TicketId],
+	[RecordedValue] AS [RootCauseProblemArea]
+INTO #rootCauseProblemArea
+FROM #objects
+WHERE [ObjectName] LIKE 'Root Causes' AND [PropertyName] LIKE 'Problem Area'
+
+
+SELECT 
        [TicketId],
        MAX([RecordedValue]) AS [QcDate]
 INTO #qcDate
@@ -103,6 +118,8 @@ SELECT
        [Hours Run] AS [HoursRun],
        I.[EarlyFailure],
 	   P.[System Failure],
+	   PN.[RootCausePartNumber],
+	   PA.[RootCauseProblemArea],
        IIF([RMA Type] LIKE '%- Failure', 1, 
              IIF([EarlyFailure] IN ('SDOA','ELF','SELF','DOA'), 1, 
              IIF([RootCause] IS NOT NULL AND [RootCause] NOT LIKE '%n%a%', 1,
@@ -111,8 +128,11 @@ SELECT
 FROM #pivProperties P LEFT JOIN #partInfo I
        ON P.[TicketId] = I.[TicketId] LEFT JOIN #rootCause R
              ON P.[TicketId] = R.[TicketId] LEFT JOIN #qcDate Q
-                    ON P.[TicketId] = Q.[TicketId]
+                    ON P.[TicketId] = Q.[TicketId] LEFT JOIN #rootCausePartNumber PN
+						ON P.[TicketId] = PN.[TicketId] LEFT JOIN #rootCauseProblemArea PA
+							ON P.[TicketId] = PA.[TicketId] 
 
-DROP TABLE #serialRMAs, #objects, #properties, #pivProperties, #partInfo, #qcDate, #rootCause
+DROP TABLE #serialRMAs, #objects, #properties, #pivProperties, #partInfo, #qcDate, #rootCause, #rootCausePartNumber, #rootCauseProblemArea
+
 
 

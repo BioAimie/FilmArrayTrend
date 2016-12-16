@@ -11,6 +11,7 @@ library(ggplot2)
 library(dplyr)
 library(grid)
 library(reshape2)
+library(scales)
 
 # Enter the Instrument Serial Number that has >= 3 RMA's for same customer  ----------------------------------------------
 # SOUBEN: #2:  FA2813
@@ -23,8 +24,7 @@ library(reshape2)
 # NORLAB: #36: 2FA00279, 2FA00286, 2FA00300, 2FA00458, 2FA00482
 # NORLAB: #39: FA00313
 # INTHEA: #41: FA2125, FA2127, FA2148, FA2581, FA2582
-serialNumber <- "2FA00928" # "FA2127" 
-
+serialNumber <- "FA3511"
 # Enter parameters for output plot to be saved as jpg
 plot_printout_length <- 48; plot_printout_height <- 4; plot_resolution <- 300 # inches, inches, dpi
 
@@ -85,6 +85,42 @@ inst.trans.df$TranTypeDesc <- as.character(inst.trans.df$TranTypeDesc)
 # filter flagged RMAs
 #rma.tracker.df <- rma.tracker.df[rma.tracker.df$Failure == 1,] #filter out non-failure RMA
 rma.tracker.df <- unique(rma.tracker.df)
+
+# ---------------------------------------------------------------------------------------------------------------------------------------
+# merge "RootCauseProblemArea" in the rma.tracker.df ------------------------------------------------------------------------------------
+rma_subset_rootcause_problemarea <- unique(rma.tracker.df[, c('TicketString', 'RootCauseProblemArea')])
+rma_subset_rootcause_problemarea$RootCauseProblemArea <- as.character(rma_subset_rootcause_problemarea$RootCauseProblemArea)
+rma_subset_rootcause_problemarea$TicketString <- as.character(rma_subset_rootcause_problemarea$TicketString)
+#
+rma_subset_rootcause_part <- unique(rma.tracker.df[, c('TicketString', 'RootCausePartNumber')])
+rma_subset_rootcause_part$RootCausePartNumber <- as.character(rma_subset_rootcause_part$RootCausePartNumber)
+rma_subset_rootcause_part$TicketString <- as.character(rma_subset_rootcause_part$TicketString)
+
+# function to merge and replace duplicate ticket strings
+merge_dupl <- function(df, col1, col2){
+  for(i in 1:(nrow(df))){
+    if(i < nrow(df) & (df[i, col1] == df[i+1, col1])){
+      df[i, col2] <- paste(df[i, col2], df[i+1, col2], sep="\n")
+      #print(i)
+      df <- df[-c(i+1),]
+      i <- i + 1 
+    }
+  }
+  return(df)
+}
+
+# call the function
+rma_subset_rootcause_problemarea <- merge_dupl(rma_subset_rootcause_problemarea, "TicketString", "RootCauseProblemArea")
+rma_subset_rootcause_part <- merge_dupl(rma_subset_rootcause_part, "TicketString", "RootCausePartNumber")
+
+# merge back to the rma.tracker.df
+rma.tracker.df <- unique(rma.tracker.df[, !(names(rma.tracker.df) %in% c('RootCausePartNumber', 'RootCauseProblemArea'))])
+rma.tracker.df <- merge(x = rma.tracker.df, y = rma_subset_rootcause_problemarea, by.x = "TicketString", by.y = "TicketString", all.x = TRUE)
+rma.tracker.df <- merge(x = rma.tracker.df, y = rma_subset_rootcause_part, by.x = "TicketString", by.y = "TicketString", all.x = TRUE)
+# ---------------------------------------------------------------------------------------------------------------------------------------
+
+
+
 
 # extract patient runs and validation runs
 patient.runs.df <- data.frame(Type = 'PatientRuns', PatientSampleRunDate = freq.runs.per.day.df[grepl('PatientRun', freq.runs.per.day.df$PatientRuns) ,'Date'])
@@ -203,7 +239,7 @@ calendar.rma.runs.merge.df <- calendar.rma.runs.merge.df[ , c('Date', 'SerialNo'
 
 for(i in 1:nrow(calendar.rma.runs.merge.df)){
   if(!is.na(calendar.rma.runs.merge.df$type[i])){
-     calendar.rma.runs.merge.df$Runs[i] <- 0
+    calendar.rma.runs.merge.df$Runs[i] <- 0
   }
 }
 runs <- calendar.rma.runs.merge.df
@@ -256,33 +292,41 @@ g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = QcDate,y = 35, xend = QcD
 g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = ShipDate,y = 30, xend = ShipDate, yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = ShipDate,y = 30,xend = ShipDate, yend = 0,  label="Shipped"))
 g2 <- g2 + geom_segment(data = inst.trans.df, aes(x = first_shipDate,y = 65, xend = first_shipDate, yend = 0), color = 'black') + geom_text(data=inst.trans.df, aes(x = first_shipDate,y = 65,xend = first_shipDate, yend = 0,  label="1st Shipped"))
 
+
+# Add the Root Cause annotatation to the RMA's at Created Date
+g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate, y = 10, xend = CreatedDate, yend = 0), color = 'red') + geom_text(data=rma.tracker.df, aes(x = CreatedDate, y = 10, xend = CreatedDate, yend = 0,  label= RootCauseProblemArea), hjust = 0, lineheight=.8)
+
+# function to count runs since the last service date 
+last_run_count <- function(df1, df2){
+  temp <- df1
+  temp <- subset(temp, temp$Date >= max(na.omit(df2$validation_date)))
+  run_count <- sum(temp$Runs)
+  return(run_count)
+}
+
 # manually adding annotations ----------------------------------------------------------------------------------------------------------------------------------------------------
 if(serialNumber == '2FA01792'){
-  g2 <- g2 + geom_text(aes(x = min(na.omit(ship.val.run.create.link$rma_created_date)),y = 30, xend = min(na.omit(ship.val.run.create.link$rma_created_date)), yend = 0,  label="Firmware \nError"), hjust = 0, lineheight=.8)
-  temp <- freq.runs.per.day.df
-  temp <- subset(temp, temp$Date >= max(na.omit(ship.val.run.create.link$validation_date)))
-  run_count <- sum(temp$Runs)
-  g2 <- g2 + geom_segment(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0), color = 'black') + geom_text(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0,  label=paste(run_count, " runs", sep="")), hjust = 0)
+  #  g2 <- g2 + geom_text(aes(x = min(na.omit(ship.val.run.create.link$rma_created_date)),y = 30, xend = min(na.omit(ship.val.run.create.link$rma_created_date)), yend = 0,  label="Firmware \nError"), hjust = 0, lineheight=.8)
+  run_count <- last_run_count(freq.runs.per.day.df, ship.val.run.create.link)
+  g2 <- g2 + geom_segment(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0), color = 'black') + geom_text(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0,  label=paste(run_count, " runs since \n last service", sep="")), hjust = 0)
 }
 
 if(serialNumber == '2FA01312'){
   g2 <- g2 + geom_text(aes(x = min(na.omit(ship.val.run.create.link$rma_created_date)), y = 5, xend =  min(na.omit(ship.val.run.create.link$rma_created_date)), yend = 0,  label="Unable to reproduce \ncustomer complaint"), hjust = 0, lineheight=.8)
 }
 if(serialNumber == 'FA3511'){
-  temp <- freq.runs.per.day.df
-  temp <- subset(temp, temp$Date >= max(na.omit(ship.val.run.create.link$validation_date)))
-  run_count <- sum(temp$Runs)
-  g2 <- g2 + geom_segment(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0), color = 'black') + geom_text(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0,  label=paste(run_count, " runs", sep="")), hjust = 0)
+  run_count <- last_run_count(freq.runs.per.day.df, ship.val.run.create.link) #
+  g2 <- g2 + geom_segment(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0), color = 'black') + geom_text(aes(x = last_run_date, y = 60, xend = last_run_date, yend = 0,  label=paste(run_count, " runs since \n last service", sep="")), hjust = 0)
 }
 if(serialNumber == '2FA00928'){
-    g2 <- g2 + geom_text(aes(x = last_run_date, y = 5, xend = last_run_date, yend = 0,  label="HARD-GEN-0283"), hjust = 0)
+  g2 <- g2 + geom_text(aes(x = last_run_date, y = 5, xend = last_run_date, yend = 0,  label="HARD-GEN-0283"), hjust = 0)
 }
 # --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 # Early failure type: DOA, ELF, SDOA or SELF
 for(x in 1:nrow(rma.tracker.df)){
-if((!is.na(rma.tracker.df$EarlyFailure[x]) | !is.null(rma.tracker.df$EarlyFailure[x])) & rma.tracker.df$EarlyFailure[x] != "N/A"){
+  if((!is.na(rma.tracker.df$EarlyFailure[x]) | !is.null(rma.tracker.df$EarlyFailure[x])) & rma.tracker.df$EarlyFailure[x] != "N/A"){
     if(rma.tracker.df$EarlyFailure[x] == 'DOA'){
       i <- x
       g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="DOA"), size=10)
@@ -296,7 +340,7 @@ if((!is.na(rma.tracker.df$EarlyFailure[x]) | !is.null(rma.tracker.df$EarlyFailur
       i <- x
       g2 <- g2 + geom_segment(data = rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0), color = 'black') + geom_text(data=rma.tracker.df, aes(x = CreatedDate[i], y = 15, xend = CreatedDate[i], yend = 0,  label="SELF"), size=10)
     }
-   }
+  }
 }
 
 # hours run
