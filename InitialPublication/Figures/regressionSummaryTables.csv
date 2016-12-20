@@ -1,0 +1,29 @@
+,,,,
+Bug,Coefficient,Standard Error,t-value,p-value
+Influenza A (all),0.127,0.005,24.782,3.09E-53
+Respiratory Syncytial Virus,0.057,0.005,11.005,1.02E-20
+Human Rhinovirus/Enterovirus,0.012,0.003,4.935,2.23E-06
+Coronavirus 229E,-0.207,0.042,-4.905,2.54E-06
+Bordetella pertussis,-0.482,0.100,-4.817,3.71E-06
+Influenza B,0.040,0.010,3.945,1.25E-04
+Parainfluenza Virus 1,0.077,0.022,3.563,5.01E-04
+Parainfluenza Virus 4,-0.134,0.040,-3.337,1.08E-03
+Coronavirus HKU1,-0.035,0.015,-2.315,2.21E-02
+Adjusted R Squared,0.953,,,
+Residual Standard Error,0.002,,,
+,,,,
+,,,,
+Bug,Coefficient,Standard Error,t-value,p-value
+Influenza A (all),9.552,0.686,13.922,3.90E-28
+Human Rhinovirus/Enterovirus,4.106,0.379,10.846,3.07E-20
+Human Metapneumovirus,12.384,1.506,8.223,1.27E-13
+Respiratory Syncytial Virus,3.718,0.626,5.942,2.15E-08
+Influenza B,-7.272,1.792,-4.058,8.23E-05
+Mycoplasma pneumoniae,20.513,5.332,3.847,1.81E-04
+Bordetella pertussis,-56.271,16.009,-3.515,5.94E-04
+Parainfluenza Virus 1,12.374,3.915,3.161,1.93E-03
+Parainfluenza Virus 4,-18.620,6.266,-2.972,3.49E-03
+Parainfluenza Virus 2,-6.468,2.571,-2.516,1.30E-02
+Chlamydophila pneumoniae,-31.667,17.723,-1.787,7.62E-02
+Adjusted R Squared,0.870,,,
+Residual Standard Error,0.254,,,

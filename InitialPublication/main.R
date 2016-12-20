@@ -1132,164 +1132,6 @@ if(TRUE) {
   dev.off()
 }
 
-# REGRESSION ANALYSIS - ILI AND BURN vs. PERCENT DETECTION OF ORGANISMS
-if(TRUE) {
-  
-  prev.predict <- with(prev.pareto.all, aggregate(Prevalence~YearWeek+Code, FUN=mean))
-  prev.predict <- prev.predict[with(prev.predict, order(Code, YearWeek)), ]
-  prev.predict <- data.frame(YearWeek = unique(prev.predict$YearWeek), do.call(cbind, lapply(1:length(unique(prev.predict$Code)), function(x) prev.predict[prev.predict$Code==unique(prev.predict$Code)[x],'Prevalence'])))
-  colnames(prev.predict)[grep('X', colnames(prev.predict))] <- letters[1:(length(colnames(prev.predict))-1)]
-  prev.predict <- merge(prev.predict, ili.burn.nat, by='YearWeek')
-  prev.predict <- prev.predict[!(is.na(prev.predict$Rate)), ]
-  
-  fit.vars <- c('a','b','c','d','e','f','g','h','i','o','p','q','r','s','t','u','v')
- 
-  # MACHINE LEARNING ALGORITHMS ----------------------------------------------------------------------------------------------
-  # DO CART and RANDOM FOREST AND SOMEHOW COMPARE THE TWO METHODS... CAN ALSO COMPARE REGRESSION MODELS AS WELL
-  # CART modeling (rpart)
-  ili.model.cart <- rpart(as.formula(paste('Rate', paste(fit.vars, collapse='+'), sep='~')), data=prev.predict, method='anova')
-  burn.model.cart <- rpart(as.formula(paste('NormalizedBurn', paste(fit.vars, collapse='+'), sep='~')), data=prev.predict, method='anova')
-  # cp is the complexity parameter (amount by which splitting at the node improved the relative error b/t the model and the actual values)
-  printcp(ili.model.cart) # actual used in tree construction = g, i, u, v (Corona OC43, HRV/Entero, RSV, and Flu A)
-  printcp(burn.model.cart) # actual used in tree = i, o, s, u (HRV/Entero, Flu B, PIV 3, RSV)  
-  plotcp(ili.model.cart)
-  plotcp(burn.model.cart)
-  # r-squared and relative error for different splits
-  rsq.rpart(ili.model.cart)
-  rsq.rpart(burn.model.cart) 
-  # use party
-  ili.cart.party <- as.party(ili.model.cart)
-  burn.cart.party <- as.party(burn.model.cart)
-  plot(ili.cart.party)
-  plot(burn.cart.party)
-  # prune the tree to minimize the cross-validated error (xerror column in printcp(model))
-  ili.prune.cart <- prune(ili.model.cart, ili.model.cart$cptable[which.min(ili.model.cart$cptable[,'xerror']),'CP'])
-  burn.prune.cart <- prune(burn.model.cart, burn.model.cart$cptable[which.min(burn.model.cart$cptable[,'xerror']),'CP'])
-  # use party
-  ili.prune.party <- as.party(ili.prune.cart)
-  burn.prune.party <- as.party(burn.prune.cart)
-  plot(ili.prune.party)
-  plot(burn.prune.party)
-  # these trees are the same with or without pruning... see if I can rename the letters in the model based on decoder
-  # --------------------------
-  # !!!!!! should probably rename the variables as their shortnames so that the tree looks better... not just letters !!!!
-  # --------------------------
-  decoder.abv <- merge(decoder.agg, shortnames.df, by.x='Bug', by.y='Organism', all.x=TRUE)
-  decoder.abv$Bug <- as.character(decoder.abv$Bug)
-  decoder.abv$ShortName <- as.character(decoder.abv$ShortName)
-  decoder.abv$ShortName <- gsub('/', '_', gsub(' ', '', decoder.abv$ShortName))
-  decoder.abv[is.na(decoder.abv$ShortName), 'ShortName'] <- c('FluA','CoV','PIV','Bacteria')
-  replace.codes <- as.character(decoder.abv[decoder.abv$Code %in% fit.vars, 'ShortName'])
-  prev.predict.trim <- prev.predict[,c('YearWeek', fit.vars, 'Rate', 'NormalizedBurn')]
-  colnames(prev.predict.trim) <- c('YearWeek', replace.codes, 'Rate', 'NormalizedBurn')
-  ili.model.cart.named <- rpart(as.formula(paste('Rate', paste(replace.codes, collapse='+'), sep='~')), data=prev.predict.trim, method='anova')
-  burn.model.cart.named <- rpart(as.formula(paste('NormalizedBurn', paste(replace.codes, collapse='+'), sep='~')), data=prev.predict.trim, method='anova')
-  ili.cart.party.named <- as.party(ili.model.cart.named)
-  burn.cart.party.named <- as.party(burn.model.cart.named)
-  plot(ili.cart.party.named)
-  plot(burn.cart.party.named)
-  
-  ili.rate.cart <- predict(ili.model.cart, prev.predict)
-  burn.rate.cart <- predict(burn.model.cart, prev.predict)
-  cor(ili.rate.cart, prev.predict$Rate)
-  cor(burn.rate.cart, prev.predict$NormalizedBurn)
-  hist(prev.predict$Rate)
-  hist(ili.rate.cart, breaks = hist(prev.predict$Rate, plot = FALSE)$breaks)
-  prev.modeled <- data.frame(prev.predict, iliCART = ili.rate.cart)
-  prev.modeled <- data.frame(prev.modeled, burnCART = burn.rate.cart)
-  # ggplot(prev.modeled, aes(x=YearWeek, y=Rate, group='Reported ILI', color='Reported ILI')) + geom_line() + geom_line(aes(x=YearWeek, y=iliCART, group='Predicted ILI (CART)', color='Predicted ILI (CART)'), data=prev.modeled)
-  
-  # use randomForest package instead...
-  # %IncMSE (if predictor is important in RF model, then assigining other values for that predictor randomly but 'realistically' should have a negative influence on prediction, i.e. using the same model to predict from data that is the same except for the given variable should give a worse prediction)
-  # IncNodePurity (at each split, calculate how much the split reduces node impurity, or the difference between RSS- residual sum of squares or sum of squared errors) before and after the split... this is summed over all splits for that variable, over all trees)
-  set.seed(4042)
-  ili.model.rf <- randomForest(Rate~a+b+c+d+e+f+g+h+i+o+p+q+r+s+t+u+v, data=prev.predict, mtry=3, importance=TRUE)
-  ili.model.rf.df <- data.frame(importance(ili.model.rf))
-  ili.model.rf.df$Code <- rownames(ili.model.rf.df)
-  ili.model.rf.df <- merge(ili.model.rf.df, decoder.agg, by='Code')
-  ili.model.rf.df[with(ili.model.rf.df, order(IncNodePurity, decreasing = TRUE)), ]
-  
-  set.seed(4042)
-  burn.model.rf <- randomForest(NormalizedBurn~a+b+c+d+e+f+g+h+i+o+p+q+r+s+t+u+v, data=prev.predict, mtry=3, importance=TRUE)
-  burn.model.rf.df <- data.frame(importance(burn.model.rf))
-  burn.model.rf.df$Code <- rownames(burn.model.rf.df)
-  burn.model.rf.df <- merge(burn.model.rf.df, decoder.agg, by='Code')
-  burn.model.rf.df[with(burn.model.rf.df, order(IncNodePurity, decreasing = TRUE)), ]
-  
-  ili.rate.rf <- predict(ili.model.rf, prev.predict)
-  burn.rate.rf <- predict(burn.model.rf, prev.predict)
-  prev.modeled <- data.frame(prev.modeled, iliRF = ili.rate.rf)
-  prev.modeled <- data.frame(prev.modeled, burnRF = burn.rate.rf)
-  cor(prev.modeled$Rate, ili.rate.rf)
-  cor(prev.modeled$NormalizedBurn, burn.rate.rf)
-  
-  set.seed(4042)
-  ili.model.cforest <- ctree(as.formula(paste('Rate', paste(replace.codes, collapse='+'), sep='~')), data=prev.predict.trim)
-  burn.model.cforest <- ctree(as.formula(paste('NormalizedBurn', paste(replace.codes, collapse='+'), sep='~')), data=prev.predict.trim)
-  plot(ili.model.cforest)
-  plot(burn.model.cforest)
-  # not as good as the randomForest package, but it does make a nice plot... may need to learn how to manually extract plot from randomForest results
-  cor(prev.predict.trim$Rate, predict(ili.model.cforest, prev.predict.trim))
-  cor(prev.predict.trim$NormalizedBurn, predict(burn.model.cforest, prev.predict.trim))
-  
-  # REGRESSION MODELING -------------------------------------------------------------------------------------------------------
-  fit.ili.all <- lm(as.formula(paste('Rate', paste(fit.vars, collapse='+'), sep='~')), prev.predict)
-  fit.burn.all <- lm(as.formula(paste('NormalizedBurn', paste(fit.vars, collapse='+'), sep='~')), prev.predict)
-
-  # read in model possibilities
-  combos.eight <- read.csv('../DataSources/compactCombos8.csv', header=TRUE, sep=',')
-  combos.nine <- read.csv('../DataSources/compactCombos9.csv', header=TRUE, sep=',')
-  combos.ten <- read.csv('../DataSources/compactCombos10.csv', header=TRUE, sep=',')
-  # have to create eleven combos... ugh.
-  
-  # Model ILI with prevalence of diseases in FilmArray test population (p-value = 5.00e-2 is established stop)
-  ili.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
-  ili.model.eval.eight[ili.model.eval.eight$anova.all == max(ili.model.eval.eight$anova.all), ]
-  
-  ili.model.eval.nine <- do.call(rbind, lapply(1:length(combos.nine[,'Combo']), function(x) data.frame(Model = combos.nine[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
-  ili.model.eval.nine[ili.model.eval.nine$anova.all == max(ili.model.eval.nine$anova.all), ]
-  
-  ili.model.eval.ten <- do.call(rbind, lapply(1:length(combos.ten[,'Combo']), function(x) data.frame(Model = combos.ten[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
-  ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), ]
-
-  # Model Burn with prevalence of diseases in FilmArray test population
-  burn.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
-  burn.model.eval.eight[burn.model.eval.eight$anova.all == max(burn.model.eval.eight$anova.all), ]
-  
-  burn.model.eval.nine <- do.call(rbind, lapply(1:length(combos.nine[,'Combo']), function(x) data.frame(Model = combos.nine[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:910] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
-  burn.model.eval.nine[burn.model.eval.nine$anova.all == max(burn.model.eval.nine$anova.all), ]
-  
-  burn.model.eval.ten <- do.call(rbind, lapply(1:length(combos.ten[,'Combo']), function(x) data.frame(Model = combos.ten[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
-  burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), ]
-  
-  
-  # RESULTS WILL CHANGE (OR CAN) EVERYTIME THE CODE IS RUN
-  # 20161214
-  # ILI --------
-  # 9 model is good enough with p-value = 8.54e-1 | B. pertussis, CoV 229E, CoV HKU1, HRV/Entero, Flu B, PIV 1, PIV 4, RSV, Flu A
-  # B. pertussing, CoV 229E, CoV HKU1, and PIV 4 have negative coeffs, 
-  # t values in order (high - low): Flu A, RSV, HRV/Entero, Flu B, PIV 1 (positive), then CoV 229E, PIV 4, B. pertussis, CoV HKU1 (negative) (determines the significance of a regression coefficient by comparing the sample and hypothesized mean or target value... the procedure compare the data to what is expected under the null hypothesis... for our test with ~151 data points, the 99% confidence interval indicates that we expect the sample estimate to include the population parameter 99% of the time with a t-value of 2.326, 95% requires a t-value of 1.960)
-  # Std. Error in order (low - high): HRV/Entero, Flu A, RSV, Flu B, PIV 1, CoV 229E, PIV 4, CoV HKU1, B. pertussis (goodness of fit of line made with estimated coefficient vs. actual value)
-  # BURN -------
-  # must run with 11 
-  
-  # summary(lm(as.formula(paste('Rate', as.character(ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))
-  # summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))
-  # 
-  # a <- summary(lm(as.formula(paste('Rate', as.character(ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
-  # a <- a[row.names(a) != '(Intercept)', ]
-  # a <- merge(data.frame(a, Code = row.names(a)), decoder.agg, by='Code')
-  # a <- a[order(a[,'Pr...t..']), ]
-  # 
-  # b <- summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
-  # b <- b[row.names(b) != '(Intercept)', ]
-  # b <- merge(data.frame(b, Code = row.names(b)), decoder.agg, by='Code')
-  # b <- b[order(b[,'Pr...t..']), ]
-  # 
-  # a <- a[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
-  # b <- b[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
-}
-
 # CHANGE TO SEASON-YEARS
 if(TRUE) {
   
@@ -1438,6 +1280,178 @@ if(TRUE) {
   png('Figures/PercentDetectionParetoSeasonalWithDualDetections.png', height=800, width=1400)
   grid.draw(paretoSeasonalDuals)
   dev.off()
+}
+
+# REGRESSION ANALYSIS - ILI AND BURN vs. PERCENT DETECTION OF ORGANISMS
+if(TRUE) {
+  
+  prev.predict <- with(prev.pareto.all, aggregate(Prevalence~YearWeek+Code, FUN=mean))
+  prev.predict <- prev.predict[with(prev.predict, order(Code, YearWeek)), ]
+  prev.predict <- data.frame(YearWeek = unique(prev.predict$YearWeek), do.call(cbind, lapply(1:length(unique(prev.predict$Code)), function(x) prev.predict[prev.predict$Code==unique(prev.predict$Code)[x],'Prevalence'])))
+  colnames(prev.predict)[grep('X', colnames(prev.predict))] <- letters[1:(length(colnames(prev.predict))-1)]
+  prev.predict <- merge(prev.predict, ili.burn.nat, by='YearWeek')
+  prev.predict <- prev.predict[!(is.na(prev.predict$Rate)), ]
+  
+  fit.vars <- c('a','b','c','d','e','f','g','h','i','o','p','q','r','s','t','u','v')
+ 
+  # MACHINE LEARNING ALGORITHMS ----------------------------------------------------------------------------------------------
+  # DO CART and RANDOM FOREST AND SOMEHOW COMPARE THE TWO METHODS... CAN ALSO COMPARE REGRESSION MODELS AS WELL
+  # CART modeling (rpart)
+  ili.model.cart <- rpart(as.formula(paste('Rate', paste(fit.vars, collapse='+'), sep='~')), data=prev.predict, method='anova')
+  burn.model.cart <- rpart(as.formula(paste('NormalizedBurn', paste(fit.vars, collapse='+'), sep='~')), data=prev.predict, method='anova')
+  # cp is the complexity parameter (amount by which splitting at the node improved the relative error b/t the model and the actual values)
+  printcp(ili.model.cart) # actual used in tree construction = g, i, u, v (Corona OC43, HRV/Entero, RSV, and Flu A)
+  printcp(burn.model.cart) # actual used in tree = i, o, s, u (HRV/Entero, Flu B, PIV 3, RSV)  
+  plotcp(ili.model.cart)
+  plotcp(burn.model.cart)
+  # r-squared and relative error for different splits
+  rsq.rpart(ili.model.cart)
+  rsq.rpart(burn.model.cart) 
+  # use party
+  ili.cart.party <- as.party(ili.model.cart)
+  burn.cart.party <- as.party(burn.model.cart)
+  plot(ili.cart.party)
+  plot(burn.cart.party)
+  # prune the tree to minimize the cross-validated error (xerror column in printcp(model))
+  ili.prune.cart <- prune(ili.model.cart, ili.model.cart$cptable[which.min(ili.model.cart$cptable[,'xerror']),'CP'])
+  burn.prune.cart <- prune(burn.model.cart, burn.model.cart$cptable[which.min(burn.model.cart$cptable[,'xerror']),'CP'])
+  # use party
+  ili.prune.party <- as.party(ili.prune.cart)
+  burn.prune.party <- as.party(burn.prune.cart)
+  plot(ili.prune.party)
+  plot(burn.prune.party)
+  # these trees are the same with or without pruning... see if I can rename the letters in the model based on decoder
+  # --------------------------
+  # !!!!!! should probably rename the variables as their shortnames so that the tree looks better... not just letters !!!!
+  # --------------------------
+  decoder.abv <- merge(decoder.agg, shortnames.df, by.x='Bug', by.y='Organism', all.x=TRUE)
+  decoder.abv$Bug <- as.character(decoder.abv$Bug)
+  decoder.abv$ShortName <- as.character(decoder.abv$ShortName)
+  decoder.abv$ShortName <- gsub('/', '_', gsub(' ', '', decoder.abv$ShortName))
+  decoder.abv[is.na(decoder.abv$ShortName), 'ShortName'] <- c('FluA','CoV','PIV','Bacteria')
+  replace.codes <- as.character(decoder.abv[decoder.abv$Code %in% fit.vars, 'ShortName'])
+  prev.predict.trim <- prev.predict[,c('YearWeek', fit.vars, 'Rate', 'NormalizedBurn')]
+  colnames(prev.predict.trim) <- c('YearWeek', replace.codes, 'Rate', 'NormalizedBurn')
+  ili.model.cart.named <- rpart(as.formula(paste('Rate', paste(replace.codes, collapse='+'), sep='~')), data=prev.predict.trim, method='anova')
+  burn.model.cart.named <- rpart(as.formula(paste('NormalizedBurn', paste(replace.codes, collapse='+'), sep='~')), data=prev.predict.trim, method='anova')
+  ili.cart.party.named <- as.party(ili.model.cart.named)
+  burn.cart.party.named <- as.party(burn.model.cart.named)
+  p.CART_ILI <- plot(ili.cart.party.named)
+  p.CART_Burn <- plot(burn.cart.party.named)
+  
+  ili.rate.cart <- predict(ili.model.cart, prev.predict)
+  burn.rate.cart <- predict(burn.model.cart, prev.predict)
+  cor(ili.rate.cart, prev.predict$Rate)
+  cor(burn.rate.cart, prev.predict$NormalizedBurn)
+  hist(prev.predict$Rate)
+  hist(ili.rate.cart, breaks = hist(prev.predict$Rate, plot = FALSE)$breaks)
+  prev.modeled <- data.frame(prev.predict, iliCART = ili.rate.cart)
+  prev.modeled <- data.frame(prev.modeled, burnCART = burn.rate.cart)
+  # ggplot(prev.modeled, aes(x=YearWeek, y=Rate, group='Reported ILI', color='Reported ILI')) + geom_line() + geom_line(aes(x=YearWeek, y=iliCART, group='Predicted ILI (CART)', color='Predicted ILI (CART)'), data=prev.modeled)
+  
+  # use randomForest package instead...
+  # %IncMSE (if predictor is important in RF model, then assigining other values for that predictor randomly but 'realistically' should have a negative influence on prediction, i.e. using the same model to predict from data that is the same except for the given variable should give a worse prediction)
+  # IncNodePurity (at each split, calculate how much the split reduces node impurity, or the difference between RSS- residual sum of squares or sum of squared errors) before and after the split... this is summed over all splits for that variable, over all trees)
+  set.seed(4042)
+  ili.model.rf <- randomForest(Rate~a+b+c+d+e+f+g+h+i+o+p+q+r+s+t+u+v, data=prev.predict, mtry=3, importance=TRUE)
+  ili.model.rf.df <- data.frame(importance(ili.model.rf))
+  ili.model.rf.df$Code <- rownames(ili.model.rf.df)
+  ili.model.rf.df <- merge(ili.model.rf.df, decoder.agg, by='Code')
+  ili.model.rf.df[with(ili.model.rf.df, order(IncNodePurity, decreasing = TRUE)), ]
+  
+  set.seed(4042)
+  burn.model.rf <- randomForest(NormalizedBurn~a+b+c+d+e+f+g+h+i+o+p+q+r+s+t+u+v, data=prev.predict, mtry=3, importance=TRUE)
+  burn.model.rf.df <- data.frame(importance(burn.model.rf))
+  burn.model.rf.df$Code <- rownames(burn.model.rf.df)
+  burn.model.rf.df <- merge(burn.model.rf.df, decoder.agg, by='Code')
+  burn.model.rf.df[with(burn.model.rf.df, order(IncNodePurity, decreasing = TRUE)), ]
+  
+  ili.rate.rf <- predict(ili.model.rf, prev.predict)
+  burn.rate.rf <- predict(burn.model.rf, prev.predict)
+  prev.modeled <- data.frame(prev.modeled, iliRF = ili.rate.rf)
+  prev.modeled <- data.frame(prev.modeled, burnRF = burn.rate.rf)
+  cor(prev.modeled$Rate, ili.rate.rf)
+  cor(prev.modeled$NormalizedBurn, burn.rate.rf)
+  
+  set.seed(4042)
+  ili.model.cforest <- ctree(as.formula(paste('Rate', paste(replace.codes, collapse='+'), sep='~')), data=prev.predict.trim)
+  burn.model.cforest <- ctree(as.formula(paste('NormalizedBurn', paste(replace.codes, collapse='+'), sep='~')), data=prev.predict.trim)
+  p.RandomForestILI <- plot(ili.model.cforest)
+  p.RandomForestBurn <- plot(burn.model.cforest)
+  # not as good as the randomForest package, but it does make a nice plot... may need to learn how to manually extract plot from randomForest results
+  cor(prev.predict.trim$Rate, predict(ili.model.cforest, prev.predict.trim))
+  cor(prev.predict.trim$NormalizedBurn, predict(burn.model.cforest, prev.predict.trim))
+  
+  # REGRESSION MODELING -------------------------------------------------------------------------------------------------------
+  fit.ili.all <- lm(as.formula(paste('Rate', paste(fit.vars, collapse='+'), sep='~')), prev.predict)
+  fit.burn.all <- lm(as.formula(paste('NormalizedBurn', paste(fit.vars, collapse='+'), sep='~')), prev.predict)
+
+  # read in model possibilities
+  combos.eight <- read.csv('../DataSources/compactCombos8.csv', header=TRUE, sep=',')
+  combos.nine <- read.csv('../DataSources/compactCombos9.csv', header=TRUE, sep=',')
+  combos.ten <- read.csv('../DataSources/compactCombos10.csv', header=TRUE, sep=',')
+  combos.eleven <- read.csv('../DataSources/compactCombos11.csv', header=TRUE, sep=',')
+  # have to create eleven combos... ugh.
+  
+  # Model ILI with prevalence of diseases in FilmArray test population (p-value = 5.00e-2 is established stop)
+  # ili.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
+  # ili.model.eval.eight[ili.model.eval.eight$anova.all == max(ili.model.eval.eight$anova.all), ]
+  
+  ili.model.eval.nine <- do.call(rbind, lapply(1:length(combos.nine[,'Combo']), function(x) data.frame(Model = combos.nine[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
+  ili.model.eval.nine[ili.model.eval.nine$anova.all == max(ili.model.eval.nine$anova.all), ]
+  # ili.model.eval.nine has been "good enough" the last several times it's been ran
+  
+  # ili.model.eval.ten <- do.call(rbind, lapply(1:length(combos.ten[,'Combo']), function(x) data.frame(Model = combos.ten[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
+  # ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), ]
+
+  # Model Burn with prevalence of diseases in FilmArray test population
+  # burn.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
+  # burn.model.eval.eight[burn.model.eval.eight$anova.all == max(burn.model.eval.eight$anova.all), ]
+  # 
+  # burn.model.eval.nine <- do.call(rbind, lapply(1:length(combos.nine[,'Combo']), function(x) data.frame(Model = combos.nine[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10, 4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.nine[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
+  # burn.model.eval.nine[burn.model.eval.nine$anova.all == max(burn.model.eval.nine$anova.all), ]
+  # 
+  # burn.model.eval.ten <- do.call(rbind, lapply(1:length(combos.ten[,'Combo']), function(x) data.frame(Model = combos.ten[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.ten[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
+  # burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), ]
+  
+  burn.model.eval.eleven <- do.call(rbind, lapply(1:length(combos.eleven[,'Combo']), function(x) data.frame(Model = combos.eleven[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eleven[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.eleven[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eleven[x,]), sep='~')), prev.predict))$coeff[2:12,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eleven[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eleven[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eleven[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.eleven[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
+  burn.model.eval.eleven[burn.model.eval.eleven$anova.all == max(burn.model.eval.eleven$anova.all), ]
+  # burn.model.eval.eleven is "good enough"
+  
+  ili.rate.regression <- predict(lm(as.formula(paste('Rate', as.character(ili.model.eval.nine[ili.model.eval.nine$anova.all == max(ili.model.eval.nine$anova.all), 'Model']), sep='~')), data=prev.predict), prev.predict)
+  burn.rate.regression <- predict(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.eleven[burn.model.eval.eleven$anova.all == max(burn.model.eval.eleven$anova.all), 'Model']), sep='~')), data=prev.predict), prev.predict)
+  prev.modeled <- data.frame(prev.modeled, iliReg = ili.rate.regression, burnReg = burn.rate.regression)
+  
+  # make some charts of actual vs. model overlays... chart R2 maybe
+  
+  # RESULTS WILL CHANGE (OR CAN) EVERYTIME THE CODE IS RUN
+  # 20161214
+  # ILI --------
+  # 9 model is good enough with p-value = 8.75e-1 | B. pertussis, CoV 229E, CoV HKU1, HRV/Entero, Flu B, PIV 1, PIV 4, RSV, Flu A (last two times running, the results have remained the same)
+  # B. pertussis, CoV 229E, CoV HKU1, and PIV 4 have negative coeffs, 
+  # t values in order (high - low): Flu A, RSV, HRV/Entero, Flu B, PIV 1 (positive), then CoV 229E, PIV 4, B. pertussis, CoV HKU1 (negative) (determines the significance of a regression coefficient by comparing the sample and hypothesized mean or target value... the procedure compare the data to what is expected under the null hypothesis... for our test with ~151 data points, the 99% confidence interval indicates that we expect the sample estimate to include the population parameter 99% of the time with a t-value of 2.326, 95% requires a t-value of 1.960)
+  # Std. Error in order (low - high): HRV/Entero, Flu A, RSV, Flu B, PIV 1, CoV 229E, PIV 4, CoV HKU1, B. pertussis (goodness of fit of line made with estimated coefficient vs. actual value)
+  # BURN -------
+  # 11 model is good enough with p-value = 5.46e-1 | B. pertussis, C. pneumoniae, hMPV, HRV/Entero, Flu B, M. pneumoniae, PIV 1, PIV 2, PIV 4, RSV, Flu A (all)
+  # B. pertussis, PIV 4, Flu B, PIV 2, and C. pneumoniae have negative coeffs,
+  # t values in order (high - low): Flu A, HRV/Entero, hMPV, RSV, M. pneumoniae, PIV 1, C. pnuemoniae, PIV 2, PIV 4, B. pertussis, Flu B (2.326, -2.326 are 99% confidence intervals such that only C. pnueomniae sample not 99% of sample estimates are likely to be within the population value)
+  # Std. Error in order (low - high): HRV/Entero, RSV, Flu A, hMPV, Flu B, PIV 2, PIV 1, M. pneuomoniae, PIV 4, B. pertussis, C. pneumoniae (only first 3 have st. error < 1)
+  
+  # summary(lm(as.formula(paste('Rate', as.character(ili.model.eval.ten[Kili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))
+  # summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.ten[burn.model.eval.ten$anova.all == max(burn.model.eval.ten$anova.all), 'Model']), sep='~')), data=prev.predict))
+  # 
+  a <- summary(lm(as.formula(paste('Rate', as.character(ili.model.eval.nine[ili.model.eval.nine$anova.all == max(ili.model.eval.nine$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
+  a <- a[row.names(a) != '(Intercept)', ]
+  a <- merge(data.frame(a, Code = row.names(a)), decoder.agg, by='Code')
+  a <- a[order(a[,'Pr...t..']), ]
+
+  b <- summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.eleven[burn.model.eval.eleven$anova.all == max(burn.model.eval.eleven$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
+  b <- b[row.names(b) != '(Intercept)', ]
+  b <- merge(data.frame(b, Code = row.names(b)), decoder.agg, by='Code')
+  b <- b[order(b[,'Pr...t..']), ]
+
+  a <- a[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
+  b <- b[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
 }
 
 # PRINT OUT ALL THE FIGURES
