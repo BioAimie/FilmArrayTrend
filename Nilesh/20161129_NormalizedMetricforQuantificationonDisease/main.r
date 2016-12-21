@@ -14,7 +14,7 @@ library(reshape2)
 
 # OPTIONAL ---------------------------------------------------
 # Enter 'NA' or a customer site id to get results only for this customer
-customer_site_id = 33 # NA, 7, 33, 2
+customer_site_id = 7 # NA, 7, 33, 2
 # ------------------------------------------------------------
 
 # GET DATA - 1: list of assay names ---------------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ names(div_PCR1)[names(div_PCR1) == 'Cp'] <- 'divisor_PCR1'
 names(div_PCR2)[names(div_PCR2) == 'Cp'] <- 'divisor_PCR2'
 names(div_yeastRNA)[names(div_yeastRNA) == 'Cp'] <- 'divisor_yeastRNA'
 
-# for ASSAY_NAME --------------
+# for ASSAY_NAME ----------------------------------------------------------------------------------------------------------------
 # join PCR1 divisor to main table
 merge_PCR1_median <- merge(x = new.all.customer.pouch.lot.number.df, y = div_PCR1, by.x = c('RunDataId'), by.y = c('RunDataId'), all.x = TRUE)
 names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.x'] <- 'AssayName'
@@ -131,11 +131,20 @@ mean_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + AssayName, merge_PCR1
 names(mean_normalizedCp)[names(mean_normalizedCp) == 'NormalizedCp'] <- 'MeanNormalizedCp'
 
 # plot the mean of median cp for one assay for along ConcatDate (for an assay)
-g2 <- ggplot()
+dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
+g2 <- ggplot() +  scale_x_discrete(breaks=dateBreaks)
 g2 <- g2 + geom_point(data = mean_normalizedCp[grep("HRV1", mean_normalizedCp$AssayName),], aes(x = as.factor(ConcatDate), y = MeanNormalizedCp))
 g2
 
-# for TARGET_NAME ------------
+# print plot
+jpeg(paste("Assay_Cp", ".jpg", sep=""), width = 800, height = 480, units = 'px')
+print(g2) # Make plot
+dev.off()
+
+
+
+
+# for TARGET_NAME ----------------------------------------------------------------------------------------------------------------
 # find MINIMUM of assays ---------------
 min.median.cp.for.target <- aggregate(MedianCp ~ RunDataId + TargetName, new.all.customer.pouch.lot.number.df, min)
 names(min.median.cp.for.target)[names(min.median.cp.for.target) == 'MedianCp'] <- 'MinMedianCp'
@@ -155,9 +164,18 @@ mean_target_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + TargetName, me
 names(mean_target_normalizedCp)[names(mean_target_normalizedCp) == 'NormalizedCp'] <- 'MeanNormalizedCp'
 
 # plot the mean of median cp for one assay for along ConcatDate (for an assay)
-g3 <- ggplot()
+dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
+g3 <- ggplot() + ggtitle("Normalized Target Cp") + scale_x_discrete(breaks=dateBreaks)
 g3 <- g3 + geom_point(data = mean_target_normalizedCp[grep(".*Rhino.*", mean_target_normalizedCp$TargetName),], aes(x = as.factor(ConcatDate), y = MeanNormalizedCp))
 g3
+
+# print plot
+jpeg(paste("Target_Cp", ".jpg", sep=""), width = 800, height = 480, units = 'px')
+print(g3) # Make plot
+dev.off()
+
+
+
 
 
 #
