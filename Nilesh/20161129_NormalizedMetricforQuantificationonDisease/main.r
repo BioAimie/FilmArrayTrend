@@ -66,6 +66,98 @@ if (!is.na(customer_site_id)){
   all.customer.pouch.lot.number.df <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$CustomerSiteId == customer_site_id & !is.na(all.customer.pouch.lot.number.df$PouchSerialNumber), ]
   pouch.lot.number.df <- pouch.lot.number.df[pouch.lot.number.df$PouchLotNumber %in% all.customer.pouch.lot.number.df$PouchLotNumber, ]
 }
+all.customer.pouch.lot.number.df <- all.customer.pouch.lot.number.df[!is.na(all.customer.pouch.lot.number.df$PouchSerialNumber), ]
+
+
+
+# ===============================================================================================================
+# Code: Normalize Cp
+# ===============================================================================================================
+
+# take 'median' of Cp for each assay if >= 2 wells are positive
+all.customer.pouch.lot.number.df <- all.customer.pouch.lot.number.df[order(all.customer.pouch.lot.number.df$RunDataId, all.customer.pouch.lot.number.df$TargetName, all.customer.pouch.lot.number.df$AssayName, all.customer.pouch.lot.number.df$WellDataId), ]
+# flag assay result
+all.customer.pouch.lot.number.df$FlagNUM_AssayPositive <- ifelse(all.customer.pouch.lot.number.df$AssayResult == 'Positive', 1, 0)
+#
+
+temp.all.customer <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$ResultType == 'organism', ]
+agg.temp.all.customer <- aggregate(FlagNUM_AssayPositive ~ RunDataId + AssayName, temp.all.customer, sum)
+names(agg.temp.all.customer)[names(agg.temp.all.customer) == 'FlagNUM_AssayPositive'] <- 'SUM_FlagNUM_AssayPositive'
+agg.temp.all.customer$FlagSTR_AssayPositive <- ifelse(agg.temp.all.customer$SUM_FlagNUM_AssayPositive >= 2, 'Yes', 'No')
+
+merge.agg.temp.all.customer <- merge(x = temp.all.customer, y = agg.temp.all.customer, by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'))
+new.all.customer.pouch.lot.number.df <- merge.agg.temp.all.customer[merge.agg.temp.all.customer$FlagSTR_AssayPositive == 'Yes', ]
+
+# ASSAY: find median cp for each assay that is flagged as 'Yes' for >= 2 wells 'positive'
+median.organism.customer.df <- aggregate(Cp ~ RunDataId + AssayName, new.all.customer.pouch.lot.number.df, median)
+names(median.organism.customer.df)[names(median.organism.customer.df) == 'Cp'] <- 'MedianCp'
+
+# merge back to the main table which has controls
+new.all.customer.pouch.lot.number.df <- merge (x = all.customer.pouch.lot.number.df, y = median.organism.customer.df, by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE)
+# OPTIONAL: just to be sure, replace 'MedianCp values by 'NA' for controls
+new.all.customer.pouch.lot.number.df$MedianCp <- ifelse(new.all.customer.pouch.lot.number.df$ResultType == 'control', NA, new.all.customer.pouch.lot.number.df$MedianCp)
+# order
+new.all.customer.pouch.lot.number.df <- new.all.customer.pouch.lot.number.df[order(new.all.customer.pouch.lot.number.df$RunDataId, new.all.customer.pouch.lot.number.df$TargetName, new.all.customer.pouch.lot.number.df$AssayName, new.all.customer.pouch.lot.number.df$WellDataId), ]
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+# NORMALIZE 
+# get all 'controls'
+control.PCR1 <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'PCR1', ]
+control.PCR2 <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'PCR2', ]
+control.yeastRNA <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'yeastRNA', ]
+
+# find divisor
+div_PCR1 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR1[control.PCR1$AssayName == "PCR1", ], median)
+div_PCR2 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR2[control.PCR2$AssayName == "PCR2", ], median)
+div_yeastRNA <- aggregate(Cp ~ RunDataId + AssayName, control.yeastRNA[control.yeastRNA$AssayName == "yeastRNA", ], median)
+
+# rename columns
+names(div_PCR1)[names(div_PCR1) == 'Cp'] <- 'divisor_PCR1'
+names(div_PCR2)[names(div_PCR2) == 'Cp'] <- 'divisor_PCR2'
+names(div_yeastRNA)[names(div_yeastRNA) == 'Cp'] <- 'divisor_yeastRNA'
+
+# ------
+# join PCR1 divisor to main table
+merge_PCR1_median <- merge(x = new.all.customer.pouch.lot.number.df, y = div_PCR1, by.x = c('RunDataId'), by.y = c('RunDataId'), all.x = TRUE)
+names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.x'] <- 'AssayName'
+names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.y'] <- 'Normalized_By'
+
+# normalize by dividing 'Cp' by 'divisor_PCR1'
+merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$Cp / merge_PCR1_median$divisor_PCR1)
+
+# find mean of normalized Cp for each ConcatDate
+mean_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + AssayName, merge_PCR1_median, mean)
+names(mean_normalizedCp)[names(mean_normalizedCp) == 'NormalizedCp'] <- 'MeanNormalizedCp'
+
+# plot the mean of median cp for one assay for along ConcatDate
+g2 <- ggplot()
+g2 <- g2 + geom_point(data = mean_normalizedCp[grep("HRV1", mean_normalizedCp$AssayName),], aes(x = as.factor(ConcatDate), y = MeanNormalizedCp))
+g2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # ===============================================================================================================
@@ -144,149 +236,5 @@ if(nrow(pouch.lot.number.df) > 0){
 } else{
   print(paste0("NOTE: Pouch lot numbers not available for customer site id # ", customer_site_id, sep = ""))
 }
-
-
-
-# ===============================================================================================================
-# Code: Normalize Cp
-# ===============================================================================================================
-# normalize -------------------------------
-# create divisor column
-# using PCR1 -----(using the minimum of assay Cps) for a positive Target-----------------------------------------------------------------------------------------------------------------------------------
-div_PCR1 <- aggregate(Cp ~ RunDataId + AssayName, all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == "PCR1", ], median)
-names(div_PCR1)[names(div_PCR1) == 'Cp'] <- 'divisor_PCR1'
-all.customer.pouch.lot.number.df <- merge(x = all.customer.pouch.lot.number.df, y = div_PCR1, by.x = c("RunDataId"), by.y = c("RunDataId"), all.x = TRUE)
-all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(AssayName.y))
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'AssayName.x'] <- 'AssayName'
-
-# create a multiplier (standard deviation)
-# variation in PCR1 for each pouch lot number in customer + internal values of Cp
-multi.PCR1 <- merge(x = all.internal.cp.pouch.lot.number.df[all.internal.cp.pouch.lot.number.df$Name == "PCR1", c('PouchLotNumber', 'Cp')], y = all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == "PCR1", c('PouchLotNumber', 'Cp')], by.x = 'PouchLotNumber', by.y = 'PouchLotNumber')
-melt.multi.PCR1 <- melt(multi.PCR1)
-melt.multi.PCR1 <- subset(melt.multi.PCR1, select = -c(variable))
-multi.PCR1.sd <- aggregate(value ~ PouchLotNumber, melt.multi.PCR1, sd)
-
-# add the multiplier column to main table
-# NOTE: 'na.omit' removes some pouch lot numbers
-all.customer.pouch.lot.number.df <- na.omit(unique(merge(x = all.customer.pouch.lot.number.df, y = multi.PCR1.sd, by.x = 'PouchLotNumber', by.y = 'PouchLotNumber', all.x = TRUE)))
-# all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(value.y))
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'value'] <- 'MultiplierPCR1'
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'TargetName.x'] <- 'TargetName'
-
-# normalize using PCR1 control
-all.customer.pouch.lot.number.df$NormalizedCp_PCR1 <- round((all.customer.pouch.lot.number.df$MultiplierPCR1 * all.customer.pouch.lot.number.df$Cp)/ all.customer.pouch.lot.number.df$divisor_PCR1, 4)
-all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(TargetName.y))
-
-# find minimum of normalized values for each RunDataId, Target
-cust.min.of.normalizedCp <- aggregate(NormalizedCp_PCR1 ~ RunDataId + TargetName, all.customer.pouch.lot.number.df, min)
-names(cust.min.of.normalizedCp)[names(cust.min.of.normalizedCp) == 'NormalizedCp_PCR1'] <- 'MinNormalizedCp_PCR1'
-
-cust.min.of.normalizedCp.merge <- merge(x = cust.min.of.normalizedCp, y = all.customer.pouch.lot.number.df, by.x = c('RunDataId', 'TargetName'), by.y = c('RunDataId', 'TargetName'), all.x = TRUE)
-
-# plot
-g8 <- ggplot()
-g8 <- g8 + geom_point(data = all.customer.pouch.lot.number.df, aes(x = RunDate, y = NormalizedCp_PCR1, colour = factor(TargetName)), alpha = 0.2, size = 1)  + coord_cartesian(ylim=c(0,2.25))
-g8 <- g8 + geom_point(data = cust.min.of.normalizedCp.merge, aes(x = RunDate, y = MinNormalizedCp_PCR1, color = factor(TargetName), size = 4))
-g8 <- g8 + facet_wrap(~ PouchLotNumber)
-g8
-
-
-jpeg(filename = paste("min_NormalizedCp_PCR1",".jpg", sep=""), width = 5000, height = 3000, units = 'px', res = 300)
-print(g8)
-dev.off()
-
-
-
-# -----------------# -----------------# -----------------# -----------------# -----------------
-# create divisor column
-# using PCR2 -----(using the minimum of assay Cps) for a positive Target-----------------------------------------------------------------------------------------------------------------------------------
-div_PCR2 <- aggregate(Cp ~ RunDataId + AssayName, all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == "PCR2", ], median)
-names(div_PCR2)[names(div_PCR2) == 'Cp'] <- 'divisor_PCR2'
-all.customer.pouch.lot.number.df <- merge(x = all.customer.pouch.lot.number.df, y = div_PCR2, by.x = c("RunDataId"), by.y = c("RunDataId"), all.x = TRUE)
-all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(AssayName.y))
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'AssayName.x'] <- 'AssayName'
-
-# create a multiplier (standard deviation)
-# variation in PCR2 for each pouch lot number in customer + internal values of Cp
-multi.PCR2 <- merge(x = all.internal.cp.pouch.lot.number.df[all.internal.cp.pouch.lot.number.df$Name == "PCR2", c('PouchLotNumber', 'Cp')], y = all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == "PCR2", c('PouchLotNumber', 'Cp')], by.x = 'PouchLotNumber', by.y = 'PouchLotNumber')
-melt.multi.PCR2 <- melt(multi.PCR2)
-melt.multi.PCR2 <- subset(melt.multi.PCR2, select = -c(variable))
-multi.PCR2.sd <- aggregate(value ~ PouchLotNumber, melt.multi.PCR2, sd)
-
-# add the multiplier column to main table
-# NOTE: 'na.omit' removes some pouch lot numbers
-all.customer.pouch.lot.number.df <- na.omit(unique(merge(x = all.customer.pouch.lot.number.df, y = multi.PCR2.sd, by.x = 'PouchLotNumber', by.y = 'PouchLotNumber', all.x = TRUE)))
-# all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(value.y))
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'value'] <- 'MultiplierPCR2'
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'TargetName.x'] <- 'TargetName'
-
-# normalize using PCR2 control
-all.customer.pouch.lot.number.df$NormalizedCp_PCR2 <- round((all.customer.pouch.lot.number.df$MultiplierPCR2 * all.customer.pouch.lot.number.df$Cp)/ all.customer.pouch.lot.number.df$divisor_PCR2, 4)
-all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(TargetName.y))
-
-# find minimum of normalized values for each RunDataId, Target
-cust.min.of.normalizedCp <- aggregate(NormalizedCp_PCR2 ~ RunDataId + TargetName, all.customer.pouch.lot.number.df, min)
-names(cust.min.of.normalizedCp)[names(cust.min.of.normalizedCp) == 'NormalizedCp_PCR2'] <- 'MinNormalizedCp_PCR2'
-
-cust.min.of.normalizedCp.merge <- merge(x = cust.min.of.normalizedCp, y = all.customer.pouch.lot.number.df, by.x = c('RunDataId', 'TargetName'), by.y = c('RunDataId', 'TargetName'), all.x = TRUE)
-
-# plot
-g9 <- ggplot()
-g9 <- g9 + geom_point(data = all.customer.pouch.lot.number.df, aes(x = RunDate, y = NormalizedCp_PCR2, colour = factor(TargetName)), alpha = 0.2, size = 1)  + coord_cartesian(ylim=c(0,2.25))
-g9 <- g9 + geom_point(data = cust.min.of.normalizedCp.merge, aes(x = RunDate, y = MinNormalizedCp_PCR2, color = factor(TargetName), size = 4))
-g9 <- g9 + facet_wrap(~ PouchLotNumber)
-g9
-
-
-jpeg(filename = paste("min_NormalizedCp_PCR2",".jpg", sep=""), width = 5000, height = 3000, units = 'px', res = 300)
-print(g9)
-dev.off()
-
-
-
-# -----------------# -----------------# -----------------# -----------------# -----------------
-# create divisor column
-# using yeastRNA -----(using the minimum of assay Cps) for a positive Target-----------------------------------------------------------------------------------------------------------------------------------
-div_yeastRNA <- aggregate(Cp ~ RunDataId + AssayName, all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == "yeastRNA", ], median)
-names(div_yeastRNA)[names(div_yeastRNA) == 'Cp'] <- 'divisor_yeastRNA'
-all.customer.pouch.lot.number.df <- merge(x = all.customer.pouch.lot.number.df, y = div_yeastRNA, by.x = c("RunDataId"), by.y = c("RunDataId"), all.x = TRUE)
-all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(AssayName.y))
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'AssayName.x'] <- 'AssayName'
-
-# create a multiplier (standard deviation)
-# variation in yeastRNA for each pouch lot number in customer + internal values of Cp
-multi.yeastRNA <- merge(x = all.internal.cp.pouch.lot.number.df[all.internal.cp.pouch.lot.number.df$Name == "yeastRNA", c('PouchLotNumber', 'Cp')], y = all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == "yeastRNA", c('PouchLotNumber', 'Cp')], by.x = 'PouchLotNumber', by.y = 'PouchLotNumber')
-melt.multi.yeastRNA <- melt(multi.yeastRNA)
-melt.multi.yeastRNA <- subset(melt.multi.yeastRNA, select = -c(variable))
-multi.yeastRNA.sd <- aggregate(value ~ PouchLotNumber, melt.multi.yeastRNA, sd)
-
-# add the multiplier column to main table
-# NOTE: 'na.omit' removes some pouch lot numbers
-all.customer.pouch.lot.number.df <- na.omit(unique(merge(x = all.customer.pouch.lot.number.df, y = multi.yeastRNA.sd, by.x = 'PouchLotNumber', by.y = 'PouchLotNumber', all.x = TRUE)))
-# all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(value.y))
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'value'] <- 'MultiplieryeastRNA'
-names(all.customer.pouch.lot.number.df)[names(all.customer.pouch.lot.number.df) == 'TargetName.x'] <- 'TargetName'
-
-# normalize using yeastRNA control
-all.customer.pouch.lot.number.df$NormalizedCp_yeastRNA <- round((all.customer.pouch.lot.number.df$MultiplieryeastRNA * all.customer.pouch.lot.number.df$Cp)/ all.customer.pouch.lot.number.df$divisor_yeastRNA, 4)
-all.customer.pouch.lot.number.df <- subset(all.customer.pouch.lot.number.df, select = -c(TargetName.y))
-
-# find minimum of normalized values for each RunDataId, Target
-cust.min.of.normalizedCp <- aggregate(NormalizedCp_yeastRNA ~ RunDataId + TargetName, all.customer.pouch.lot.number.df, min)
-names(cust.min.of.normalizedCp)[names(cust.min.of.normalizedCp) == 'NormalizedCp_yeastRNA'] <- 'MinNormalizedCp_yeastRNA'
-
-cust.min.of.normalizedCp.merge <- merge(x = cust.min.of.normalizedCp, y = all.customer.pouch.lot.number.df, by.x = c('RunDataId', 'TargetName'), by.y = c('RunDataId', 'TargetName'), all.x = TRUE)
-
-# plot
-g10 <- ggplot()
-g10 <- g10 + geom_point(data = all.customer.pouch.lot.number.df, aes(x = RunDate, y = NormalizedCp_yeastRNA, colour = factor(TargetName)), alpha = 0.2, size = 1)  + coord_cartesian(ylim=c(0,4.5))
-g10 <- g10 + geom_point(data = cust.min.of.normalizedCp.merge, aes(x = RunDate, y = MinNormalizedCp_yeastRNA, color = factor(TargetName), size = 4))
-g10 <- g10 + facet_wrap(~ PouchLotNumber)
-g10
-
-
-jpeg(filename = paste("min_NormalizedCp_yeastRNA",".jpg", sep=""), width = 5000, height = 3000, units = 'px', res = 300)
-print(g10)
-dev.off()
 
 
