@@ -137,7 +137,7 @@ g2 <- g2 + geom_point(data = mean_normalizedCp[grep("HRV1", mean_normalizedCp$As
 g2
 
 # print plot
-jpeg(paste("Assay_Cp", ".jpg", sep=""), width = 800, height = 480, units = 'px')
+jpeg(paste("Assay_Cp", ".jpg", sep=""), width = 1500, height = 480, units = 'px')
 print(g2) # Make plot
 dev.off()
 
@@ -170,7 +170,7 @@ g3 <- g3 + geom_point(data = mean_target_normalizedCp[grep(".*Rhino.*", mean_tar
 g3
 
 # print plot
-jpeg(paste("Target_Cp", ".jpg", sep=""), width = 800, height = 480, units = 'px')
+jpeg(paste("Target_Cp", ".jpg", sep=""), width = 1500, height = 480, units = 'px')
 print(g3) # Make plot
 dev.off()
 
