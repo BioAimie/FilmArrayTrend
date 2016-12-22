@@ -1,0 +1,36 @@
+SET NOCOUNT ON
+
+SELECT [RunDataId]
+INTO #cparas
+FROM [FADataWarehouse].[dbo].[SummarizedPositiveAssayResults]
+WHERE [Interpretation] LIKE 'C% Para%'
+
+SELECT
+	[EpiYear] AS [Year],
+	[EpiWeek] AS [Week],
+	IIF([EpiWeek] > 9, CONCAT([EpiYear], [EpiWeek]), CONCAT([EpiYear], 0, [EpiWeek])) AS [ConcatDate],
+	T2.*
+FROM
+(
+	SELECT DISTINCT
+		L.[CustomerSiteId],
+		R.[RunDataId],
+		W.[WellName],
+		R.[EndTime],
+		CAST(R.[EndTime] AS DATE) AS [EndDate],
+		R.[PositiveAssays],
+		W.[ResultType],
+		W.[Name] AS [AssayName],
+		W.[Result] AS [AssayResult],
+		IIF(W.[Cp] IS NULL OR W.[Cp] = 0, 30, [Cp]) AS [Cp]
+	FROM [FADataWarehouse].[dbo].[RunData] R WITH(NOLOCK) INNER JOIN [FADataWarehouse].[dbo].[ConnectorLaptops] L WITH(NOLOCK)
+			ON R.[ConnectorLaptopId] = L.[ConnectorLaptopId] INNER JOIN [FADataWarehouse].[dbo].[WellData] W WITH(NOLOCK)
+					ON R.[RunDataId] = W.[RunDataId]
+	WHERE R.[PouchResult] = 'Pass' AND R.[RunStatus] = 'Completed' AND R.[PouchTitle] LIKE '%BCID%' AND W.[Result] = 'Positive' AND [ResultType] <> 'control' AND R.[PositiveAssays] < 4
+			AND R.[RunDataId] IN (SELECT [RunDataId] FROM #cparas)
+)T2 RIGHT JOIN [FADataWarehouse].[dbo].[EpiWeeks] E WITH(NOLOCK) 
+	ON T2.[EndDate] = E.[Date]
+WHERE E.[Date] >= (SELECT MIN(CAST([StartTime] AS DATE)) FROM [FADataWarehouse].[dbo].[RunData] WITH(NOLOCK) WHERE [Cp] IS NOT NULL) 
+	AND E.[Date] <= CAST(GETDATE() AS DATE)
+ORDER BY [Year], [Week], [RunDataId], [AssayName]
+DROP TABLE #cparas
