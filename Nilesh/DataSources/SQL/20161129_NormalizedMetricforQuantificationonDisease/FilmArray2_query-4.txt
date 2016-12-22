@@ -1,12 +1,14 @@
 SET NOCOUNT ON
 
-
-SELECT
+SELECT 
 	ER.[PouchSerialNumber],
 	ER.[SampleType],
 	ER.[PouchLotNumber],
 	AA.[Name],
-	RR.[Cp]
+	RR.[Cp],
+	AR.[Result],
+	IIF(AR.[Result] = 'Positive', 1, 0) AS [FlagPositives]
+INTO #allFilmArray2ControlCp
 FROM [FILMARRAYDB].[FilmArray2].[dbo].[AssayResult] AR WITH(NOLOCK) INNER JOIN [FILMARRAYDB].[FilmArray2].[dbo].[Assay] AA WITH(NOLOCK) 
 	ON AR.[assay_id] = AA.[Id] INNER JOIN [FILMARRAYDB].[FilmArray2].[dbo].[Assay_Reaction] ARX WITH(NOLOCK) 
 		ON AA.[Id] = ARX.[assay_id] INNER JOIN  [FILMARRAYDB].[FilmArray2].[dbo].[Reaction] RX WITH(NOLOCK) 
@@ -17,6 +19,29 @@ FROM [FILMARRAYDB].[FilmArray2].[dbo].[AssayResult] AR WITH(NOLOCK) INNER JOIN [
 WHERE AA.[Name] IN ('PCR1','PCR2','yeastRNA') AND ER.[PouchLotNumber] LIKE '%227415%'  AND ER.[SampleId] LIKE '%QC%'
 ORDER BY ER.[PouchLotNumber], ER.[PouchSerialNumber], AA.[Name]
 
+SELECT *
+INTO #positiveAssays
+FROM
+(
+	SELECT 
+		T.[PouchSerialNumber],
+		T.[Name],
+		COUNT(T.[FlagPositives]) AS [CountPositives]
+	FROM #allFilmArray2ControlCp T
+	GROUP BY T.[PouchSerialNumber], T.[Name]
+	
+) T1 
+WHERE [CountPositives] >= 2
+
+SELECT 
+	A.[PouchSerialNumber],
+	A.[SampleType],
+	A.[PouchLotNumber],
+	A.[Name],
+	A.[Cp],
+	A.[Result]
+FROM #allFilmArray2ControlCp A
+WHERE A.[PouchSerialNumber] IN (SELECT [PouchSerialNumber] FROM #positiveAssays)
 
 
-
+DROP TABLE #allFilmArray2ControlCp, #positiveAssays
