@@ -11,6 +11,7 @@ FROM
 	SELECT
 		CAST(R.[StartTime] AS DATE) AS [RunDate],
 		T.*,
+		R.[PouchTitle],
 		R.[PositiveAssays],
 		R.[PouchLotNumber],
 		R.[PouchSerialNumber]
@@ -35,7 +36,7 @@ FROM
 		WHERE R.[RunStatus] LIKE 'Completed' AND R.[PositiveAssays] < 3 AND [PouchLotNumber] LIKE '%332916%'
 )T2 RIGHT JOIN [FADataWarehouse].[dbo].[EpiWeeks] E WITH(NOLOCK) 
 	ON T2.[RunDate] = E.[Date]
-WHERE E.[Date] >= (SELECT MIN(CAST([StartTime] AS DATE)) FROM [FADataWarehouse].[dbo].[RunData] WITH(NOLOCK) WHERE [Cp] IS NOT NULL) 
+WHERE E.[Date] >= (SELECT MIN(CAST([StartTime] AS DATE)) FROM [FADataWarehouse].[dbo].[RunData] WITH(NOLOCK)) 
 	AND E.[Date] <= CAST(GETDATE() AS DATE)
 ORDER BY [Year], [Week], [RunDataId]
 
