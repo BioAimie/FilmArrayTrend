@@ -22,25 +22,41 @@ customer_site_id = 7 # NA, 7, 33, 2
 FADWcxn <- odbcConnect(dsn = 'FA_DW', uid = 'lmeyers', pwd = 'Idaho1Tech')
 queryVector <- scan(paste(sql_path,'/FADataWarehouse_query.txt', sep=""),what=character(),quote="")
 query <- paste(queryVector,collapse=" ")
+if (!is.na(customer_site_id)){
+query <- gsub("\\[CustomerSiteId\\] = [0-9]+", paste("[CustomerSiteId] = ", customer_site_id, sep= ""), query)
+}else {
+query <- gsub("AND S.\\[CustomerSiteId\\] = [0-9]+", "",query) 
+}
 pouch.lot.number.df <- sqlQuery(FADWcxn,query)
 odbcClose(FADWcxn)
 # ------------------------------------------------------------------------------------------------------------------------
 
 
-all.internal.cp.pouch.lot.number.df <- NULL
+filmarray1.all.internal.cp.pouch.lot.number.df <- NULL
+filmarray2.all.internal.cp.pouch.lot.number.df <- NULL
 for(i in 1:nrow(pouch.lot.number.df)){
   print(i)
   # read in data from PMS PROD server 
   PMScxn <- odbcConnect('PMS_PROD')
+  
   queryVector <- scan(paste(sql_path,'/FilmArray2_query-4.txt', sep=""),what=character(),quote="")
   query <- paste(queryVector,collapse=" ")
   query <- gsub("\\[PouchLotNumber\\] LIKE \'%[0-9].*%\'", paste("[PouchLotNumber] LIKE ", "\'", "%", pouch.lot.number.df$PouchLotNumber[i],  "%", "\'", sep= ""), query)
-  internal.cp.df.name <- paste("internal.cp.pouch.lot.number.df.", pouch.lot.number.df$PouchLotNumber[i], sep="")
+  internal.cp.df.name <- paste("filmarray2.internal.cp.pouch.lot.number.df.", pouch.lot.number.df$PouchLotNumber[i], sep="")
   assign(internal.cp.df.name,sqlQuery(PMScxn,query))
+  
+  queryVector <- scan(paste(sql_path,'/query_FilmArray1.txt', sep=""),what=character(),quote="")
+  query <- paste(queryVector,collapse=" ")
+  query <- gsub("\\[PouchLotNumber\\] LIKE \'%[0-9].*%\'", paste("[PouchLotNumber] LIKE ", "\'", "%", pouch.lot.number.df$PouchLotNumber[i],  "%", "\'", sep= ""), query)
+  internal.cp.df.name <- paste("filmarray1.internal.cp.pouch.lot.number.df.", pouch.lot.number.df$PouchLotNumber[i], sep="")
+  assign(internal.cp.df.name,sqlQuery(PMScxn,query))
+  
   odbcClose(PMScxn)
   # OPTIONAL: combine into dataframe 
-  all.internal.cp.pouch.lot.number.df <- rbind(all.internal.cp.pouch.lot.number.df, get(internal.cp.df.name))
+  filmarray1.all.internal.cp.pouch.lot.number.df <- rbind(filmarray1.all.internal.cp.pouch.lot.number.df, get(internal.cp.df.name))
+  filmarray2.all.internal.cp.pouch.lot.number.df <- rbind(filmarray2.all.internal.cp.pouch.lot.number.df, get(internal.cp.df.name))
 }
+all.internal.cp.pouch.lot.number.df <- rbind(filmarray1.all.internal.cp.pouch.lot.number.df, filmarray2.all.internal.cp.pouch.lot.number.df)
 
 # # GET DATA - 2: list of assay names ---------------------------------------------------------------------------------------
 # read in the data from FilmArray Data Warehouse DB (ODBC object in Windows "FA_DW" with Lindsay's credentials)
@@ -58,7 +74,6 @@ for(i in 1:nrow(pouch.lot.number.df)){
   # combine into a dataframe if selection based on customer site id
   main.all.customer.pouch.lot.number.df <- rbind(main.all.customer.pouch.lot.number.df, get(customer.cp.df.name))
 }
-
 all.customer.pouch.lot.number.df <- main.all.customer.pouch.lot.number.df
 
 # OPTIONAL: (if customer site id is used then) subset data
@@ -79,7 +94,6 @@ all.customer.pouch.lot.number.df <- all.customer.pouch.lot.number.df[order(all.c
 # flag assay result
 all.customer.pouch.lot.number.df$FlagNUM_AssayPositive <- ifelse(all.customer.pouch.lot.number.df$AssayResult == 'Positive', 1, 0)
 #
-
 temp.all.customer <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$ResultType == 'organism', ]
 agg.temp.all.customer <- aggregate(FlagNUM_AssayPositive ~ RunDataId + AssayName, temp.all.customer, sum)
 names(agg.temp.all.customer)[names(agg.temp.all.customer) == 'FlagNUM_AssayPositive'] <- 'SUM_FlagNUM_AssayPositive'
@@ -108,9 +122,9 @@ control.PCR2 <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.d
 control.yeastRNA <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'yeastRNA', ]
 
 # find divisor
-div_PCR1 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR1[control.PCR1$AssayName == "PCR1", ], median)
-div_PCR2 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR2[control.PCR2$AssayName == "PCR2", ], median)
-div_yeastRNA <- aggregate(Cp ~ RunDataId + AssayName, control.yeastRNA[control.yeastRNA$AssayName == "yeastRNA", ], median)
+div_PCR1 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR1, median)
+div_PCR2 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR2, median)
+div_yeastRNA <- aggregate(Cp ~ RunDataId + AssayName, control.yeastRNA, median)
 
 # rename columns
 names(div_PCR1)[names(div_PCR1) == 'Cp'] <- 'divisor_PCR1'
@@ -124,7 +138,7 @@ names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.x'] <- 'AssayNam
 names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.y'] <- 'Normalized_By'
 
 # normalize by dividing 'Cp' by 'divisor_PCR1'
-merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$Cp / merge_PCR1_median$divisor_PCR1)
+merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$MedianCp / merge_PCR1_median$divisor_PCR1)
 
 # AGGREGATE Normalized Cp: find mean of normalized Cp for each ConcatDate
 mean_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + AssayName, merge_PCR1_median, mean)
