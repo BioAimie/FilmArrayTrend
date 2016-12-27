@@ -20,13 +20,14 @@ dateBreaks <- unique(calendar.df[calendar.df$Year >= startYear, 'YearWeek'])[ord
 
 # set some query variables, like the customer site and the panel by querying the panels run by site
 FADWcxn <- odbcConnect('FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD')
-queryVector <- scan('../DataSources/SQL/CpInvestigation/panelsBySite.sql',what=character(),quote="")
+queryVector <- scan('../DataSources/SQL/CpInvestigation/panelsBySite.txt',what=character(),quote="")
 query <- paste(queryVector,collapse=" ")
 filters.df <- sqlQuery(FADWcxn,query)
 odbcClose(FADWcxn)
 
 # start a loop to gather Cp data and make charts
 panels <- as.character(unique(filters.df$PouchTitle))
+panels <- panels[order(panels)]
 for(i in 1:length(panels)) {
   
   # load the data from SQL... if the panel is Respiratory, then that requires some special attention
@@ -121,8 +122,6 @@ for(i in 1:length(panels)) {
   qc.df <- qc.df[!(is.na(qc.df$Cp)), ]
   qc.df <- unique(qc.df[,c('PouchSerialNumber','PouchLotNumber','Name','Cp')])
 
-  # ----------------------------------------------------------------------------------
-  ##### I AM RIGHT HERE!!!!!! #######    
   # find the median Cps for yeast in the field and in QC
   yeast.runs <- cp.controls[cp.controls$RunDataId %in% runs.keep, ]
   yeast.runs <- yeast.runs[grep('yeast', as.character(yeast.runs$AssayName)), 'RunDataId']
@@ -148,32 +147,32 @@ for(i in 1:length(panels)) {
   cp.yeast <- cp.yeast[nchar(as.character(cp.yeast$LotNo))==6, ]
   temp.plot <- ggplot(cp.yeast, aes(x=YearWeek, y=MedianCp)) + geom_point(alpha=0.25) + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + scale_x_discrete(breaks=dateBreaks) + labs(title=paste('Median Cp of Yeast Control in', choose.panel,'Runs\nin Trend Population', sep=' '), y='Median Cp', x='Year-Week')
   temp.file <- paste(imgDir, choose.panel, '_', 'yeast_TimeSeriesCps.png', sep='')  
-  png(temp.file, width = 1400, height = 800)
+  png(temp.file, width = 1600, height = 800)
   print(temp.plot)
   dev.off()
   
   # 2.    For all panels, include all yeast median Cp data accross sites and chart by pouch lot
   lot.color <- with(data.frame(cp.yeast, Count=1), aggregate(Count~LotNo, FUN=sum))
   cp.yeast <- merge(cp.yeast, lot.color, by='LotNo')
-  temp.plot <- ggplot(cp.yeast, aes(x=LotNo, y=MedianCp, fill=Count)) + geom_boxplot() + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90, size=16), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp Distribution of Yeast Control in', choose.panel,'Runs\nin Trend Population', sep=' '), y='Median Cp', x='Lot Number')
+  temp.plot <- ggplot(cp.yeast, aes(x=LotNo, y=MedianCp, fill=Count)) + geom_boxplot() + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90, size=14, face='plain'), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp Distribution of Yeast Control in', choose.panel,'Runs\nin Trend Population', sep=' '), y='Median Cp', x='Lot Number')
   temp.file <- paste(imgDir, choose.panel, '_', 'yeast_CpByLot.png', sep='')
-  png(temp.file, width = 1400, height = 800)
+  png(temp.file, width = 1600, height = 800)
   print(temp.plot)
   dev.off()
   
   # 3-6.  For all panels, include all delta yeast median Cp between field and QC data accorss sites and chart by site, lot, week, and instrument
   cp.yeast.qc <- merge(cp.yeast, qc.yeast, by.x='LotNo', by.y='PouchLotNumber', all.x=TRUE)
   cp.yeast.qc$CpDiff <- with(cp.yeast.qc, MedianCp-Cp)
-  temp.plot <- ggplot(cp.yeast.qc, aes(x=LotNo, y=CpDiff, fill=Count)) + geom_boxplot() + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90, size=16), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(-10,-5,0,5,10), limits=c(-10,10)) + labs(title=paste(choose.panel, ': Median Cp of Yeast Control in Trend Run - Median in QC', sep=''), y='Median Cp - Median Cp in QC', x='Lot Number')
+  temp.plot <- ggplot(cp.yeast.qc, aes(x=LotNo, y=CpDiff, fill=Count)) + geom_boxplot() + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90, size=14, face='plain'), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(-10,-5,0,5,10), limits=c(-10,10)) + labs(title=paste(choose.panel, ': Median Cp of Yeast Control in Trend Run - Median in QC', sep=''), y='Median Cp - Median Cp in QC', x='Lot Number')
   temp.file <- paste(imgDir, choose.panel, '_', 'yeast_CpDiffvQC_Lot.png', sep='')
-  png(temp.file, width = 1400, height = 800)
+  png(temp.file, width = 1600, height = 800)
   print(temp.plot)
   dev.off()
   
   cp.yeast.qc <- merge(cp.yeast.qc, with(data.frame(cp.yeast.qc, CountWeek = 1), aggregate(CountWeek~YearWeek, FUN=sum)), by='YearWeek')
   temp.plot <- ggplot(cp.yeast.qc, aes(x=YearWeek, y=CpDiff, fill=CountWeek)) + geom_boxplot() + scale_x_discrete(breaks = dateBreaks) +  scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90, size=16), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(-10, -5, 0, 5, 10), limits=c(-10, 10)) + labs(title=paste(choose.panel, ': Median Cp of Yeast Control in Trend Run - Median Cp in QC', sep=''), y='Median Cp - Median Cp in QC', x='Date of Test\n(Year-Week)')
   temp.file <- paste(imgDir, choose.panel, '_', 'yeast_CpDiffvQC_Week.png', sep='')
-  png(temp.file, width = 1400, height = 800)
+  png(temp.file, width = 1600, height = 800)
   print(temp.plot)
   dev.off()
   
@@ -181,14 +180,14 @@ for(i in 1:length(panels)) {
   cp.yeast.qc <- merge(cp.yeast.qc, with(data.frame(cp.yeast.qc, CountSite = 1), aggregate(CountSite~CustomerSiteId, FUN=sum)), by='CustomerSiteId')
   temp.plot <- ggplot(cp.yeast.qc, aes(x=as.factor(CustomerSiteId), y=CpDiff, fill=CountSite)) + geom_boxplot() +  scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90, size=16), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(-10, -5, 0, 5, 10), limits=c(-10, 10)) + labs(title=paste(choose.panel, ': Median Cp of Yeast Control in Trend Run - Median Cp in QC', sep=''), y='Median Cp - Median Cp in QC', x='Customer Site')
   temp.file <- paste(imgDir, choose.panel, '_', 'yeast_CpDiffvQC_Site.png', sep='')
-  png(temp.file, width = 1400, height = 800)
+  png(temp.file, width = 1600, height = 800)
   print(temp.plot)
   dev.off()
   
   cp.yeast.qc <- merge(cp.yeast.qc, with(data.frame(cp.yeast.qc, CountInstrument = 1), aggregate(CountInstrument~SerialNo, FUN=sum)), by='SerialNo')
-  temp.plot <- ggplot(subset(cp.yeast.qc, CountInstrument >= 50), aes(x=SerialNo, y=CpDiff, fill=CountInstrument)) + geom_boxplot() +  scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90, size=16), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(-10, -5, 0, 5, 10), limits=c(-10, 10)) + labs(title=paste(choose.panel, ': Median Cp of Yeast Control in Trend Run - Median Cp in QC', sep=''), y='Median Cp - Median Cp in QC', x='FilmArray Instruments\n(with >= 50 runs)')
+  temp.plot <- ggplot(subset(cp.yeast.qc, CountInstrument >= 50), aes(x=SerialNo, y=CpDiff, fill=CountInstrument)) + geom_boxplot() +  scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90, size=14, face='plain'), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(-10, -5, 0, 5, 10), limits=c(-10, 10)) + labs(title=paste(choose.panel, ': Median Cp of Yeast Control in Trend Run - Median Cp in QC', sep=''), y='Median Cp - Median Cp in QC', x='FilmArray Instruments\n(with >= 50 runs)')
   temp.file <- paste(imgDir, choose.panel, '_', 'yeast_CpDiffvQC_Instrument.png', sep='')
-  png(temp.file, width = 1400, height = 800)
+  png(temp.file, width = 1600, height = 800)
   print(temp.plot)
   dev.off()
   
@@ -202,20 +201,20 @@ for(i in 1:length(panels)) {
     color.count <- max(temp.dat$Index, na.rm=TRUE)
     temp.plot <- ggplot(temp.dat, aes(x=YearWeek, y=MedianCp, color=as.factor(Index))) + geom_point(size=1.5) + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + scale_x_discrete(breaks=dateBreaks) + labs(title=paste('Median Cp of', assays[k],'Assay in Trend Population\nby Order of Detection', sep=' '), y='Median Cp', x='Year-Week') + scale_color_manual(values=c(heat.colors(color.count)), labels=c('First','Second','Third','Fourth','Fifth','Sixth','Seventh','Eighth','Ninth','Tenth'), name='Detection Order')
     temp.file <- paste(imgDir, choose.panel, '_', gsub('\\/','-', assays[k]), '_TimeSeriesCps.png', sep='')
-    png(temp.file, width = 1400, height = 800)
+    png(temp.file, width = 1600, height = 800)
     print(temp.plot)
     dev.off()
   }
   
   # 8.    For all panels, include all Cp data across sites for each assay in a boxplot that shows the order of detection of the assay a test
-  cp.assays.ordered <- merge(cp.assays.ordered, unique(cp.df[,c('RunDataId','CustomerSiteId','SerialNo')]), by='RunDataId')
+  cp.assays.ordered <- merge(cp.assays.ordered, unique(cp.df[,c('RunDataId','SerialNo')]), by='RunDataId')
   cp.assays.ordered <- merge(cp.assays.ordered, with(data.frame(cp.assays.ordered, IndexCount = 1), aggregate(IndexCount~AssayName+Index, FUN=sum)), by=c('AssayName','Index'))
   for(k in 1:length(assays)) {
     
     temp.dat <- subset(cp.assays.ordered, AssayName==assays[k])
     temp.plot <- ggplot(temp.dat, aes(x=as.factor(Index), y=MedianCp, fill=IndexCount)) + geom_boxplot() + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5), panel.background=element_rect(fill='white', color='transparent')) + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'in Trend Population\nby Order of Detection', sep=' '), y='Median Cp', x='Order of Detection')
     temp.file <- paste(imgDir, choose.panel, '_', gsub('\\/','-', assays[k]), '_OrderOfDetectionInRunByCps.png', sep='')
-    png(temp.file, width = 1400, height = 800)
+    png(temp.file, width = 1600, height = 800)
     print(temp.plot)
     dev.off()
   }
@@ -227,7 +226,7 @@ for(i in 1:length(panels)) {
     temp.dat <- subset(cp.assays.ordered, AssayName==assays[k])
     temp.plot <- ggplot(temp.dat, aes(x=as.factor(CustomerSiteId), y=MedianCp, fill=SiteCount)) + geom_boxplot() + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5), panel.background=element_rect(fill='white', color='transparent')) + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'in Trend Population\nby Site', sep=' '), y='Median Cp', x='Customer Site')
     temp.file <- paste(imgDir, choose.panel, '_', gsub('\\/','-', assays[k]), '_SiteDistributionOfCps.png', sep='')
-    png(temp.file, width = 1400, height = 800)
+    png(temp.file, width = 1600, height = 800)
     print(temp.plot)
     dev.off()
   }
@@ -237,9 +236,9 @@ for(i in 1:length(panels)) {
   for(k in 1:length(assays)) {
     
     temp.dat <- subset(cp.assays.ordered, AssayName==assays[k])
-    temp.plot <- ggplot(subset(temp.dat, RunCount >= 50), aes(x=SerialNo, y=MedianCp, fill=RunCount)) + geom_boxplot() + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5, angle=90), panel.background=element_rect(fill='white', color='transparent')) + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'in Trend Population\nby FilmArray Instrument', sep=' '), y='Median Cp', x='FilmArray Instrument\n(with >= 50 runs)')
+    temp.plot <- ggplot(subset(temp.dat, RunCount >= 50), aes(x=SerialNo, y=MedianCp, fill=RunCount)) + geom_boxplot() + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5, angle=90, face='plain', size=14), panel.background=element_rect(fill='white', color='transparent')) + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'in Trend Population\nby FilmArray Instrument', sep=' '), y='Median Cp', x='FilmArray Instrument\n(with >= 50 runs)')
     temp.file <- paste(imgDir, choose.panel, '_', gsub('\\/','-', assays[k]), '_InstrumentDistributionOfCps.png', sep='')
-    png(temp.file, width = 1400, height = 800)
+    png(temp.file, width = 1600, height = 800)
     print(temp.plot)
     dev.off()
   }
@@ -256,17 +255,17 @@ for(i in 1:length(panels)) {
     temp.dat <- merge(temp.dat, with(data.frame(temp.dat, AssayCount=1), aggregate(AssayCount~AssayName, FUN=sum)), by='AssayName')
     temp.plot <- ggplot(subset(temp.dat, AssayName != 'mecA'), aes(x=AssayName, y=CpDiff, fill=AssayCount)) + geom_boxplot() + theme(legend.position='bottom', plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5, angle=90), panel.background=element_rect(fill='white', color='transparent')) + scale_fill_continuous(low='dodgerblue', high='navyblue', name='Data Points in Sample') + scale_y_continuous(breaks=c(-30,-15,0,15,30), limits=c(-30,30)) + labs(title='Median Cp of Assay - Median Cp of mecA in Trend Population', y='Median Assay Cp - mecA Cp', x='Assay Name')
     temp.file <- paste(imgDir, choose.panel, '_mecA_CpDiffVsAssay.png', sep='')
-    png(temp.file, width = 1400, height = 800)
+    png(temp.file, width = 1600, height = 800)
     print(temp.plot)
     dev.off()
   }
   
   # 12. For Flu A (RP) accross all sites, do something......
-  if(choose.panel=='RP') {
-    
-    
-    
-  }  
+  # if(choose.panel=='RP') {
+  #   
+  #   
+  #   
+  # }  
 }
 
 
@@ -278,7 +277,7 @@ if(FALSE) {
   #       temp.dat <- subset(cp.assays.ordered, AssayName==assays[k])
   #       temp.plot <- ggplot(temp.dat, aes(as.factor(Index), MedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'in Trend Population\nby Order of Detection', sep=' '), y='Median Cp', x='Order of Detection')
   #       temp.file <- paste(imgDir, choose.panel, '_', gsub('\\/','-', assays[k]), '_DistributionCps.png', sep='')
-  #       png(temp.file, width = 1400, height = 800)
+  #       png(temp.file, width = 1600, height = 800)
   #       print(temp.plot)
   #       dev.off()
   #     }
@@ -295,7 +294,7 @@ if(FALSE) {
   #         
   #         temp.plot <- ggplot(temp.dat, aes(TargetTriggerAssay, TargetMedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', targets[k],'by','First Assay\nin Trend', choose.panel, 'Tests', sep=' '), y='Median Cp', x='')
   #         temp.file <- paste(imgDir, choose.panel, '_', gsub('\\/','-', targets[k]), '_DistributionCpsByTarget.png', sep='')
-  #         png(temp.file, width = 1400, height = 800)
+  #         png(temp.file, width = 1600, height = 800)
   #         print(temp.plot)
   #         dev.off()
   #       }
@@ -313,7 +312,7 @@ if(FALSE) {
   #         temp.mrg$MedianCpDelta <- temp.mrg$MedianCp - temp.mrg$MedianGeneCp
   #         temp.plot <- ggplot(subset(temp.mrg, AssayName != genes[k]), aes(AssayName, MedianCpDelta)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5), panel.background=element_rect(fill='white', color='transparent')) + labs(title=paste('Median Cp of Assay - Median Cp of', genes[k], '\nin Trend', choose.panel ,'Tests', sep=' '), y='Median Cp', x='')
   #         temp.file <- paste(imgDir, choose.panel, '_', gsub('\\/','-', genes[k]), '_DistributionDeltaCps.png', sep='')
-  #         png(temp.file, width = 1400, height = 800)
+  #         png(temp.file, width = 1600, height = 800)
   #         print(temp.plot)
   #         dev.off()
   #       }
@@ -387,7 +386,7 @@ if(FALSE) {
   #         color.count <- max(temp.dat$Index, na.rm=TRUE)
   #         temp.plot <- ggplot(temp.dat, aes(x=YearWeek, y=MedianCp, color=as.factor(Index))) + geom_point(size=1.5) + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=90), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + scale_x_discrete(breaks=dateBreaks) + labs(title=paste('Median Cp of', assays[k],'Assay in Trend Population\nby Order of Detection', sep=' '), y='Median Cp', x='Year-Week') + scale_color_manual(values=c(heat.colors(color.count)), labels=c('First','Second','Third','Fourth','Fifth','Sixth','Seventh','Eighth','Ninth','Tenth'), name='Detection Order')
   #         temp.file <- paste(imgDir, choose.panel, '_site', choose.sites[j], '_', gsub('\\/','-', assays[k]), '_TimeSeriesCps.png', sep='')
-  #         png(temp.file, width = 1400, height = 800)
+  #         png(temp.file, width = 1600, height = 800)
   #         print(temp.plot)
   #         dev.off()
   #       }
@@ -398,7 +397,7 @@ if(FALSE) {
   #         temp.dat <- subset(cp.assays.ordered, AssayName==assays[k])
   #         temp.plot <- ggplot(temp.dat, aes(as.factor(Index), MedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'in Trend Population\nby Order of Detection', sep=' '), y='Median Cp', x='Order of Detection')
   #         temp.file <- paste(imgDir, choose.panel, '_site', choose.sites[j], '_', gsub('\\/','-', assays[k]), '_DistributionCps.png', sep='')
-  #         png(temp.file, width = 1400, height = 800)
+  #         png(temp.file, width = 1600, height = 800)
   #         print(temp.plot)
   #         dev.off()
   #       }
@@ -415,7 +414,7 @@ if(FALSE) {
   #           
   #           temp.plot <- ggplot(temp.dat, aes(TargetTriggerAssay, TargetMedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=0.5), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', targets[k],'by','First Assay\nin Trend', choose.panel, 'Tests', sep=' '), y='Median Cp', x='')
   #           temp.file <- paste(imgDir, choose.panel, '_site', choose.sites[j], '_', gsub('\\/','-', targets[k]), '_DistributionCpsByTarget.png', sep='')
-  #           png(temp.file, width = 1400, height = 800)
+  #           png(temp.file, width = 1600, height = 800)
   #           print(temp.plot)
   #           dev.off()
   #         }
@@ -432,7 +431,7 @@ if(FALSE) {
   #       temp.dat <- subset(cp.assays.ordered.all, AssayName==assays[k])
   #       temp.plot <- ggplot(temp.dat, aes(as.factor(Index), MedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=45), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', assays[k],'at Trend Sites\nby Order of Detection', sep=' '), y='Median Cp', x='Order of Detection') + facet_wrap(~CustomerSiteId)
   #       temp.file <- paste(imgDir, choose.panel, '_allSites', '_', gsub('\\/','-', assays[k]), '_DistributionCps.png', sep='')
-  #       png(temp.file, width = 1400, height = 800)
+  #       png(temp.file, width = 1600, height = 800)
   #       print(temp.plot)
   #       dev.off()
   #     }
@@ -448,7 +447,7 @@ if(FALSE) {
   #         
   #         temp.plot <- ggplot(temp.dat, aes(TargetTriggerAssay, TargetMedianCp)) + geom_boxplot() + theme(plot.title=element_text(hjust=0.5), text=element_text(size=20, color='black', face='bold'), axis.text=element_text(size=18, color='black', face='bold'), axis.text.x=element_text(hjust=1, angle=45), panel.background=element_rect(fill='white', color='transparent')) + scale_y_continuous(breaks=c(0,5,10,15,20,25,30), limits=c(0,30)) + labs(title=paste('Median Cp of', targets[k],'by','First Assay\nin Trend', choose.panel, 'Tests by Site', sep=' '), y='Median Cp', x='') + facet_wrap(~CustomerSiteId)
   #         temp.file <- paste(imgDir, choose.panel, '_allSites', '_', gsub('\\/','-', targets[k]), '_DistributionCpsByTarget.png', sep='')
-  #         png(temp.file, width = 1400, height = 800)
+  #         png(temp.file, width = 1600, height = 800)
   #         print(temp.plot)
   #         dev.off()
   #       }
