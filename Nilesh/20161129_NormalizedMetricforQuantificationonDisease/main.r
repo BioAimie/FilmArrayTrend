@@ -128,7 +128,6 @@ new.all.customer.pouch.lot.number.df$MedianCp <- ifelse(new.all.customer.pouch.l
 new.all.customer.pouch.lot.number.df <- new.all.customer.pouch.lot.number.df[order(new.all.customer.pouch.lot.number.df$RunDataId, new.all.customer.pouch.lot.number.df$TargetName, new.all.customer.pouch.lot.number.df$AssayName, new.all.customer.pouch.lot.number.df$WellDataId), ]
 
 
-
 # # implementing "do.call" to identify >= 2 (+)ve wells -----------
 # wells.df <- all.customer.pouch.lot.number.df
 # assay_name <- unique(wells.df$AssayName)
@@ -179,6 +178,16 @@ div_PCR1 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR1, median)
 div_PCR2 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR2, median)
 div_yeastRNA <- aggregate(Cp ~ RunDataId + AssayName, control.yeastRNA, median)
 
+# find standard deviation from mean
+# summary_PCR1 <- summarySE(div_PCR1, measurevar="Cp", groupvars=c("AssayName"), conf.interval = 0.95, na.rm=TRUE)
+# # add ConcatDate to the control table
+# qc.control.cp.df <- unique(merge(x = div_PCR1, y = all.customer.pouch.lot.number.df[,c('RunDataId', 'AssayName', 'ConcatDate')], by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE))
+# #summary_PCR1 <- summarySE(qc.control.cp.df, measurevar="Cp", groupvars=c("ConcatDate", "AssayName"), conf.interval = 0.95, na.rm=TRUE)
+# div_PCR1$CpMinusMeanCp <- div_PCR1$Cp - summary_PCR1$Cp
+# div_PCR1$new_Cp <- div_PCR1$Cp - div_PCR1$CpMinusMeanCp
+# 
+# div_PCR1_1 <- unique(merge(x = qc.control.cp.df, y = summary_PCR1[, c('ConcatDate', 'sd')], by.x =  'ConcatDate', by.y = 'ConcatDate', all.x = TRUE))
+
 # rename columns
 names(div_PCR1)[names(div_PCR1) == 'Cp'] <- 'divisor_PCR1'
 names(div_PCR2)[names(div_PCR2) == 'Cp'] <- 'divisor_PCR2'
@@ -192,16 +201,40 @@ names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.y'] <- 'Normaliz
 
 # normalize by dividing 'Cp' by 'divisor_PCR1'
 merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$MedianCp / merge_PCR1_median$divisor_PCR1)
+#merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$MedianCp / mean(!is.na(merge_PCR1_median$divisor_PCR1)))
 
 # AGGREGATE Normalized Cp: find mean of normalized Cp for each ConcatDate
 mean_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + AssayName, merge_PCR1_median, mean)
 names(mean_normalizedCp)[names(mean_normalizedCp) == 'NormalizedCp'] <- 'MeanNormalizedCp'
+dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
+
+# assays for target
+# Create list of TargetName and AssayName for plotting
+assay_target_names <- unique(new.all.customer.pouch.lot.number.df[new.all.customer.pouch.lot.number.df$ResultType == 'organism', c('TargetName', 'AssayName')])
+all_targets <- unique(assay_target_names$TargetName)
+
+for (i in 1:length(all_targets)){
+  assays_for_target <- unique(assay_target_names[assay_target_names$TargetName == all_targets[i], 'AssayName'])
+  # plot the mean of median cp for one assay for along ConcatDate (for an assay)
+  g2 <- ggplot()  +  xlab("Year-Week") + ylab(paste("Mean Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Assay Cp for ", all_targets[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
+  g2 <- g2 + geom_point(data = subset(mean_normalizedCp, AssayName %in% assays_for_target), aes(x = as.factor(ConcatDate), y = MeanNormalizedCp, color = AssayName), alpha = 0.5, size = 3)
+  g2 <- g2 + geom_bar(data = centered.rate.df[grep(all_targets[i], centered.rate.df$TargetName), ], aes(x = as.factor(ConcatDate), y = CenteredRate*10), stat = "identity", alpha = 0.5) 
+  g2
+    
+  target <- if(grepl("/", target_name[i])){gsub("/", " ",all_targets[i])} else {all_targets[i]}
+  print(target)
+  # print plot
+  jpeg(filename = paste("Assay_Cp--", target, ".jpg", sep=""), width = 1500, height = 480, units = 'px')
+  print(g2) # Make plot
+  dev.off()
+}
 
 # plot the mean of median cp for one assay for along ConcatDate (for an assay)
 dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
 g2 <- ggplot() +  scale_x_discrete(breaks=dateBreaks)
 g2 <- g2 + geom_point(data = mean_normalizedCp[grep("HRV1", mean_normalizedCp$AssayName),], aes(x = as.factor(ConcatDate), y = MeanNormalizedCp))
 g2
+
 
 # print plot
 jpeg(paste("Assay_Cp", ".jpg", sep=""), width = 1500, height = 480, units = 'px')
@@ -240,7 +273,8 @@ names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.x'] <- 'AssayNam
 names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.y'] <- 'Normalized_By'
 
 # normalize by dividing 'Cp' by 'divisor_PCR1'
-merge_PCR1_min_median$NormalizedCp <- (merge_PCR1_min_median$Cp / merge_PCR1_min_median$divisor_PCR1)
+merge_PCR1_min_median$NormalizedCp <- (merge_PCR1_min_median$Cp / merge_PCR1_median$divisor_PCR1)
+#merge_PCR1_min_median$NormalizedCp <- (merge_PCR1_min_median$Cp / mean(!is.na(merge_PCR1_median$divisor_PCR1)))
 
 # AGGREGATE Normalized Cp: find mean of normalized Cp for each ConcatDate
 mean_target_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + TargetName, merge_PCR1_min_median, mean)
@@ -250,7 +284,7 @@ names(mean_target_normalizedCp)[names(mean_target_normalizedCp) == 'NormalizedCp
 count_rundataid_per_week <- count(unique(all.customer.pouch.lot.number.df[, c('ConcatDate', 'RunDataId')]), c('ConcatDate'))
 merge_PCR1_min_median <- merge(x = merge_PCR1_min_median, y = count_rundataid_per_week, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
 merge_PCR1_min_median_organism <- merge_PCR1_min_median[merge_PCR1_min_median$ResultType == 'organism', ]
-merge_PCR1_min_median_organism <- subset(merge_PCR1_min_median_organism, select = -c(freq.x))
+#merge_PCR1_min_median_organism <- subset(merge_PCR1_min_median_organism, select = -c(freq.x))
 names(merge_PCR1_min_median_organism)[names(merge_PCR1_min_median_organism) == 'AssayName.x'] <- 'AssayName'
 names(merge_PCR1_min_median_organism)[names(merge_PCR1_min_median_organism) == 'freq.y'] <- 'freq'
 
@@ -261,10 +295,12 @@ summary_merge_PCR1_min_median_organism <- summarySE(merge_PCR1_min_median_organi
 assay_name <- unique(merge_PCR1_min_median_organism$AssayName[merge_PCR1_min_median_organism$ResultType == 'organism'])
 target_name <- unique(merge_PCR1_min_median_organism$TargetName[merge_PCR1_min_median_organism$ResultType == 'organism'])
 
+# add ConcatDate to the control table
+qc.control.cp.df <- unique(merge(x = div_PCR1, y = merge_PCR1_median[,c('RunDataId', 'AssayName', 'ConcatDate')], by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE))
+
 dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
 for (i in 1:length(target_name)){
 #for (i in 1:1){  
-  print(target_name[i])
   #target <- target_name[i]
   # plot the mean of median cp for one assay for along ConcatDate (for an assay)
   g3 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
@@ -272,8 +308,9 @@ for (i in 1:length(target_name)){
   g3 <- g3 + geom_point(data = merge_PCR1_min_median_organism[grep(target_name[i], merge_PCR1_min_median_organism$TargetName), ], aes(x = as.factor(ConcatDate), y = NormalizedCp, color = freq),  alpha = 0.1, size = 3) 
   g3 <- g3 + geom_errorbar(data = summary_merge_PCR1_min_median_organism[grep(target_name[i], summary_merge_PCR1_min_median_organism$TargetName), ], aes(x = as.factor(ConcatDate), ymin = NormalizedCp - ci, ymax = NormalizedCp + ci))
   #g3 <- g3 + geom_boxplot(data = merge_PCR1_min_median[grep(".*Rhino.*", merge_PCR1_min_median$TargetName), ], aes(x = as.factor(ConcatDate), y = NormalizedCp), stat = "boxplot")
-  g3 <- g3 + geom_point(data = mean_target_normalizedCp[grep(target_name[i], mean_target_normalizedCp$TargetName), ], aes(x = as.factor(ConcatDate), y = MeanNormalizedCp), color = 'red')
+  g3 <- g3 + geom_point(data = qc.control.cp.df[qc.control.cp.df$AssayName == "PCR1",  ], aes(x = as.factor(ConcatDate), y = divisor_PCR1/10), color = 'green', alpha = 0.5, size = 1)
   g3
+  
   
   #target <- ifelse(grepl("/", target_name[i]), gsub("/", " ",target_name[i]), target_name[i])
   target <- if(grepl("/", target_name[i])){gsub("/", " ",target_name[i])} else {target_name[i]}
