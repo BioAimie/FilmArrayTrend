@@ -1,0 +1,7 @@
+SELECT
+	[CustomerSiteId],
+	IIF([Week] > 9, CONCAT([Year],[Week]), CONCAT([Year], 0, [Week])) AS [ConcatDate],
+	[AssayName],
+	[CenteredRate]
+FROM [FADataWarehouse].[dbo].[SitePercentDetectionRP] S
+WHERE S.[CustomerSiteId] = 7
