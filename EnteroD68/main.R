@@ -87,6 +87,3 @@ cp.assays.ordered <- do.call(rbind, lapply(1:length(runs), function(x) data.fram
 cp.assays.sequence <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(RunDataId = runs[x], Sequence = paste(as.character(cp.assays.ordered[cp.assays.ordered$RunDataId==runs[x], 'AssayName']), collapse=', '))))
 
 
-
-
-
