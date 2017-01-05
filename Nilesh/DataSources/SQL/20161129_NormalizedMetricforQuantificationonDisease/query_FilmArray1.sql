@@ -1,6 +1,7 @@
 SET NOCOUNT ON
 
 SELECT
+	ER.[StartTime],
 	ER.[PouchSerialNumber],
 	ER.[SampleType],
 	ER.[PouchLotNumber],
@@ -19,7 +20,7 @@ FROM [FILMARRAYDB].[FilmArray1].[FilmArray].[AssayResult] AR WITH(NOLOCK) INNER 
 WHERE AA.[Name] IN ('PCR1','PCR2','yeastRNA') AND ER.[PouchLotNumber] LIKE '%227415%'  AND ER.[SampleId] LIKE '%QC%'
 ORDER BY ER.[PouchLotNumber], ER.[PouchSerialNumber], AA.[Name]
 
--- Keep only [PouchSerialNumbers] where Assay wells with >= 2 positive results
+
 SELECT *
 INTO #positiveAssays
 FROM
@@ -34,8 +35,9 @@ FROM
 ) T1 
 WHERE [CountPositives] >= 2
 
--- Filtered Cp for positive assays
+
 SELECT 
+	CAST(A.[StartTime] AS DATE) AS [RunDate],
 	A.[PouchSerialNumber],
 	A.[SampleType],
 	A.[PouchLotNumber],

@@ -38,6 +38,9 @@ if (!is.na(customer_site_id)){
 }
 centered.rate.df <- sqlQuery(FADWcxn,query)
 
+queryVector <- scan(paste(sql_path,'/query_EpiWeeksCalendar.txt', sep=""),what=character(),quote="")
+query <- paste(queryVector,collapse=" ")
+calendar.df <- sqlQuery(FADWcxn,query)
 odbcClose(FADWcxn)
 
 # rename 'AssayName' to 'TargetName'
@@ -298,6 +301,20 @@ target_name <- unique(merge_PCR1_min_median_organism$TargetName[merge_PCR1_min_m
 # add ConcatDate to the control table
 qc.control.cp.df <- unique(merge(x = div_PCR1, y = merge_PCR1_median[,c('RunDataId', 'AssayName', 'ConcatDate')], by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE))
 
+# internal QC cp
+internal_cp <- all.internal.cp.pouch.lot.number.df
+internal_cp$RunDate <- as.Date(internal_cp$RunDate)
+internal_cp$PouchSerialNumber <- as.character(internal_cp$PouchSerialNumber)
+
+
+calendar.df$Date <- as.Date(calendar.df$Date)
+calendar.df <- calendar.df[calendar.df$Date >= min(internal_cp$RunDate) & calendar.df$Date <= max(internal_cp$RunDate), ]
+
+internal_cp <- unique(merge(x = calendar.df, y = internal_cp[internal_cp$Name == "PCR1", ], by.x = "Date", by.y = "RunDate", all.x = TRUE))
+# find internal median cp for each week
+internal_cp$ConcatDate <- as.numeric(ifelse(internal_cp$EpiWeek > 9, paste(internal_cp$EpiYear, internal_cp$EpiWeek, sep=""), paste(internal_cp$EpiYear, "0", internal_cp$EpiWeek, sep="")))
+internal_median_cp <- aggregate(Cp ~ ConcatDate + PouchLotNumber, internal_cp, median)
+
 dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
 for (i in 1:length(target_name)){
 #for (i in 1:1){  
@@ -309,10 +326,12 @@ for (i in 1:length(target_name)){
   g3 <- g3 + geom_errorbar(data = summary_merge_PCR1_min_median_organism[grep(target_name[i], summary_merge_PCR1_min_median_organism$TargetName), ], aes(x = as.factor(ConcatDate), ymin = NormalizedCp - ci, ymax = NormalizedCp + ci))
   #g3 <- g3 + geom_boxplot(data = merge_PCR1_min_median[grep(".*Rhino.*", merge_PCR1_min_median$TargetName), ], aes(x = as.factor(ConcatDate), y = NormalizedCp), stat = "boxplot")
   g3 <- g3 + geom_point(data = qc.control.cp.df[qc.control.cp.df$AssayName == "PCR1",  ], aes(x = as.factor(ConcatDate), y = divisor_PCR1/10), color = 'green', alpha = 0.5, size = 1)
+  #g3 <- g3 + geom_point(data = internal_cp, aes(x = as.factor(ConcatDate), y = Cp/10), color = 'orange', alpha = 0.5, size = 1)
+  g3 <- g3 + geom_point(data = internal_median_cp, aes(x = as.factor(ConcatDate), y = Cp/10), color = 'orange', alpha = 0.5, size = 2)
   g3
   
   
-  #target <- ifelse(grepl("/", target_name[i]), gsub("/", " ",target_name[i]), target_name[i])
+  target <- ifelse(grepl("/", target_name[i]), gsub("/", " ",target_name[i]), target_name[i])
   target <- if(grepl("/", target_name[i])){gsub("/", " ",target_name[i])} else {target_name[i]}
   print(target)
   # print plot
