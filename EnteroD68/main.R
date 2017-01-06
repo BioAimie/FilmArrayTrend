@@ -85,5 +85,8 @@ cp.assays.median <- do.call(rbind, lapply(1:length(runs), function(x)
 cp.assays.ordered <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(cp.assays.median[cp.assays.median$RunDataId==runs[x], ][order(cp.assays.median[cp.assays.median$RunDataId==runs[x], 'MedianCp']), ], Index = seq(1, length(cp.assays.median[cp.assays.median$RunDataId==runs[x], 'MedianCp']), 1))))
 # generate a signature
 cp.assays.sequence <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(RunDataId = runs[x], Sequence = paste(as.character(cp.assays.ordered[cp.assays.ordered$RunDataId==runs[x], 'AssayName']), collapse=', '))))
+sequence.index <- data.frame(Sequence = unique(cp.assays.sequence$Sequence), SeqenceIndex = seq(1, length(unique(cp.assays.sequence$Sequence)), 1))
+cp.assays.sequence <- merge(cp.assays.sequence, sequence.index, by='Sequence')
+
 
 
