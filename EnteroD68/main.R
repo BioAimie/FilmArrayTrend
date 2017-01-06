@@ -70,7 +70,7 @@ if(rhino.only) {
 # find the median Cp of each positive assay in the target
 cp.assays <- subset(cp.df, AssayType=='Organism')
 runs <- unique(cp.assays$RunDataId)
-cp.median <- do.call(rbind, lapply(1:length(runs), function(x)
+cp.assays.median <- do.call(rbind, lapply(1:length(runs), function(x)
   do.call(rbind, lapply(1:length(unique(cp.assays[cp.assays$RunDataId==runs[x], 'TargetName'])), function(y)
     do.call(rbind,  lapply(1:length(unique(cp.assays[cp.assays$RunDataId==runs[x] & cp.assays$TargetName==unique(cp.assays[cp.assays$RunDataId==runs[x], 'TargetName'])[y],'AssayName'])), function(z)
       data.frame(RunDataId = runs[x],
@@ -82,7 +82,7 @@ cp.median <- do.call(rbind, lapply(1:length(runs), function(x)
   ))
 ))
 # order the Cps from least to greatest
-cp.assays.ordered <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(cp.assays[cp.assays$RunDataId==runs[x], ][order(cp.assays[cp.assays$RunDataId==runs.keep[x], 'MedianCp']), ], Index = seq(1, length(cp.assays[cp.assays$RunDataId==runs[x], 'MedianCp']), 1))))
+cp.assays.ordered <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(cp.assays.median[cp.assays.median$RunDataId==runs[x], ][order(cp.assays.median[cp.assays.median$RunDataId==runs[x], 'MedianCp']), ], Index = seq(1, length(cp.assays.median[cp.assays.median$RunDataId==runs[x], 'MedianCp']), 1))))
 # generate a signature
 cp.assays.sequence <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(RunDataId = runs[x], Sequence = paste(as.character(cp.assays.ordered[cp.assays.ordered$RunDataId==runs[x], 'AssayName']), collapse=', '))))
 
