@@ -306,7 +306,7 @@ internal_cp <- all.internal.cp.pouch.lot.number.df
 internal_cp$RunDate <- as.Date(internal_cp$RunDate)
 internal_cp$PouchSerialNumber <- as.character(internal_cp$PouchSerialNumber)
 
-
+ 
 calendar.df$Date <- as.Date(calendar.df$Date)
 calendar.df <- calendar.df[calendar.df$Date >= min(internal_cp$RunDate) & calendar.df$Date <= max(internal_cp$RunDate), ]
 
