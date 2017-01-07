@@ -6,6 +6,8 @@ library(lubridate)
 library(ggplot2)
 library(devtools)
 require(dateManip)
+library(cluster)
+library(caret)
 
 # create an Epi date calendar that will be used by all the data sets
 startYear <- 2013
@@ -42,6 +44,7 @@ for(j in 1:length(choose.sites)) {
 }
 
 # next, create a master data frame that combines a lot of parameters which may work for identifying patterns in Rhino/Entero target
+#### QUESTION : SHOULD THIS BE DONE BY TARGET SUCH THAT CO-DETECTIONS ARE HANDLED DIFFERENTLY?!?! MAY NEED TO DO ANALYSIS TO FIND OUT
 # ----------------------------------------------------------------------------------------------------------------------------------
 # 1. Find the sequence related to each positive target in RP
 rhino.only <- FALSE
@@ -85,8 +88,40 @@ cp.assays.median <- do.call(rbind, lapply(1:length(runs), function(x)
 cp.assays.ordered <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(cp.assays.median[cp.assays.median$RunDataId==runs[x], ][order(cp.assays.median[cp.assays.median$RunDataId==runs[x], 'MedianCp']), ], Index = seq(1, length(cp.assays.median[cp.assays.median$RunDataId==runs[x], 'MedianCp']), 1))))
 # generate a signature
 cp.assays.sequence <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(RunDataId = runs[x], Sequence = paste(as.character(cp.assays.ordered[cp.assays.ordered$RunDataId==runs[x], 'AssayName']), collapse=', '))))
-sequence.index <- data.frame(Sequence = unique(cp.assays.sequence$Sequence), SeqenceIndex = seq(1, length(unique(cp.assays.sequence$Sequence)), 1))
+sequence.index <- data.frame(Sequence = unique(cp.assays.sequence$Sequence), SequenceIndex = seq(1, length(unique(cp.assays.sequence$Sequence)), 1))
 cp.assays.sequence <- merge(cp.assays.sequence, sequence.index, by='Sequence')
 
+# 2. Find the delta between the minimum Cp and the first & last amplifying assay
+cp.assays.delta <- do.call(rbind, lapply(1:length(runs), function(x) data.frame(RunDataId = runs[x], Index = cp.assays.ordered[cp.assays.ordered$RunDataId==runs[x],'Index'], DeltaCp = (cp.assays.ordered[cp.assays.ordered$RunDataId==runs[x], 'MedianCp'] - cp.assays.ordered[cp.assays.ordered$RunDataId==runs[x] & cp.assays.ordered$Index==1, 'MedianCp']))))
+cp.assays.ordered <- merge(cp.assays.ordered, cp.assays.delta, by=c('RunDataId','Index'))
+cp.second.assay <- cp.assays.ordered[cp.assays.ordered$Index==2, c('RunDataId','MedianCp')]
 
+# 3. Create a data frame to feed into the algorithm
+cp.assays.min <- with(cp.assays.ordered, aggregate(MedianCp~RunDataId, FUN=min))
+cp.assays.max <- with(cp.assays.ordered, aggregate(MedianCp~RunDataId, FUN=max))
+cp.assays.count <- with(cp.assays.ordered, aggregate(Index~RunDataId, FUN=max))
+cp.assays.avg <- with(cp.assays.ordered, aggregate(MedianCp~RunDataId, FUN=mean))
+cp.assays.sd <- with(cp.assays.ordered, aggregate(MedianCp~RunDataId, FUN=sd))
+cp.delta.avg <- with(cp.assays.ordered, aggregate(DeltaCp~RunDataId, FUN=mean))
+cp.delta.sd <- with(cp.assays.ordered, aggregate(DeltaCp~RunDataId, FUN=sd))
 
+cp.learn <- merge(merge(merge(merge(cp.assays.count, cp.assays.min, by='RunDataId'), cp.assays.max, by='RunDataId'), cp.assays.avg, by='RunDataId'), cp.assays.sd, by='RunDataId')
+colnames(cp.learn) <- c('RunDataId', 'AssayCount', 'CpMin', 'CpMax', 'CpMean', 'CpSdev')
+cp.learn <- merge(cp.learn, cp.second.assay, by='RunDataId', all.x=TRUE)
+colnames(cp.learn)[length(cp.learn)] <- 'DeltaCpMin'
+cp.learn[cp.learn$AssayCount >= 2, 'DeltaCpMax'] <- cp.learn[cp.learn$AssayCount >= 2, 'CpMax'] - cp.learn[cp.learn$AssayCount >= 2, 'CpMin'] 
+cp.learn <- merge(cp.learn, cp.delta.avg, by='RunDataId', all.x=TRUE)
+colnames(cp.learn)[length(cp.learn)] <- 'DeltaCpMean'
+cp.learn <- merge(cp.learn, cp.delta.sd, by='RunDataId', all.x=TRUE)
+colnames(cp.learn)[length(cp.learn)] <- 'DeltaCpSdev'
+cp.learn <- merge(cp.learn, cp.assays.sequence[,c('RunDataId','SequenceIndex')], by='RunDataId')
+# handle NAs
+cp.learn[is.na(cp.learn$CpSdev), 'CpSdev'] <- 0
+cp.learn[is.na(cp.learn$DeltaCpMin), 'DeltaCpMin'] <- 0
+cp.learn[is.na(cp.learn$DeltaCpMax), 'DeltaCpMax'] <- 0
+cp.learn[is.na(cp.learn$DeltaCpSdev), 'DeltaCpSdev'] <- 0
+cp.learn.obs <- cp.learn[, colnames(cp.learn)!='RunDataId']
+
+# 4. Try some machine learning
+cp.cluster.alg.1 <- kmeans(cp.learn.obs, centers = 100, iter.max = 10)
+ 
