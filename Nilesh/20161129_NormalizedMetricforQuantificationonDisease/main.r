@@ -2,6 +2,7 @@
 # set the path and load libraries and data
 workDir <-'C:/Users/nilesh_ingle/Documents/FilmArrayTrend/Nilesh/20161129_NormalizedMetricforQuantificationonDisease'
 sql_path <- 'C:/Users/nilesh_ingle/Documents/FilmArrayTrend/Nilesh/DataSources/SQL/20161129_NormalizedMetricforQuantificationonDisease'
+figures_path <- 'C:/Users/nilesh_ingle/Documents/FilmArrayTrend/Nilesh/20161129_NormalizedMetricforQuantificationonDisease/Figures/'
 setwd(workDir)
 
 # load libraries
@@ -11,11 +12,34 @@ library(ggplot2)
 library(dplyr)
 library(Rmisc)
 library(reshape2)
-
+library(gtable)
+library(grid)
+library(data.table)
+library(scales)
 # OPTIONAL ---------------------------------------------------
 # Enter 'NA' or a customer site id to get results only for this customer
 customer_site_id = 7 # NA, 7, 33, 2
 # ------------------------------------------------------------
+
+# dual axes for ILI overlay plots (Aimie Code)
+hinvert_title_grob <- function(grob){
+  
+  # Swap the widths
+  widths <- grob$widths
+  grob$widths[1] <- widths[3]
+  grob$widths[3] <- widths[1]
+  grob$vp[[1]]$layout$widths[1] <- widths[3]
+  grob$vp[[1]]$layout$widths[3] <- widths[1]
+  
+  # Fix the justification
+  grob$children[[1]]$hjust <- 1 - grob$children[[1]]$hjust 
+  grob$children[[1]]$vjust <- 1 - grob$children[[1]]$vjust 
+  grob$children[[1]]$x <- unit(1, "npc") - grob$children[[1]]$x
+  grob
+}
+
+
+
 
 # GET DATA - 1: list of assay names ---------------------------------------------------------------------------------------
 # read in the data from FilmArray Data Warehouse DB (ODBC object in Windows "FA_DW" with Lindsay's credentials)
@@ -306,7 +330,7 @@ internal_cp <- all.internal.cp.pouch.lot.number.df
 internal_cp$RunDate <- as.Date(internal_cp$RunDate)
 internal_cp$PouchSerialNumber <- as.character(internal_cp$PouchSerialNumber)
 
- 
+
 calendar.df$Date <- as.Date(calendar.df$Date)
 calendar.df <- calendar.df[calendar.df$Date >= min(internal_cp$RunDate) & calendar.df$Date <= max(internal_cp$RunDate), ]
 
@@ -316,29 +340,148 @@ internal_cp$ConcatDate <- as.numeric(ifelse(internal_cp$EpiWeek > 9, paste(inter
 internal_median_cp <- aggregate(Cp ~ ConcatDate + PouchLotNumber, internal_cp, median)
 
 dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
+
 for (i in 1:length(target_name)){
-#for (i in 1:1){  
-  #target <- target_name[i]
+#for (i in 1:1){   
+  temp <- merge_PCR1_min_median_organism[grep(target_name[i], merge_PCR1_min_median_organism$TargetName), ]
+  temp_merge_internal <- merge(x = temp, y = internal_median_cp, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
+  temp_merge_internal <- temp_merge_internal[!is.na(temp_merge_internal$RunDataId), ]
+  temp_merge_internal$newNormCp <- (temp_merge_internal$NormalizedCp * temp_merge_internal$Cp.y)/10
+  summary_temp_merge_internal <- summarySE(temp_merge_internal, measurevar="newNormCp", groupvars=c("ConcatDate"), conf.interval = 0.95, na.rm=TRUE)
+  
+  # calculate freq
+  # count 'RunDataId' per week
+  count_rundataid <- count(unique(temp_merge_internal[, c('ConcatDate', 'RunDataId')]), c('ConcatDate'))
+  temp_merge_internal <- merge(x = temp_merge_internal, y = count_rundataid, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
+  temp_merge_internal <- temp_merge_internal[temp_merge_internal$ResultType == 'organism', ]
+  temp_merge_internal <- subset(temp_merge_internal, select = -c(freq.x))
+  names(temp_merge_internal)[names(temp_merge_internal) == 'freq.y'] <- 'freq'
+  
+  target <- target_name[i]
   # plot the mean of median cp for one assay for along ConcatDate (for an assay)
-  g3 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
-  g3 <- g3 + geom_bar(data = centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ], aes(x = as.factor(ConcatDate), y = CenteredRate*10), stat = "identity", alpha = 0.5) 
-  g3 <- g3 + geom_point(data = merge_PCR1_min_median_organism[grep(target_name[i], merge_PCR1_min_median_organism$TargetName), ], aes(x = as.factor(ConcatDate), y = NormalizedCp, color = freq),  alpha = 0.1, size = 3) 
-  g3 <- g3 + geom_errorbar(data = summary_merge_PCR1_min_median_organism[grep(target_name[i], summary_merge_PCR1_min_median_organism$TargetName), ], aes(x = as.factor(ConcatDate), ymin = NormalizedCp - ci, ymax = NormalizedCp + ci))
-  #g3 <- g3 + geom_boxplot(data = merge_PCR1_min_median[grep(".*Rhino.*", merge_PCR1_min_median$TargetName), ], aes(x = as.factor(ConcatDate), y = NormalizedCp), stat = "boxplot")
-  g3 <- g3 + geom_point(data = qc.control.cp.df[qc.control.cp.df$AssayName == "PCR1",  ], aes(x = as.factor(ConcatDate), y = divisor_PCR1/10), color = 'green', alpha = 0.5, size = 1)
-  #g3 <- g3 + geom_point(data = internal_cp, aes(x = as.factor(ConcatDate), y = Cp/10), color = 'orange', alpha = 0.5, size = 1)
-  g3 <- g3 + geom_point(data = internal_median_cp, aes(x = as.factor(ConcatDate), y = Cp/10), color = 'orange', alpha = 0.5, size = 2)
-  g3
+  # # # ----------------------works without legends-------------------------------------
+  # g3 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
+  # g3 <- g3 + geom_bar(data = centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ], aes(x = as.factor(ConcatDate), y = CenteredRate*10), stat = "identity", alpha = 0.5)
+  # g3 <- g3 + geom_point(data = qc.control.cp.df[qc.control.cp.df$AssayName == "PCR1",  ], aes(x = as.factor(ConcatDate), y = divisor_PCR1/10), color = 'green', alpha = 0.5, size = 1)
+  # g3 <- g3 + geom_point(data = internal_median_cp, aes(x = as.factor(ConcatDate), y = Cp/10), color = 'orange', alpha = 0.5, size = 2)
+  # g3 <- g3 + geom_point(data = temp_merge_internal, aes(x = as.factor(ConcatDate), y = newNormCp, color = freq), alpha = 0.05, size = 2)
+  # g3 <- g3 + geom_errorbar(data = summary_temp_merge_internal, aes(x = as.factor(ConcatDate), ymin = newNormCp - ci, ymax = newNormCp + ci))
+  # g3
+  # # ------------------------------------------------------------------------
+
+  # # -----PLOT without 'gradient fill' for count AND with legends-------------------
+  # g3 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
+  # g3 <- g3 + scale_fill_manual(name = "", values = c(SP ="grey"), labels=c("Site Percent Detection"))
+  # g3 <- g3 + scale_color_manual(name = "", values = c(BLUE = "blue", GREEN = "green", ORANGE ="orange", BLACK = "black"), labels=c("Cp", "Customer Controls","Internal Controls", "NULL"))
+  # g3 <- g3 + scale_color_gradient(name = "", low="#3B4FB8", high="#B71B1A", limits = c(min(temp_merge_internal$freq), max(temp_merge_internal$freq)))
+  # 
+  # if(length(!is.na(centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ])) > 0){
+  #   g3 <- g3 + geom_bar(data = centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ], aes(x = as.factor(ConcatDate), y = CenteredRate*10, fill = "SP"), stat = "identity", alpha = 0.5) #+  scale_fill_manual(name = "", values = c(SP ="grey"), labels=c("Site Percent Detection"))
+  # }
+  # g3 <- g3 + scale_color_manual(name = "", values = c(GREEN = "green", ORANGE ="orange"), labels=c("Customer Controls","Internal Controls"))
+  # g3 <- g3 + geom_point(data = qc.control.cp.df[qc.control.cp.df$AssayName == "PCR1",  ], aes(x = as.factor(ConcatDate), y = divisor_PCR1/10, color = "GREEN"), alpha = 0.5, size = 1) #+ scale_color_manual(name = "", values = c(GREY = "grey", GREEN = "green", ORANGE ="orange"), labels=c("Site Percent Detection", "Customer Controls","Internal Controls"))
+  # g3 <- g3 + geom_point(data = internal_median_cp, aes(x = as.factor(ConcatDate), y = Cp/10, color = "ORANGE"), alpha = 0.5, size = 2) #+ scale_color_manual(name = "", values = c(GREY = "grey", GREEN = "green", ORANGE ="orange"), labels=c("Site Percent Detection", "Customer Controls","Internal Controls"))
+  # g3 <- g3 + geom_errorbar(data = summary_temp_merge_internal, aes(x = as.factor(ConcatDate), ymin = newNormCp - ci, ymax = newNormCp + ci))
+  # g3 <- g3 + geom_point(data = temp_merge_internal, aes(x = as.factor(ConcatDate), y = newNormCp), color = 'blue',  alpha = 0.1, size = 3) #+ scale_color_gradientn(name = "A", low="blue", high="darkblue", limits = c(min(temp_merge_internal$freq), max(temp_merge_internal$freq)))
+  # g3
+  # # ------------------------------------------------------------------------
+
+  # ##-----PLOT with gradient and ALL legends -------------------------------------------------------
+  # ## set colors for discrete scale as an alternative to gradient scale
+  # colfunc <- colorRampPalette(c("lightblue", "darkblue"))
+  # x <- colfunc(length(unique(temp_merge_internal$freq)))
+  # y <- c(1:length(unique(temp_merge_internal$freq)))
+  # #x_label <- vector(mode="character", length = length(unique(temp_merge_internal$freq)))
+  # # set title and labels
+  # g3 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
+  # g3 <- g3 + theme(legend.position="bottom", legend.box = "horizontal",legend.justification = 0.1)
+  # # set manual scale for 'fill' and 'color'
+  # g3 <- g3 + scale_fill_manual(name = "", values = c(SP ="grey"), labels=c("Site Percent Detection"))
+  # g3 <- g3 + scale_color_manual(name = "", values = c(x, "green", "orange"), labels = c(y, "Customer Controls", "Internal Controls")) # creates all labels
+  # 
+  # g3 <- g3 + geom_point(data = temp_merge_internal, aes(x = as.factor(ConcatDate), y = newNormCp, color = as.factor(freq)),alpha = 0.1, size = 3)
+  # if(length(!is.na(centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ])) > 0){
+  #   g3 <- g3 + geom_bar(data = centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ], aes(x = as.factor(ConcatDate), y = CenteredRate*10, fill = "SP"), stat = "identity", alpha = 0.5)
+  # }
+  # g3 <- g3 + geom_point(data = qc.control.cp.df[qc.control.cp.df$AssayName == "PCR1",  ], aes(x = as.factor(ConcatDate), y = divisor_PCR1/10, color = "Customer Controls"), alpha = 0.5, size = 1)
+  # g3 <- g3 + geom_point(data = internal_median_cp, aes(x = as.factor(ConcatDate), y = Cp/10, color = "Internal Controls"), alpha = 0.5, size = 2)
+  # g3 <- g3 + geom_errorbar(data = summary_temp_merge_internal, aes(x = as.factor(ConcatDate), ymin = newNormCp - ci, ymax = newNormCp + ci))
+  # g3
+  # # ------------------------------------------------------------------------------------------------------------
+  
+
+# ==========================================================================================================================================
+# (Aimie Code) Plot dual y-axis
+# ==========================================================================================================================================
+  temp_centered <- centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ]
+  
+  temp <- do.call(rbind, lapply(1:nrow(temp_centered), function(x) data.frame(
+    CustomerSiteId = temp_centered$CustomerSiteId[x],
+    ConcatDate = temp_centered$ConcatDate[x],
+    TargetName = temp_centered$TargetName[x],
+    CenteredRate = temp_centered$CenteredRate[x],
+    NormalizedCR = abs(temp_centered$CenteredRate[x] - mean(temp_centered$CenteredRate))/(sd(temp_centered$CenteredRate))
+  )))
+  
+  
+  p1 <- ggplot()+  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
+  p1 <- p1 + geom_point(data = temp_merge_internal, aes(x = as.factor(ConcatDate), y = newNormCp, color = freq), alpha = 0.05, size = 2)
+  p1 <- p1 + geom_errorbar(data = summary_temp_merge_internal, aes(x = as.factor(ConcatDate), ymin = newNormCp - ci, ymax = newNormCp + ci))
+  p1 <- p1 + expand_limits(y=0.35) 
+  p1 <- p1 + theme(plot.title=element_text(hjust=0.5),text=element_text(size=12, face='bold'), axis.text=element_text(size=12, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) 
+  
+  if(length(!is.na(centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ])) > 0){
+    p2 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
+    p2 <- p2 + geom_line(data = temp, aes(x = as.factor(ConcatDate), y = NormalizedCR, group=1), stat='summary', fun.y=sum) + stat_summary(fun.y=sum, geom="line")
+    p2 <- p2 + expand_limits(y=0)
+    p2 <- p2 + theme(plot.title=element_text(hjust=0.5),text=element_text(size=12, face='bold'), axis.text=element_text(size=12, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) 
+    p2 <- p2 + labs(y='Percent Detection')
+ }  
+  
+  # Get the ggplot grobs
+  g1 <- ggplotGrob(p1)
+  g2 <- ggplotGrob(p2)
+  pp <- c(subset(g1$layout, name == "panel", se = t:r))
+  g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+  index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+  ylab <- g2$grobs[[index]]                # Extract that grob
+  ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+  index <- which(g2$layout$name == "axis-l")  # Which grob
+  yaxis <- g2$grobs[[index]]                  # Extract the grob
+  yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+  ticks <- yaxis$children[[2]]
+  ticks$widths <- rev(ticks$widths)
+  ticks$grobs <- rev(ticks$grobs)
+  ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+  ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+  yaxis$children[[2]] <- ticks
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  ax <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+  grid.draw(ax)
+  
+  
   
   
   target <- ifelse(grepl("/", target_name[i]), gsub("/", " ",target_name[i]), target_name[i])
   target <- if(grepl("/", target_name[i])){gsub("/", " ",target_name[i])} else {target_name[i]}
   print(target)
   # print plot
-  jpeg(filename = paste("Target_Cp--", target, ".jpg", sep=""), width = 1500, height = 480, units = 'px')
-  print(g3) # Make plot
+  jpeg(paste(figures_path,"Target_Cp--", target, ".jpg", sep=""), width = 1500, height = 480, units = 'px')
+  grid.draw(ax)
   dev.off()
 }
+
+
+
+
+
+
+# ==========================================================================================================================================
+
+
+
 
 
 
