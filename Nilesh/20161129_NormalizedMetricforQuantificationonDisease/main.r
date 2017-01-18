@@ -689,6 +689,7 @@ for(i in 1:length(control_assays)){
   
 }
 
+
 # calculate overall variation in the 'Cp' of controls
 summ_controls <- summarySE(subset(int_and_cust_cp, int_and_cust_cp$AssayName %in% c('PCR1', 'PCR2', 'yeastRNA')), measurevar="Cp", groupvars=c("AssayName"), conf.interval = 0.95, na.rm=TRUE)
 summ_controls$cv <- (summ_controls$sd/summ_controls$Cp)*100
