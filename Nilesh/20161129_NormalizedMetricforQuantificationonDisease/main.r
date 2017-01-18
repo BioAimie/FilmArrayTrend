@@ -16,9 +16,14 @@ library(gtable)
 library(grid)
 library(data.table)
 library(scales)
+library(stringr)
+library(Rmisc)
 # OPTIONAL ---------------------------------------------------
 # Enter 'NA' or a customer site id to get results only for this customer
-customer_site_id = 7 # NA, 7, 33, 2
+customer_site_id = 2 # NA, 7, 33, 2, 5
+
+# CHOOSE a variable to normalize: "PCR1", "PCR2", "yeastRNA"
+control.var <- "PCR2"
 # ------------------------------------------------------------
 
 # dual axes for ILI overlay plots (Aimie Code)
@@ -47,9 +52,9 @@ FADWcxn <- odbcConnect(dsn = 'FA_DW', uid = 'lmeyers', pwd = 'Idaho1Tech')
 queryVector <- scan(paste(sql_path,'/FADataWarehouse_query.txt', sep=""),what=character(),quote="")
 query <- paste(queryVector,collapse=" ")
 if (!is.na(customer_site_id)){
-query <- gsub("\\[CustomerSiteId\\] = [0-9]+", paste("[CustomerSiteId] = ", customer_site_id, sep= ""), query)
+  query <- gsub("\\[CustomerSiteId\\] = [0-9]+", paste("[CustomerSiteId] = ", customer_site_id, sep= ""), query)
 }else {
-query <- gsub("AND S.\\[CustomerSiteId\\] = [0-9]+", "",query) 
+  query <- gsub("AND S.\\[CustomerSiteId\\] = [0-9]+", "",query) 
 }
 pouch.lot.number.df <- sqlQuery(FADWcxn,query)
 
@@ -70,7 +75,10 @@ odbcClose(FADWcxn)
 # rename 'AssayName' to 'TargetName'
 names(centered.rate.df)[names(centered.rate.df) == 'AssayName'] <- 'TargetName'
 # ------------------------------------------------------------------------------------------------------------------------
-
+for(i in 1:nrow(pouch.lot.number.df)){
+  print(i)
+  print(pouch.lot.number.df$PouchLotNumber[i])
+}
 
 filmarray1.all.internal.cp.pouch.lot.number.df <- NULL
 filmarray2.all.internal.cp.pouch.lot.number.df <- NULL
@@ -81,13 +89,13 @@ for(i in 1:nrow(pouch.lot.number.df)){
   
   queryVector <- scan(paste(sql_path,'/FilmArray2_query-4.txt', sep=""),what=character(),quote="")
   query <- paste(queryVector,collapse=" ")
-  query <- gsub("\\[PouchLotNumber\\] LIKE \'%[0-9].*%\'", paste("[PouchLotNumber] LIKE ", "\'", "%", pouch.lot.number.df$PouchLotNumber[i],  "%", "\'", sep= ""), query)
+  query <- gsub("\\[PouchLotNumber\\] LIKE \'%[0-9]+%\'", paste("[PouchLotNumber] LIKE ", "\'", "%", pouch.lot.number.df$PouchLotNumber[i],  "%", "\'", sep= ""), query)
   internal.cp.df.name <- paste("filmarray2.internal.cp.pouch.lot.number.df.", pouch.lot.number.df$PouchLotNumber[i], sep="")
   assign(internal.cp.df.name,sqlQuery(PMScxn,query))
   
   queryVector <- scan(paste(sql_path,'/query_FilmArray1.txt', sep=""),what=character(),quote="")
   query <- paste(queryVector,collapse=" ")
-  query <- gsub("\\[PouchLotNumber\\] LIKE \'%[0-9].*%\'", paste("[PouchLotNumber] LIKE ", "\'", "%", pouch.lot.number.df$PouchLotNumber[i],  "%", "\'", sep= ""), query)
+  query <- gsub("\\[PouchLotNumber\\] LIKE \'%[0-9]+%\'", paste("[PouchLotNumber] LIKE ", "\'", "%", pouch.lot.number.df$PouchLotNumber[i],  "%", "\'", sep= ""), query)
   internal.cp.df.name <- paste("filmarray1.internal.cp.pouch.lot.number.df.", pouch.lot.number.df$PouchLotNumber[i], sep="")
   assign(internal.cp.df.name,sqlQuery(PMScxn,query))
   
@@ -96,6 +104,8 @@ for(i in 1:nrow(pouch.lot.number.df)){
   filmarray1.all.internal.cp.pouch.lot.number.df <- rbind(filmarray1.all.internal.cp.pouch.lot.number.df, get(internal.cp.df.name))
   filmarray2.all.internal.cp.pouch.lot.number.df <- rbind(filmarray2.all.internal.cp.pouch.lot.number.df, get(internal.cp.df.name))
 }
+
+
 all.internal.cp.pouch.lot.number.df <- rbind(filmarray1.all.internal.cp.pouch.lot.number.df, filmarray2.all.internal.cp.pouch.lot.number.df)
 
 # # GET DATA - 2: list of assay names ---------------------------------------------------------------------------------------
@@ -107,7 +117,7 @@ for(i in 1:nrow(pouch.lot.number.df)){
   FADWcxn <- odbcConnect(dsn = 'FA_DW', uid = 'lmeyers', pwd = 'Idaho1Tech')
   queryVector <- scan(paste(sql_path,'/query_CpRuns-WellData.txt', sep=""),what=character(),quote="")
   query <- paste(queryVector,collapse=" ")
-  query <- gsub("\\[PouchLotNumber\\] LIKE \'%[0-9].*%\'", paste("[PouchLotNumber] LIKE ", "\'", "%", pouch.lot.number.df$PouchLotNumber[i],  "%", "\'", sep= ""), query)
+  query <- gsub("\\[PouchLotNumber\\] LIKE \'%[0-9]+%\'", paste("[PouchLotNumber] LIKE ", "\'", "%", pouch.lot.number.df$PouchLotNumber[i],  "%", "\'", sep= ""), query)
   customer.cp.df.name <- paste("customer.cp.pouch.lot.number.df.", pouch.lot.number.df$PouchLotNumber[i], sep="")
   assign(customer.cp.df.name,sqlQuery(FADWcxn,query))
   odbcClose(FADWcxn)
@@ -195,45 +205,71 @@ new.all.customer.pouch.lot.number.df <- new.all.customer.pouch.lot.number.df[ord
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 # NORMALIZE 
-# get all 'controls'
-control.PCR1 <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'PCR1', ]
-control.PCR2 <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'PCR2', ]
-control.yeastRNA <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'yeastRNA', ]
+# # CHOOSE a variable to normalize: "PCR1", "PCR2", "yeastRNA"
+# control.var <- "yeastRNA"
+control.var.df <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == control.var, ]
+div_var <- aggregate(Cp ~ RunDataId + AssayName, control.var.df, median)
+names(div_var)[names(div_var) == 'Cp'] <- 'divisor_var'
 
-# find divisor
-div_PCR1 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR1, median)
-div_PCR2 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR2, median)
-div_yeastRNA <- aggregate(Cp ~ RunDataId + AssayName, control.yeastRNA, median)
+#
+merge_var_median <- merge(x = new.all.customer.pouch.lot.number.df, y = div_var, by.x = c('RunDataId'), by.y = c('RunDataId'), all.x = TRUE)
+names(merge_var_median)[names(merge_var_median) == 'AssayName.x'] <- 'AssayName'
+names(merge_var_median)[names(merge_var_median) == 'AssayName.y'] <- 'Normalized_By'
 
-# find standard deviation from mean
-# summary_PCR1 <- summarySE(div_PCR1, measurevar="Cp", groupvars=c("AssayName"), conf.interval = 0.95, na.rm=TRUE)
-# # add ConcatDate to the control table
-# qc.control.cp.df <- unique(merge(x = div_PCR1, y = all.customer.pouch.lot.number.df[,c('RunDataId', 'AssayName', 'ConcatDate')], by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE))
-# #summary_PCR1 <- summarySE(qc.control.cp.df, measurevar="Cp", groupvars=c("ConcatDate", "AssayName"), conf.interval = 0.95, na.rm=TRUE)
-# div_PCR1$CpMinusMeanCp <- div_PCR1$Cp - summary_PCR1$Cp
-# div_PCR1$new_Cp <- div_PCR1$Cp - div_PCR1$CpMinusMeanCp
-# 
-# div_PCR1_1 <- unique(merge(x = qc.control.cp.df, y = summary_PCR1[, c('ConcatDate', 'sd')], by.x =  'ConcatDate', by.y = 'ConcatDate', all.x = TRUE))
-
-# rename columns
-names(div_PCR1)[names(div_PCR1) == 'Cp'] <- 'divisor_PCR1'
-names(div_PCR2)[names(div_PCR2) == 'Cp'] <- 'divisor_PCR2'
-names(div_yeastRNA)[names(div_yeastRNA) == 'Cp'] <- 'divisor_yeastRNA'
-
-# for ASSAY_NAME ----------------------------------------------------------------------------------------------------------------
-# join PCR1 divisor to main table
-merge_PCR1_median <- merge(x = new.all.customer.pouch.lot.number.df, y = div_PCR1, by.x = c('RunDataId'), by.y = c('RunDataId'), all.x = TRUE)
-names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.x'] <- 'AssayName'
-names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.y'] <- 'Normalized_By'
-
-# normalize by dividing 'Cp' by 'divisor_PCR1'
-merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$MedianCp / merge_PCR1_median$divisor_PCR1)
-#merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$MedianCp / mean(!is.na(merge_PCR1_median$divisor_PCR1)))
+# normalize by dividing 'Cp' by 'div_var'
+merge_var_median$NormalizedCp <- (merge_var_median$MedianCp/merge_var_median$divisor_var)
 
 # AGGREGATE Normalized Cp: find mean of normalized Cp for each ConcatDate
-mean_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + AssayName, merge_PCR1_median, mean)
+mean_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + AssayName, merge_var_median, mean)
 names(mean_normalizedCp)[names(mean_normalizedCp) == 'NormalizedCp'] <- 'MeanNormalizedCp'
 dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
+
+
+
+ # ==================================================================================================================================================================
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+# # NORMALIZE
+# # get all 'controls'
+# control.PCR1 <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'PCR1', ]
+# control.PCR2 <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'PCR2', ]
+# control.yeastRNA <- all.customer.pouch.lot.number.df[all.customer.pouch.lot.number.df$AssayName == 'yeastRNA', ]
+# 
+# # find divisor
+# div_PCR1 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR1, median)
+# div_PCR2 <- aggregate(Cp ~ RunDataId + AssayName, control.PCR2, median)
+# div_yeastRNA <- aggregate(Cp ~ RunDataId + AssayName, control.yeastRNA, median)
+# 
+# # find standard deviation from mean
+# # summary_PCR1 <- summarySE(div_PCR1, measurevar="Cp", groupvars=c("AssayName"), conf.interval = 0.95, na.rm=TRUE)
+# # # add ConcatDate to the control table
+# # qc.control.cp.df <- unique(merge(x = div_PCR1, y = all.customer.pouch.lot.number.df[,c('RunDataId', 'AssayName', 'ConcatDate')], by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE))
+# # #summary_PCR1 <- summarySE(qc.control.cp.df, measurevar="Cp", groupvars=c("ConcatDate", "AssayName"), conf.interval = 0.95, na.rm=TRUE)
+# # div_PCR1$CpMinusMeanCp <- div_PCR1$Cp - summary_PCR1$Cp
+# # div_PCR1$new_Cp <- div_PCR1$Cp - div_PCR1$CpMinusMeanCp
+# #
+# # div_PCR1_1 <- unique(merge(x = qc.control.cp.df, y = summary_PCR1[, c('ConcatDate', 'sd')], by.x =  'ConcatDate', by.y = 'ConcatDate', all.x = TRUE))
+# 
+# # ----------------------------------------------------------------------------------------------
+# 
+# # rename columns
+# names(div_PCR1)[names(div_PCR1) == 'Cp'] <- 'divisor_PCR1'
+# names(div_PCR2)[names(div_PCR2) == 'Cp'] <- 'divisor_PCR2'
+# names(div_yeastRNA)[names(div_yeastRNA) == 'Cp'] <- 'divisor_yeastRNA'
+# 
+# # for ASSAY_NAME ----------------------------------------------------------------------------------------------------------------
+# # join PCR1 divisor to main table
+# merge_PCR1_median <- merge(x = new.all.customer.pouch.lot.number.df, y = div_PCR1, by.x = c('RunDataId'), by.y = c('RunDataId'), all.x = TRUE)
+# names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.x'] <- 'AssayName'
+# names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.y'] <- 'Normalized_By'
+# 
+# # normalize by dividing 'Cp' by 'divisor_PCR1'
+# merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$MedianCp / merge_PCR1_median$divisor_PCR1)
+# #merge_PCR1_median$NormalizedCp <- (merge_PCR1_median$MedianCp / mean(!is.na(merge_PCR1_median$divisor_PCR1)))
+# 
+# # AGGREGATE Normalized Cp: find mean of normalized Cp for each ConcatDate
+# mean_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + AssayName, merge_PCR1_median, mean)
+# names(mean_normalizedCp)[names(mean_normalizedCp) == 'NormalizedCp'] <- 'MeanNormalizedCp'
+# dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
 
 # assays for target
 # Create list of TargetName and AssayName for plotting
@@ -247,7 +283,7 @@ for (i in 1:length(all_targets)){
   g2 <- g2 + geom_point(data = subset(mean_normalizedCp, AssayName %in% assays_for_target), aes(x = as.factor(ConcatDate), y = MeanNormalizedCp, color = AssayName), alpha = 0.5, size = 3)
   g2 <- g2 + geom_bar(data = centered.rate.df[grep(all_targets[i], centered.rate.df$TargetName), ], aes(x = as.factor(ConcatDate), y = CenteredRate*10), stat = "identity", alpha = 0.5) 
   g2
-    
+  
   target <- if(grepl("/", target_name[i])){gsub("/", " ",all_targets[i])} else {all_targets[i]}
   print(target)
   # print plot
@@ -256,17 +292,17 @@ for (i in 1:length(all_targets)){
   dev.off()
 }
 
-# plot the mean of median cp for one assay for along ConcatDate (for an assay)
-dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
-g2 <- ggplot() +  scale_x_discrete(breaks=dateBreaks)
-g2 <- g2 + geom_point(data = mean_normalizedCp[grep("HRV1", mean_normalizedCp$AssayName),], aes(x = as.factor(ConcatDate), y = MeanNormalizedCp))
-g2
-
-
-# print plot
-jpeg(paste("Assay_Cp", ".jpg", sep=""), width = 1500, height = 480, units = 'px')
-print(g2) # Make plot
-dev.off()
+# # plot the mean of median cp for one assay for along ConcatDate (for an assay)
+# dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
+# g2 <- ggplot() +  scale_x_discrete(breaks=dateBreaks)
+# g2 <- g2 + geom_point(data = mean_normalizedCp[grep("HRV1", mean_normalizedCp$AssayName),], aes(x = as.factor(ConcatDate), y = MeanNormalizedCp))
+# g2
+# 
+# 
+# # print plot
+# jpeg(paste("Assay_Cp", ".jpg", sep=""), width = 1500, height = 480, units = 'px')
+# print(g2) # Make plot
+# dev.off()
 
 
 
@@ -294,56 +330,117 @@ names(min.median.cp.for.target)[names(min.median.cp.for.target) == 'MedianCp'] <
 # merge with the main table
 merge.min.median.cp.for.target <- merge(x = new.all.customer.pouch.lot.number.df, y = min.median.cp.for.target, by.x = c('RunDataId', 'TargetName'), by.y = c('RunDataId', 'TargetName'), all.x = TRUE )
 
-# merge with PCR1 
-merge_PCR1_min_median <- merge(x = merge.min.median.cp.for.target, y = div_PCR1, by.x = 'RunDataId', by.y = 'RunDataId', all.x = TRUE)
-names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.x'] <- 'AssayName'
-names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.y'] <- 'Normalized_By'
+# ==================================================================================================================================================================
+# merge with 'var' 
+merge_var_min_median <- merge(x = merge.min.median.cp.for.target, y = div_var, by.x = 'RunDataId', by.y = 'RunDataId', all.x = TRUE)
+names(merge_var_min_median)[names(merge_var_min_median) == 'AssayName.x'] <- 'AssayName'
+names(merge_var_min_median)[names(merge_var_min_median) == 'AssayName.y'] <- 'Normalized_By'
 
-# normalize by dividing 'Cp' by 'divisor_PCR1'
-merge_PCR1_min_median$NormalizedCp <- (merge_PCR1_min_median$Cp / merge_PCR1_median$divisor_PCR1)
-#merge_PCR1_min_median$NormalizedCp <- (merge_PCR1_min_median$Cp / mean(!is.na(merge_PCR1_median$divisor_PCR1)))
+# normalize by dividing 'Cp' by 'divisor_var'
+merge_var_min_median$NormalizedCp <- (merge_var_min_median$Cp / merge_var_min_median$divisor_var)
+#merge_var_min_median$NormalizedCp <- (merge_var_min_median$Cp / mean(!is.na(merge_var_median$divisor_var)))
 
 # AGGREGATE Normalized Cp: find mean of normalized Cp for each ConcatDate
-mean_target_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + TargetName, merge_PCR1_min_median, mean)
+mean_target_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + TargetName, merge_var_min_median, mean)
 names(mean_target_normalizedCp)[names(mean_target_normalizedCp) == 'NormalizedCp'] <- 'MeanNormalizedCp'
 
 # count 'RunDataId' per week
 count_rundataid_per_week <- count(unique(all.customer.pouch.lot.number.df[, c('ConcatDate', 'RunDataId')]), c('ConcatDate'))
-merge_PCR1_min_median <- merge(x = merge_PCR1_min_median, y = count_rundataid_per_week, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
-merge_PCR1_min_median_organism <- merge_PCR1_min_median[merge_PCR1_min_median$ResultType == 'organism', ]
-#merge_PCR1_min_median_organism <- subset(merge_PCR1_min_median_organism, select = -c(freq.x))
-names(merge_PCR1_min_median_organism)[names(merge_PCR1_min_median_organism) == 'AssayName.x'] <- 'AssayName'
-names(merge_PCR1_min_median_organism)[names(merge_PCR1_min_median_organism) == 'freq.y'] <- 'freq'
+merge_var_min_median <- merge(x = merge_var_min_median, y = count_rundataid_per_week, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
+merge_var_min_median_organism <- merge_var_min_median[merge_var_min_median$ResultType == 'organism', ]
+#merge_var_min_median_organism <- subset(merge_var_min_median_organism, select = -c(freq.x))
+names(merge_var_min_median_organism)[names(merge_var_min_median_organism) == 'AssayName.x'] <- 'AssayName'
+names(merge_var_min_median_organism)[names(merge_var_min_median_organism) == 'freq.y'] <- 'freq'
 
 # summary for CI error bars
-summary_merge_PCR1_min_median_organism <- summarySE(merge_PCR1_min_median_organism, measurevar="NormalizedCp", groupvars=c("ConcatDate", "TargetName"), conf.interval = 0.95, na.rm=TRUE)
+summary_merge_var_min_median_organism <- summarySE(merge_var_min_median_organism, measurevar="NormalizedCp", groupvars=c("ConcatDate", "TargetName"), conf.interval = 0.95, na.rm=TRUE)
 
 # Create list of TargetName and AssayName for plotting
-assay_name <- unique(merge_PCR1_min_median_organism$AssayName[merge_PCR1_min_median_organism$ResultType == 'organism'])
-target_name <- unique(merge_PCR1_min_median_organism$TargetName[merge_PCR1_min_median_organism$ResultType == 'organism'])
+assay_name <- unique(merge_var_min_median_organism$AssayName[merge_var_min_median_organism$ResultType == 'organism'])
+target_name <- unique(merge_var_min_median_organism$TargetName[merge_var_min_median_organism$ResultType == 'organism'])
 
 # add ConcatDate to the control table
-qc.control.cp.df <- unique(merge(x = div_PCR1, y = merge_PCR1_median[,c('RunDataId', 'AssayName', 'ConcatDate')], by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE))
+qc.control.cp.df <- unique(merge(x = div_var, y = merge_var_median[,c('RunDataId', 'AssayName', 'ConcatDate')], by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE))
+
 
 # internal QC cp
 internal_cp <- all.internal.cp.pouch.lot.number.df
 internal_cp$RunDate <- as.Date(internal_cp$RunDate)
 internal_cp$PouchSerialNumber <- as.character(internal_cp$PouchSerialNumber)
 
-
 calendar.df$Date <- as.Date(calendar.df$Date)
 calendar.df <- calendar.df[calendar.df$Date >= min(internal_cp$RunDate) & calendar.df$Date <= max(internal_cp$RunDate), ]
 
-internal_cp <- unique(merge(x = calendar.df, y = internal_cp[internal_cp$Name == "PCR1", ], by.x = "Date", by.y = "RunDate", all.x = TRUE))
+internal_cp <- unique(merge(x = calendar.df, y = internal_cp[internal_cp$Name == control.var, ], by.x = "Date", by.y = "RunDate", all.x = TRUE))
+
 # find internal median cp for each week
 internal_cp$ConcatDate <- as.numeric(ifelse(internal_cp$EpiWeek > 9, paste(internal_cp$EpiYear, internal_cp$EpiWeek, sep=""), paste(internal_cp$EpiYear, "0", internal_cp$EpiWeek, sep="")))
 internal_median_cp <- aggregate(Cp ~ ConcatDate + PouchLotNumber, internal_cp, median)
 
 dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
 
+# ===================================================================================================================================================
+
+
+# 
+# # merge with PCR1 
+# merge_PCR1_min_median <- merge(x = merge.min.median.cp.for.target, y = div_PCR1, by.x = 'RunDataId', by.y = 'RunDataId', all.x = TRUE)
+# names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.x'] <- 'AssayName'
+# names(merge_PCR1_median)[names(merge_PCR1_median) == 'AssayName.y'] <- 'Normalized_By'
+# 
+# # normalize by dividing 'Cp' by 'divisor_PCR1'
+# merge_PCR1_min_median$NormalizedCp <- (merge_PCR1_min_median$Cp / merge_PCR1_median$divisor_PCR1)
+# #merge_PCR1_min_median$NormalizedCp <- (merge_PCR1_min_median$Cp / mean(!is.na(merge_PCR1_median$divisor_PCR1)))
+# 
+# # AGGREGATE Normalized Cp: find mean of normalized Cp for each ConcatDate
+# mean_target_normalizedCp <- aggregate(NormalizedCp ~ ConcatDate + TargetName, merge_PCR1_min_median, mean)
+# names(mean_target_normalizedCp)[names(mean_target_normalizedCp) == 'NormalizedCp'] <- 'MeanNormalizedCp'
+# 
+# # count 'RunDataId' per week
+# count_rundataid_per_week <- count(unique(all.customer.pouch.lot.number.df[, c('ConcatDate', 'RunDataId')]), c('ConcatDate'))
+# merge_PCR1_min_median <- merge(x = merge_PCR1_min_median, y = count_rundataid_per_week, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
+# merge_PCR1_min_median_organism <- merge_PCR1_min_median[merge_PCR1_min_median$ResultType == 'organism', ]
+# #merge_PCR1_min_median_organism <- subset(merge_PCR1_min_median_organism, select = -c(freq.x))
+# names(merge_PCR1_min_median_organism)[names(merge_PCR1_min_median_organism) == 'AssayName.x'] <- 'AssayName'
+# names(merge_PCR1_min_median_organism)[names(merge_PCR1_min_median_organism) == 'freq.y'] <- 'freq'
+# 
+# # summary for CI error bars
+# summary_merge_PCR1_min_median_organism <- summarySE(merge_PCR1_min_median_organism, measurevar="NormalizedCp", groupvars=c("ConcatDate", "TargetName"), conf.interval = 0.95, na.rm=TRUE)
+# 
+# # Create list of TargetName and AssayName for plotting
+# assay_name <- unique(merge_PCR1_min_median_organism$AssayName[merge_PCR1_min_median_organism$ResultType == 'organism'])
+# target_name <- unique(merge_PCR1_min_median_organism$TargetName[merge_PCR1_min_median_organism$ResultType == 'organism'])
+# 
+# # add ConcatDate to the control table
+# qc.control.cp.df <- unique(merge(x = div_PCR1, y = merge_PCR1_median[,c('RunDataId', 'AssayName', 'ConcatDate')], by.x = c('RunDataId', 'AssayName'), by.y = c('RunDataId', 'AssayName'), all.x = TRUE))
+# 
+# # internal QC cp
+# internal_cp <- all.internal.cp.pouch.lot.number.df
+# internal_cp$RunDate <- as.Date(internal_cp$RunDate)
+# internal_cp$PouchSerialNumber <- as.character(internal_cp$PouchSerialNumber)
+# 
+# 
+# calendar.df$Date <- as.Date(calendar.df$Date)
+# calendar.df <- calendar.df[calendar.df$Date >= min(internal_cp$RunDate) & calendar.df$Date <= max(internal_cp$RunDate), ]
+# 
+# internal_cp <- unique(merge(x = calendar.df, y = internal_cp[internal_cp$Name == "PCR1", ], by.x = "Date", by.y = "RunDate", all.x = TRUE))
+# # find internal median cp for each week
+# internal_cp$ConcatDate <- as.numeric(ifelse(internal_cp$EpiWeek > 9, paste(internal_cp$EpiYear, internal_cp$EpiWeek, sep=""), paste(internal_cp$EpiYear, "0", internal_cp$EpiWeek, sep="")))
+# internal_median_cp <- aggregate(Cp ~ ConcatDate + PouchLotNumber, internal_cp, median)
+# 
+# dateBreaks <- unique(as.character(mean_target_normalizedCp$ConcatDate))[order(unique(as.character(mean_target_normalizedCp$ConcatDate)))][seq(1, length(unique(as.character(mean_target_normalizedCp$ConcatDate))), 20)]
+
 for (i in 1:length(target_name)){
-#for (i in 1:1){   
-  temp <- merge_PCR1_min_median_organism[grep(target_name[i], merge_PCR1_min_median_organism$TargetName), ]
+  #for (i in 1:1){   
+  
+  # # OPTIONAL: monitor time to run the loop
+  # loop_start_time <- proc.time()
+  
+  if(target_name[i] == "Influenza A (no subtype detected)"){
+    temp <- merge_var_min_median_organism[merge_var_min_median_organism$TargetName == "Influenza A (no subtype detected)", ]
+  } else{
+    temp <- merge_var_min_median_organism[grep(target_name[i], merge_var_min_median_organism$TargetName), ]
+  }
   temp_merge_internal <- merge(x = temp, y = internal_median_cp, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
   temp_merge_internal <- temp_merge_internal[!is.na(temp_merge_internal$RunDataId), ]
   temp_merge_internal$newNormCp <- (temp_merge_internal$NormalizedCp * temp_merge_internal$Cp.y)/10
@@ -368,7 +465,7 @@ for (i in 1:length(target_name)){
   # g3 <- g3 + geom_errorbar(data = summary_temp_merge_internal, aes(x = as.factor(ConcatDate), ymin = newNormCp - ci, ymax = newNormCp + ci))
   # g3
   # # ------------------------------------------------------------------------
-
+  
   # # -----PLOT without 'gradient fill' for count AND with legends-------------------
   # g3 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
   # g3 <- g3 + scale_fill_manual(name = "", values = c(SP ="grey"), labels=c("Site Percent Detection"))
@@ -385,7 +482,7 @@ for (i in 1:length(target_name)){
   # g3 <- g3 + geom_point(data = temp_merge_internal, aes(x = as.factor(ConcatDate), y = newNormCp), color = 'blue',  alpha = 0.1, size = 3) #+ scale_color_gradientn(name = "A", low="blue", high="darkblue", limits = c(min(temp_merge_internal$freq), max(temp_merge_internal$freq)))
   # g3
   # # ------------------------------------------------------------------------
-
+  
   # ##-----PLOT with gradient and ALL legends -------------------------------------------------------
   # ## set colors for discrete scale as an alternative to gradient scale
   # colfunc <- colorRampPalette(c("lightblue", "darkblue"))
@@ -409,75 +506,147 @@ for (i in 1:length(target_name)){
   # g3
   # # ------------------------------------------------------------------------------------------------------------
   
-
-# ==========================================================================================================================================
-# (Aimie Code) Plot dual y-axis
-# ==========================================================================================================================================
+  
+  # ==========================================================================================================================================
+  # (Aimie Code) Plot dual y-axis
+  # ==========================================================================================================================================
+ 
   temp_centered <- centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ]
   
-  temp <- do.call(rbind, lapply(1:nrow(temp_centered), function(x) data.frame(
-    CustomerSiteId = temp_centered$CustomerSiteId[x],
-    ConcatDate = temp_centered$ConcatDate[x],
-    TargetName = temp_centered$TargetName[x],
-    CenteredRate = temp_centered$CenteredRate[x],
-    NormalizedCR = abs(temp_centered$CenteredRate[x] - mean(temp_centered$CenteredRate))/(sd(temp_centered$CenteredRate))
-  )))
+  if (length(temp_centered$TargetName) > 0){
+    # get min and max dates for trimming calendar
+    min_date <- ifelse(min(temp_merge_internal$ConcateDate) > min(temp_centered$ConcatDate), min(temp_centered$ConcatDate), min(temp_merge_internal$ConcateDate))
+    max_date <- ifelse(max(temp_merge_internal$ConcateDate) < max(temp_centered$ConcatDate), max(temp_centered$ConcatDate), max(temp_merge_internal$ConcateDate))
+    
+    # get calendar
+    calendar.df$ConcatDate <- as.numeric(ifelse(calendar.df$EpiWeek > 9, paste(calendar.df$EpiYear, calendar.df$EpiWeek, sep=""), paste(calendar.df$EpiYear, "0", calendar.df$EpiWeek, sep="")))
+    get_calendar <- calendar.df[calendar.df$ConcatDate >= min_date & calendar.df$ConcatDate <= max_date, c('Date', 'ConcatDate')]
+    
+    
+    # temp_centered <- do.call(rbind, lapply(1:nrow(temp_centered), function(x) data.frame(
+    #   CustomerSiteId = temp_centered$CustomerSiteId[x],
+    #   ConcatDate = temp_centered$ConcatDate[x],
+    #   TargetName = temp_centered$TargetName[x],
+    #   CenteredRate = temp_centered$CenteredRate[x],
+    #   NormalizedCR = abs(temp_centered$CenteredRate[x] - mean(temp_centered$CenteredRate))/(sd(temp_centered$CenteredRate))
+    # )))
+    
+    cal_centered <- merge(x = get_calendar, y = temp_centered, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
+    
+    cal_cp <- merge(x = get_calendar, y = temp_merge_internal, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
+    cal_cp <- subset(cal_cp, select = -c(Date))
+    cal_cp <- unique(cal_cp)
+    
+    cal_summary <- merge(x = get_calendar, y = summary_temp_merge_internal, by.x = 'ConcatDate', by.y = 'ConcatDate', all.x = TRUE)
+    cal_summary <- subset(cal_summary, select = -c(Date))
+    cal_summary <- unique(cal_summary)
+    
   
-  
-  p1 <- ggplot()+  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
-  p1 <- p1 + geom_point(data = temp_merge_internal, aes(x = as.factor(ConcatDate), y = newNormCp, color = freq), alpha = 0.05, size = 2)
-  p1 <- p1 + geom_errorbar(data = summary_temp_merge_internal, aes(x = as.factor(ConcatDate), ymin = newNormCp - ci, ymax = newNormCp + ci))
-  p1 <- p1 + expand_limits(y=0.35) 
-  p1 <- p1 + theme(plot.title=element_text(hjust=0.5),text=element_text(size=12, face='bold'), axis.text=element_text(size=12, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) 
-  
-  if(length(!is.na(centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ])) > 0){
-    p2 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks)
-    p2 <- p2 + geom_line(data = temp, aes(x = as.factor(ConcatDate), y = NormalizedCR, group=1), stat='summary', fun.y=sum) + stat_summary(fun.y=sum, geom="line")
-    p2 <- p2 + expand_limits(y=0)
-    p2 <- p2 + theme(plot.title=element_text(hjust=0.5),text=element_text(size=12, face='bold'), axis.text=element_text(size=12, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) 
-    p2 <- p2 + labs(y='Percent Detection')
- }  
-  
-  # Get the ggplot grobs
-  g1 <- ggplotGrob(p1)
-  g2 <- ggplotGrob(p2)
-  pp <- c(subset(g1$layout, name == "panel", se = t:r))
-  g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
-  index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
-  ylab <- g2$grobs[[index]]                # Extract that grob
-  ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
-  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
-  g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
-  index <- which(g2$layout$name == "axis-l")  # Which grob
-  yaxis <- g2$grobs[[index]]                  # Extract the grob
-  yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
-  ticks <- yaxis$children[[2]]
-  ticks$widths <- rev(ticks$widths)
-  ticks$grobs <- rev(ticks$grobs)
-  ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
-  ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
-  yaxis$children[[2]] <- ticks
-  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
-  ax <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
-  grid.draw(ax)
-  
-  
-  
-  
-  target <- ifelse(grepl("/", target_name[i]), gsub("/", " ",target_name[i]), target_name[i])
-  target <- if(grepl("/", target_name[i])){gsub("/", " ",target_name[i])} else {target_name[i]}
-  print(target)
-  # print plot
-  jpeg(paste(figures_path,"Target_Cp--", target, ".jpg", sep=""), width = 1500, height = 480, units = 'px')
-  grid.draw(ax)
-  dev.off()
+    dateBreaks2 <- unique(as.character(get_calendar$ConcatDate))[order(unique(as.character(get_calendar$ConcatDate)))][seq(1, length(unique(as.character(get_calendar$ConcatDate))), 20)]
+    
+    cp_y_max <- ifelse(max(!is.na(cal_cp$newNormCp)) >= 6, max(!is.na(cal_cp$newNormCp)), 6)
+    p1 <- ggplot()+  xlab("Year-Week") + ylab(paste("Normalized Cp ")) + ggtitle(paste("Normalized Target Cp for ", target_name[i] ," [", control.var, "]", sep="")) + scale_x_discrete(breaks=dateBreaks2)
+    #p1 <- ggplot()+  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i] ," [", control.var, "]", sep="")) + scale_x_discrete(breaks=dateBreaks2)
+   # p1 <- p1 + geom_point(data = cal_cp, aes(x = as.factor(ConcatDate), y = newNormCp, color = freq), size = 2) + scale_color_gradient(low="lightblue", high="darkblue")
+
+    p1 <- p1 + geom_boxplot(data = cal_cp, aes(x = as.factor(ConcatDate), y = newNormCp, fill = freq), stat = "boxplot") + scale_fill_gradient(low="lightblue", high="darkblue")   
+    #p1 <- p1 + stat_summary(fun.y=mean, colour="darkred", geom="point", shape=18, size=3) + geom_errorbar(data = cal_summary, aes(x = as.factor(ConcatDate), ymin = newNormCp - sd, ymax = newNormCp + sd), color = "red")
+    #p1 <- p1 + geom_errorbar(data = cal_summary, aes(x = as.factor(ConcatDate), ymin = newNormCp - ci, ymax = newNormCp + ci))
+    #p1 <- p1 + expand_limits(y=0.35) 
+    p1 <- p1 + theme(plot.title=element_text(hjust=0.5),
+                     text=element_text(size=12, face='bold'), 
+                     axis.text=element_text(size=12, color='black', face='bold'), 
+                     axis.text.x=element_text(angle=90, hjust=1), 
+                     legend.position='bottom', 
+                     #panel.background=element_rect(color='transparent', fill='white'), 
+                     panel.background=element_rect(color='black', fill='white'), 
+                     panel.grid=element_blank(), 
+                     axis.ticks.x=element_blank()) 
+    p1 <- p1 + scale_y_continuous(limits=c(0,cp_y_max), breaks=seq(0,8,2))+ labs(aesthetic='Count')  
+    p1
+    
+    cr_max <- ifelse((max(!is.na(temp_centered$CenteredRate))*100) >= 40, (max(!is.na(temp_centered$CenteredRate))*100), 50)
+    if(length(!is.na(centered.rate.df[grep(target_name[i], centered.rate.df$TargetName), ])) > 0){
+      #p2 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp ", "\u00B1", "95% CI.")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks2)
+      p2 <- ggplot() +  xlab("Year-Week") + ylab(paste("Normalized Cp")) + ggtitle(paste("Normalized Target Cp for ", target_name[i], sep="")) + scale_x_discrete(breaks=dateBreaks2)
+      p2 <- p2 + geom_line(data = cal_centered, aes(x = as.factor(ConcatDate), y = CenteredRate*100,  group=1)) + stat_summary(fun.y=sum, geom="line")
+      p2 <- p2 + theme(plot.title=element_text(hjust=0.5),
+                       text=element_text(size=12, face='bold'), 
+                       axis.text=element_text(size=12, color='black', face='bold'), 
+                       axis.text.x=element_text(angle=90, hjust=1), 
+                       legend.position='bottom', 
+                       panel.background=element_rect(fill='transparent', color='transparent'), 
+                       panel.grid=element_blank(), 
+                       axis.ticks.x=element_blank()) 
+      p2 <- p2 + labs(y='Percent Detection')
+      p2 <- p2 + scale_y_continuous(limits=c(-(cr_max),cr_max), breaks=seq(0, cr_max, 20)) #, labels= c(-10, -5, 0, 5, 10, 15))
+    } 
+    #p2
+    
+    # Get the ggplot grobs
+    g1 <- ggplotGrob(p1)
+    g2 <- ggplotGrob(p2)
+    pp <- c(subset(g1$layout, name == "panel", se = t:r))
+    g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+    index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+    ylab <- g2$grobs[[index]]                # Extract that grob
+    ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
+    g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+    g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+    index <- which(g2$layout$name == "axis-l")  # Which grob
+    yaxis <- g2$grobs[[index]]                  # Extract the grob
+    yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+    ticks <- yaxis$children[[2]]
+    ticks$widths <- rev(ticks$widths)
+    ticks$grobs <- rev(ticks$grobs)
+    ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+    ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+    yaxis$children[[2]] <- ticks
+    g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+    ax <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, z = Inf, clip = "off", name = "axis-r")
+    grid.draw(ax)
+    
+    
+    target <- ifelse(grepl("/", target_name[i]), gsub("/", " ",target_name[i]), target_name[i])
+    target <- if(grepl("/", target_name[i])){gsub("/", " ",target_name[i])} else {target_name[i]}
+    print(target)
+    # print plot
+    jpeg(paste(figures_path,"Cust_", customer_site_id, "--Target_Cp--", target, "--", control.var, ".jpg", sep=""), width = 2500, height = 480, units = 'px')
+    grid.draw(ax)
+    dev.off()
+    
+    #print(proc.time() - loop_start_time)
+
+    #if(length(cal_cp[!is.na(cal_cp$newNormCp > 3), 'newNormCp']) > 3){
+    if(length(unique(cal_cp[!is.na(cal_cp$newNormCp > 3), 'ConcatDate'])) > 3){
+      # Find correlation between 'centered rate or percent detection' and 'normalized Cp'
+      # calculate the median of normalized for each week
+      median_newNormCp <- aggregate(newNormCp ~ ConcatDate, cal_cp, median)
+      # merge to have common Concat Date
+      cor.cp.cr.df <- merge(x = median_newNormCp, y =  unique(cal_centered[ ,c('ConcatDate', 'CenteredRate')]), by.x = 'ConcatDate', by.y = 'ConcatDate')
+      # correlation
+      #cor_cp_cr <- cor(cor.cp.cr.df$newNormCp, cor.cp.cr.df$CenteredRate, method = c("pearson", "kendall", "spearman"))
+      cor_cp_cr22 <- cor.test(~ newNormCp + CenteredRate, data = cor.cp.cr.df)
+      
+      lm.out <- lm(newNormCp ~ CenteredRate, data = cor.cp.cr.df)
+      r_squared <- format(summary(lm.out)$r.squared, digits = 4)
+      adj_r_squared <- format(summary(lm.out)$adj.r.squared, digits = 4)
+      
+      #summary(lm.out)
+     
+      # Plot and save correlation plot as jpeg 
+      r2_legends <- list(bquote("R"^{2} ~ "=" ~ .(r_squared)), bquote("Adjusted R"^{2} ~ "=" ~ .(adj_r_squared)))
+      jpeg(paste(figures_path,"Cust_", customer_site_id, "--Corr-", r_squared, "--", target, "--", control.var, ".jpg", sep=""), width = 480, height = 480, units = 'px')
+       plot(cor.cp.cr.df$CenteredRate, cor.cp.cr.df$newNormCp, main = paste("Correlation (Pearsons) for ", target_name[i] ," [", control.var, "]", sep=""), xlab = "Percent Detection", ylab = "Median Normalized Cp")
+       abline(lm.out, col = "red")
+       legend("topright", bty="n", legend = (do.call(expression, r2_legends)))
+       mtext("[Note: Each data point represents a values in one week]",side=3, cex = 1 )
+      dev.off()
+    }
+    
+    
+    }
 }
-
-
-
-
-
-
 # ==========================================================================================================================================
 
 
@@ -485,7 +654,44 @@ for (i in 1:length(target_name)){
 
 
 
+# ==========================================================================================================================================
+# Check the variability in PCR1, PCR2 and yeastRNA over time
+# ==========================================================================================================================================
+internal_cp <- all.internal.cp.pouch.lot.number.df
+internal_cp$RunDate <- as.Date(internal_cp$RunDate)
+internal_cp$PouchSerialNumber <- as.character(internal_cp$PouchSerialNumber)
+internal_cp <- unique(merge(x = calendar.df, y = internal_cp[internal_cp$Name == control.var, ], by.x = "Date", by.y = "RunDate", all.x = TRUE))
 
+var_internal_cp <- internal_cp[, c("ConcatDate", "Name", "Cp")]
+names(var_internal_cp)[names(var_internal_cp) == 'Name'] <- 'AssayName'
+var_customer_cp <- new.all.customer.pouch.lot.number.df[, c("ConcatDate", "AssayName", "Cp")]
+int_and_cust_cp <- rbind(var_internal_cp, var_customer_cp)
+int_and_cust_cp$Concatdate <- as.factor(int_and_cust_cp$ConcatDate)
+
+
+
+control_assays <- c("PCR1", "PCR2", "yeastRNA")
+dateBreaks3 <- unique(as.character(get_calendar$ConcatDate))[order(unique(as.character(get_calendar$ConcatDate)))][seq(1, length(unique(as.character(get_calendar$ConcatDate))), 20)]
+
+for(i in 1:length(control_assays)){
+  g4 <- ggplot() +  xlab("Year-Week") + ylab(paste("Cp")) + scale_x_discrete(breaks=dateBreaks3)
+  #g4 <- g4 + geom_point(data = int_and_cust_cp[int_and_cust_cp$AssayName == "yeastRNA", ], aes(x = ConcatDate, y = Cp))
+  g4 <- g4 + geom_boxplot(data = int_and_cust_cp[int_and_cust_cp$AssayName == control_assays[i], ], aes(x = as.factor(ConcatDate), y = Cp), color = "darkolivegreen", stat = "boxplot")
+  # g4 <- g4 + geom_boxplot(data = int_and_cust_cp[int_and_cust_cp$AssayName == "PCR2", ], aes(x = as.factor(ConcatDate), y = Cp), color = "blue4", stat = "boxplot")    
+  # g4 <- g4 + geom_boxplot(data = int_and_cust_cp[int_and_cust_cp$AssayName == "yeastRNA", ], aes(x = as.factor(ConcatDate), y = Cp), color = "coral3", stat = "boxplot")    
+  #g4 <- g4 + geom_point(data = int_and_cust_cp, aes(x = ConcatDate, y = Cp, fill = AssayName))
+  g4 <- g4 + scale_y_continuous(limits=c(0,35), breaks=seq(0,35,10))
+  g4
+
+  jpeg(paste(figures_path,"Cust_", customer_site_id, "--control_var--", control_assays[i], ".jpg", sep=""), width = 2500, height = 480, units = 'px')
+  print(g4)
+  dev.off()
+  
+}
+
+# calculate overall variation in the 'Cp' of controls
+summ_controls <- summarySE(subset(int_and_cust_cp, int_and_cust_cp$AssayName %in% c('PCR1', 'PCR2', 'yeastRNA')), measurevar="Cp", groupvars=c("AssayName"), conf.interval = 0.95, na.rm=TRUE)
+summ_controls$cv <- (summ_controls$sd/summ_controls$Cp)*100
 
 
 # ===============================================================================================================
