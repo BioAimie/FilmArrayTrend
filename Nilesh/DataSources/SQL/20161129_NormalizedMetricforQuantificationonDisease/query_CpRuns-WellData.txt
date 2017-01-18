@@ -37,6 +37,6 @@ FROM
 )T2 RIGHT JOIN [FADataWarehouse].[dbo].[EpiWeeks] E WITH(NOLOCK) 
 	ON T2.[RunDate] = E.[Date]
 WHERE E.[Date] >= (SELECT MIN(CAST([StartTime] AS DATE)) FROM [FADataWarehouse].[dbo].[RunData] WITH(NOLOCK)) 
-	AND E.[Date] <= CAST(GETDATE() AS DATE)
+	AND E.[Date] <= CAST(GETDATE() AS DATE) AND ([PouchSerialNumber] IS NOT NULL AND [RunDate] IS NOT NULL)
 ORDER BY [Year], [Week], [RunDataId]
 

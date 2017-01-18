@@ -1,6 +1,7 @@
 SET NOCOUNT ON
 
 SELECT 
+	ER.[StartTime],
 	ER.[PouchSerialNumber],
 	ER.[SampleType],
 	ER.[PouchLotNumber],
@@ -34,6 +35,7 @@ FROM
 WHERE [CountPositives] >= 2
 
 SELECT 
+	CAST(A.[StartTime] AS DATE) AS [RunDate],
 	A.[PouchSerialNumber],
 	A.[SampleType],
 	A.[PouchLotNumber],

@@ -1,3 +1,4 @@
+
 SET NOCOUNT ON
 
 SELECT
@@ -10,6 +11,7 @@ FROM
 	SELECT
 		CAST(R.[StartTime] AS DATE) AS [RunDate],
 		T.*,
+		R.[PouchTitle],
 		R.[PositiveAssays],
 		R.[PouchLotNumber],
 		R.[PouchSerialNumber]
@@ -28,14 +30,13 @@ FROM
 			IIF(W.[Cp] IS NULL OR W.[Cp] = 0, 30, [Cp]) AS [Cp]
 		FROM [FADataWarehouse].[dbo].[WellData] W WITH(NOLOCK) LEFT JOIN [FADataWarehouse].[dbo].[SummarizedPositiveAssayResults] P WITH(NOLOCK) 
 			ON W.[RunDataId] = P.[RunDataId]
-		WHERE W.[TargetResult] = 'Positive'  OR W.[TargetResult] = 'Pass'
-		--WHERE W.[ResultType] LIKE 'organism'  AND [TargetName] LIKE 'Adenovirus' AND W.[TargetResult] = 'Positive' 
+		WHERE W.[TargetResult] = 'Positive' OR W.[TargetResult] = 'Pass'
 	)T LEFT JOIN [FADataWarehouse].[dbo].[RunData] R 
 		ON T.[RunDataId] = R.[RunDataId] 
 		WHERE R.[RunStatus] LIKE 'Completed' AND R.[PositiveAssays] < 3 AND [PouchLotNumber] LIKE '%332916%'
 )T2 RIGHT JOIN [FADataWarehouse].[dbo].[EpiWeeks] E WITH(NOLOCK) 
 	ON T2.[RunDate] = E.[Date]
-WHERE E.[Date] >= (SELECT MIN(CAST([StartTime] AS DATE)) FROM [FADataWarehouse].[dbo].[RunData] WITH(NOLOCK) WHERE [Cp] IS NOT NULL) 
-	AND E.[Date] <= CAST(GETDATE() AS DATE)
+WHERE E.[Date] >= (SELECT MIN(CAST([StartTime] AS DATE)) FROM [FADataWarehouse].[dbo].[RunData] WITH(NOLOCK)) 
+	AND E.[Date] <= CAST(GETDATE() AS DATE) AND ([PouchSerialNumber] IS NOT NULL AND [RunDate] IS NOT NULL)
 ORDER BY [Year], [Week], [RunDataId]
 

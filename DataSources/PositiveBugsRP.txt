@@ -8,8 +8,8 @@ WHERE R.[RunStatus] LIKE 'Completed' AND R.[SuppressState] LIKE 'Trendable' AND 
 
 SELECT
 	[RunDataId],
-	IIF([Interpretation] = 'Influenza A (no subtype detected)', 'Influenza A', [Interpretation]) AS [BugPositive]
+	[Interpretation] AS [BugPositive]
 FROM [FADataWarehouse].[dbo].[SummarizedPositiveAssayResults] WITH(NOLOCK)
-WHERE [ResultType] NOT LIKE 'Control' AND [RunDataId] IN (SELECT [RunDataId] FROM #rpRuns)
+WHERE [ResultType]  NOT LIKE 'Control' AND [RunDataId] IN (SELECT [RunDataId] FROM #rpRuns)
 
 DROP TABLE #rpRuns
