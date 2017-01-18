@@ -17,7 +17,7 @@ FROM [FILMARRAYDB].[FilmArray1].[FilmArray].[AssayResult] AR WITH(NOLOCK) INNER 
 				ON RX.[Id] = RR.[reaction_id] INNER JOIN [FILMARRAYDB].[FilmArray1].[FilmArray].[MetaAnalysis] MA WITH(NOLOCK) 
 					ON AR.[analysis_id] = MA.[Id] INNER JOIN [FILMARRAYDB].[FilmArray1].[FilmArray].[ExperimentRun] ER WITH(NOLOCK) 
 						ON MA.[experiment_id] = ER.[Id]
-WHERE AA.[Name] IN ('PCR1','PCR2','yeastRNA') AND ER.[PouchLotNumber] LIKE '%227415%'  AND ER.[SampleId] LIKE '%QC%'
+WHERE AA.[Name] IN ('PCR1','PCR2','yeastRNA') AND ER.[PouchLotNumber] LIKE '%227415%'  AND ER.[SampleId] LIKE '%QC%' AND [SampleType] LIKE 'NPS v%'
 ORDER BY ER.[PouchLotNumber], ER.[PouchSerialNumber], AA.[Name]
 
 
