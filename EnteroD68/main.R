@@ -237,6 +237,16 @@ rhino.features.neat.2$DeltaBinCp6 <- with(rhino.features.neat.2, ifelse(DeltaCp6
                                                                                                     ifelse(DeltaCp6 <= 20, 6,
                                                                                                            ifelse(DeltaCp6 <= 25, 7, 8))))))))
 
+# if there are fewer than 5 runs in a day at a site, then get rid of these observations because the positivity rate could be skewed
+remove.data <- run.count[run.count$Run < 5, ]
+rhino.features.neat.2 <- merge(rhino.features.neat.2, remove.data, by=c('Date','CustomerSiteId'), all.x=TRUE)
+rhino.features.neat.2 <- rhino.features.neat.2[is.na(rhino.features.neat.2$Run.y), colnames(rhino.features.neat.2)!='Run.y']
+
+
+
+
+
+
 
 
 
