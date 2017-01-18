@@ -151,7 +151,7 @@ sixth.rhino.assay <- cp.rhino.ordered[cp.rhino.ordered$Index==6, c('RunDataId','
 sixth.rhino.assay <- merge(sixth.rhino.assay, rhino.assays, by='AssayName')[,c('RunDataId','AssayIndex','MedianCp','CustomerSiteId')]
 rhino.features <- merge(first.rhino.assay, merge(second.rhino.assay, merge(third.rhino.assay, merge(merge(fourth.rhino.assay, fifth.rhino.assay, by=c('RunDataId','CustomerSiteId'), all.x=TRUE), sixth.rhino.assay, by=c('RunDataId','CustomerSiteId'), all.x=TRUE), by=c('RunDataId','CustomerSiteId'), all.x=TRUE), by=c('RunDataId','CustomerSiteId'), all.x=TRUE), by=c('RunDataId','CustomerSiteId'), all.x=TRUE)
 colnames(rhino.features) <- c('RunDataId','CustomerSiteId','Assay1','Cp1','Assay2','Cp2','Assay3','Cp3','Assay4','Cp4','Assay5','Cp5','Assay6','Cp6')
-sparse.cp <- 50
+sparse.cp <- 70
 rhino.features[is.na(rhino.features$Cp2), 'Cp2'] <- sparse.cp
 rhino.features[is.na(rhino.features$Cp3), 'Cp3'] <- sparse.cp
 rhino.features[is.na(rhino.features$Cp4), 'Cp4'] <- sparse.cp
@@ -176,8 +176,14 @@ macro.features$Negatives <- macro.features$Run - macro.features$Positives
 macro.features$PositiveRate <- macro.features$Positives/macro.features$Run
 macro.features$NegativeRate <- macro.features$Negatives/macro.features$Run
 macro.features$RhinoRate <- macro.features$RhinoPositives/macro.features$Run
+sequence.positives <- with(data.frame(merge(cp.rhino.sequence, unique(runs.df[,c('RunDataId','Date','CustomerSiteId')]), by='RunDataId'), SequencePositives = 1), aggregate(SequencePositives~Date+CustomerSiteId+SequenceIndex, FUN=sum))
+sequence.features <- merge(sequence.positives, macro.features[,c('Date','CustomerSiteId','Run')], by=c('Date','CustomerSiteId'), all.x=TRUE)
+sequence.features$SequenceRate <- sequence.features$SequencePositives/sequence.features$Run
+
 rhino.features <- merge(rhino.features, macro.features, by=c('Date','CustomerSiteId'))
 rhino.features <- merge(rhino.features, cp.rhino.sequence[,c('RunDataId','SequenceIndex')], by='RunDataId')
+rhino.features <- merge(rhino.features, sequence.features[,c('Date','CustomerSiteId','SequenceIndex','SequenceRate')], by=c('Date','CustomerSiteId','SequenceIndex'))
+
 rhino.features.neat <- rhino.features[,!(colnames(rhino.features) %in% c('Date','RunDataId','CustomerSiteId'))]
 
 # clustering
@@ -187,5 +193,60 @@ dbscan(rhino.features.neat[,c('SequenceIndex','PositiveRate','NegativeRate','Rhi
 
 # plot by cluster
 cluster.alg.1.df <- cbind(rhino.features.neat, Cluster = rhino.cluster.alg.1$cluster)
+
+# try again... the kmeans may not be correct using the current data configuration... may need to remove the sequence index and bin the Cp values???
+rhino.features.neat.2 <- rhino.features
+rhino.features.neat.2$DeltaCp2 <- with(rhino.features, Cp2 - Cp1)
+rhino.features.neat.2$DeltaCp3 <- with(rhino.features, Cp3 - Cp1)
+rhino.features.neat.2$DeltaCp4 <- with(rhino.features, Cp4 - Cp1)
+rhino.features.neat.2$DeltaCp5 <- with(rhino.features, Cp5 - Cp1)
+rhino.features.neat.2$DeltaCp6 <- with(rhino.features, Cp6 - Cp1)
+rhino.features.neat.2$DeltaBinCp2 <- with(rhino.features.neat.2, ifelse(DeltaCp2 <= 2, 1,
+                                                                        ifelse(DeltaCp2 <= 5, 2,
+                                                                               ifelse(DeltaCp2 <= 8, 3,
+                                                                                      ifelse(DeltaCp2 <= 11, 4,
+                                                                                             ifelse(DeltaCp2 <= 15, 5,
+                                                                                                    ifelse(DeltaCp2 <= 20, 6,
+                                                                                                           ifelse(DeltaCp2 <= 25, 7, 8))))))))
+rhino.features.neat.2$DeltaBinCp3 <- with(rhino.features.neat.2, ifelse(DeltaCp3 <= 2, 1,
+                                                                        ifelse(DeltaCp3 <= 5, 2,
+                                                                               ifelse(DeltaCp3 <= 8, 3,
+                                                                                      ifelse(DeltaCp3 <= 11, 4,
+                                                                                             ifelse(DeltaCp3 <= 15, 5,
+                                                                                                    ifelse(DeltaCp3 <= 20, 6,
+                                                                                                           ifelse(DeltaCp3 <= 25, 7, 8))))))))
+rhino.features.neat.2$DeltaBinCp4 <- with(rhino.features.neat.2, ifelse(DeltaCp4 <= 2, 1,
+                                                                        ifelse(DeltaCp4 <= 5, 2,
+                                                                               ifelse(DeltaCp4 <= 8, 3,
+                                                                                      ifelse(DeltaCp4 <= 11, 4,
+                                                                                             ifelse(DeltaCp4 <= 15, 5,
+                                                                                                    ifelse(DeltaCp4 <= 20, 6,
+                                                                                                           ifelse(DeltaCp4 <= 25, 7, 8))))))))
+rhino.features.neat.2$DeltaBinCp5 <- with(rhino.features.neat.2, ifelse(DeltaCp5 <= 2, 1,
+                                                                        ifelse(DeltaCp5 <= 5, 2,
+                                                                               ifelse(DeltaCp5 <= 8, 3,
+                                                                                      ifelse(DeltaCp5 <= 11, 4,
+                                                                                             ifelse(DeltaCp5 <= 15, 5,
+                                                                                                    ifelse(DeltaCp5 <= 20, 6,
+                                                                                                           ifelse(DeltaCp5 <= 25, 7, 8))))))))
+rhino.features.neat.2$DeltaBinCp6 <- with(rhino.features.neat.2, ifelse(DeltaCp6 <= 2, 1,
+                                                                        ifelse(DeltaCp6 <= 5, 2,
+                                                                               ifelse(DeltaCp6 <= 8, 3,
+                                                                                      ifelse(DeltaCp6 <= 11, 4,
+                                                                                             ifelse(DeltaCp6 <= 15, 5,
+                                                                                                    ifelse(DeltaCp6 <= 20, 6,
+                                                                                                           ifelse(DeltaCp6 <= 25, 7, 8))))))))
+
+
+
+
+
+
+rhino.features.neat.2 <- rhino.features.neat.2[, colnames(rhino.features.neat.2)[grep('DeltaBin|Assay|Rate', colnames(rhino.features.neat.2))]]
+
+
+# may also want to try computing a weekly rate rather than daily... this may end up being more reliable, but I am not sure....
+
+
 
 
