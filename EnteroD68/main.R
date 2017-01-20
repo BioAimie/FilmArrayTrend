@@ -9,6 +9,7 @@ require(dateManip)
 library(cluster)
 library(caret)
 library(dbscan)
+library(C50)
 
 # create an Epi date calendar that will be used by all the data sets
 startYear <- 2013
@@ -255,8 +256,30 @@ rhino.features.neat.2 <- rhino.features.neat.2[is.na(rhino.features.neat.2$Run.y
 rhino.features.neat.2 <- rhino.features.neat.2[, colnames(rhino.features.neat.2)[grep('DeltaBin|Assay|Rate', colnames(rhino.features.neat.2))]]
 
 
-# may also want to try computing a weekly rate rather than daily... this may end up being more reliable, but I am not sure....
+# try to duplicate Andrew Wallin's analysis:
+#   30% of filtered data used for training, 70% used for testing
+#   k-means (12 clusters) on median assay Cp to find signature
+#   merge cluster results back to training data and perform c5.0 algorithm to predict cluster signature
+rhino.features.neat.3 <- rhino.features[,c('Cp1','Cp2','Cp3','Cp4','Cp5','Cp6')]
+set.seed(3456)
+trainIndex <- createDataPartition(rhino.features.neat.3$Cp1, p=0.3, list=FALSE, times=1)
+rhino.train <- rhino.features.neat.3[trainIndex, ]
+rhino.test <- rhino.features.neat.3[-trainIndex, ]
+kmeans.rhino.3 <- kmeans(rhino.train, 12)
+a <- cbind(rhino.train, Cluster = kmeans.rhino.3$cluster)
+evd68.ids <- unique(cp.rhino.sequence[grep('^HRV4$|^HRV4, HRV1, HRV2, HRV3$|^HRV4, HRV1, HRV2$|^HRV4, HRV1$', cp.rhino.sequence$Sequence), 'SequenceIndex'])
+b <- rhino.features[rhino.features$SequenceIndex %in% evd68.ids, ]
+d <- with(data.frame(b, SequencePositives = 1), aggregate(cbind(Run, SequencePositives)~Date, FUN=sum))
+d$Rate <- with(d, SequencePositives/Run)
+a <- cbind(a, Date = rhino.features[trainIndex, 'Date'])
+cluster.count.by.date <- with(data.frame(a, Record = 1), aggregate(Record~Date+Cluster, FUN=sum))
+obs.count.by.date <- with(data.frame(a, Total = 1), aggregate(Total~Date, FUN=sum))
+f <- merge(obs.count.by.date, cluster.count.by.date, by=c('Date'))
+ggplot(f, aes(x=Date, y=Record/Total)) + geom_point() + facet_wrap(~Cluster)
 
 
 
 
+csv.data.export <- data.frame(rhino.features.neat.2[,c(1:3,6,8,10,12,14,16, 17, 18, 19, 20)], SequencePositives = 1)
+colnames(csv.data.export)[grep('Run.x', colnames(csv.data.export))] <- 'Runs'
+write.csv(csv.data.export, 'rhinoMedianCpFeatures.csv')
