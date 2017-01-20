@@ -10,6 +10,8 @@ library(cluster)
 library(caret)
 library(dbscan)
 library(C50)
+library(tidyr)
+library(dplyr)
 
 # create an Epi date calendar that will be used by all the data sets
 startYear <- 2013
@@ -37,13 +39,58 @@ choose.sites <- as.character(sites.df[,'CustomerSiteId'])
 for(j in 1:length(choose.sites)) {
   
   FADWcxn <- odbcConnect('FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD') 
-  queryVector <- scan('../DataSources/SQL/EnteroD68/rpDataBySite.sql', what=character(), quote="")
+  queryVector <- scan('../DataSources/SQL/EnteroD68/rhinoDataBySite.sql', what=character(), quote="")
   query <- paste(gsub('SITE_INDEX', choose.sites[j], queryVector), collapse=" ")
   cp.site.df <- sqlQuery(FADWcxn, query)
   odbcClose(FADWcxn)
   
   cp.df <- rbind(cp.df, cp.site.df)
 }
+
+rm(cp.site.df)
+
+# with the cp data, determine the median Cp of each assay in the HRV/EV target
+cp.median <- aggregate(Cp~RunDataId+CustomerSiteId+Date+AssayName, FUN=median, data=cp.df)
+cp.spread <- spread(data = cp.median, key = AssayName, value = Cp)
+sparse.handler <- 40
+cp.spread[,c(4:9)][is.na(cp.spread[,c(4:9)])] <- sparse.handler
+
+# next, only consider "good" data (assume a start of mid-2013)
+cp.clean <- merge(cp.spread, filter(calendar.df[,c('Date','YearWeek')], YearWeek >= '2013-26'), by='Date')
+
+# create some clusters using kNN from the caret package, utilizing 60% of the data for training and the rest for testing
+#   first, check to see if any of the features have near-zero variance (i.e. variables with very few unique values, which can skew results when data are split for train/test)
+nzv <- nearZeroVar(cp.clean[,c(4:9)], saveMetrics = TRUE)
+remove.vars <- row.names(nzv[nzv$nzv==TRUE,])
+cp.clean <- cp.clean[,!(colnames(cp.clean) %in% remove.vars)]
+#   second, check to see if any of the variables have very strong correlation (cut off of 0.8)
+keep.vars <- cor(cp.clean[,c(4:7)])[,-findCorrelation(cor(cp.clean[,c(4:7)]), cutoff=0.8)]
+cp.clean <- cp.clean[,colnames(cp.clean) %in% c('RunDataId','Date','YearWeek','CustomerSiteId',row.names(keep.vars))]
+
+#   third, create a training and testing data set
+#   ************* NOTE: MAY WANT TO DO THIS WITH A MOVING WINDOW OF THE DATA SET (e.g. THE LAST 52 WEEKS??)
+#   ************* LOOK INTO DATA SPLITTING USING createTimeSlices INSTEAD OF createDataPartition!!!
+
+
+
+set.seed(3456)
+trainIndex <- createDataPartition(cp.clean$RunDataId, p=0.6, list=FALSE, times=1)
+cp.train <- cp.clean[trainIndex, ]
+cp.test <- cp.clean[-trainIndex, ]
+base.train <- cp.clean[trainIndex, c('RunDataId','Date','YearWeek','CustomerSiteId')]
+features.train <- cp.clean[trainIndex, row.names(keep.vars)]
+base.test <- cp.clean[-trainIndex, c('RunDataId','Date','YearWeek','CustomerSiteId')]
+features.test <- cp.clean[-trainIndex, row.names(keep.vars)]
+
+#   fourth, do some preprocessing of the data to minimize the variance using PCA... the preprocessing technique will be extrapolated to the test set
+preProcValues <- preProcess(features.train, method = 'pca')
+features.train.trans <- predict(preProcValues, features.train)
+features.test.trans <- predict(preProcValues, features.test)
+
+
+
+
+
 
 # next, create a master data frame that combines a lot of parameters which may work for identifying patterns in Rhino/Entero target
 #### QUESTION : SHOULD THIS BE DONE BY TARGET SUCH THAT CO-DETECTIONS ARE HANDLED DIFFERENTLY?!?! MAY NEED TO DO ANALYSIS TO FIND OUT
@@ -187,6 +234,8 @@ rhino.features <- merge(rhino.features, sequence.features[,c('Date','CustomerSit
 
 rhino.features.neat <- rhino.features[,!(colnames(rhino.features) %in% c('Date','RunDataId','CustomerSiteId'))]
 
+# Hide for now....
+
 # clustering
 rhino.cluster.alg.1 <- kmeans(rhino.features.neat, centers = 20, iter.max = 20)
 dbscan(rhino.features.neat, eps = 0.4, minPts = 5)
@@ -279,7 +328,25 @@ ggplot(f, aes(x=Date, y=Record/Total)) + geom_point() + facet_wrap(~Cluster)
 
 
 
-
 csv.data.export <- data.frame(rhino.features.neat.2[,c(1:3,6,8,10,12,14,16, 17, 18, 19, 20)], SequencePositives = 1)
 colnames(csv.data.export)[grep('Run.x', colnames(csv.data.export))] <- 'Runs'
 write.csv(csv.data.export, 'rhinoMedianCpFeatures.csv')
+
+
+# keep trying.....
+# I think one good idea is to trim the data set to include only dates where the data are "good"
+rhino.ml.features <- rhino.features[,c('Date','CustomerSiteId','Cp1','Cp2','Cp3','Cp4','Cp5','Cp6')]
+ggplot(rhino.features, aes(x=Date, y=Run, fill=as.factor(CustomerSiteId))) + geom_bar(stat='identity')
+
+
+set.seed(411)
+trainIndex <- createDataPartition(rhino.ml.features$Cp1, p=0.3, list=FALSE, times=1)
+rhino.train <- rhino.features.neat.3[trainIndex, ]
+rhino.test <- rhino.features.neat.3[-trainIndex, ]
+
+
+
+
+
+
+
