@@ -12,7 +12,7 @@ library(dbscan)
 library(C50)
 library(tidyr)
 library(dplyr)
-library(plot3D)
+# library(plot3D)
 library(AnomalyDetection)
 
 # create an Epi date calendar that will be used by all the data sets
@@ -203,6 +203,7 @@ if(FALSE) {
 k.period <- 15
 year.weeks <- data.frame(YearWeek = unique(cp.clean.ts$YearWeek), ywIndex = seq(1, length(unique(cp.clean.ts$YearWeek)), 1))
 rolling.density <- c()
+rolling.center <- c()
 for(i in 26:length(year.weeks$YearWeek)) {
   
   train.period <- as.character(year.weeks[year.weeks$ywIndex<=i & year.weeks$ywIndex>=(i-25), 'YearWeek'])
@@ -232,21 +233,65 @@ for(i in 26:length(year.weeks$YearWeek)) {
   agg.density <- with(data.frame(agg.clustered, Record = 1), aggregate(Record~Cluster, FUN=sum))
   agg.density$Density <- agg.density$Record/sum(agg.density$Record)
   agg.density$Key <- 'agg'
-  a <- rbind(train.density, agg.density)
+  density.df <- rbind(train.density, agg.density)
   # ggplot(a, aes(x=Cluster, y=Density, fill=Key)) + geom_bar(stat='identity', position='dodge') + labs(title=paste('Delta in Cluster Density for Period Ending', max(test.period), sep=' '))
-  temp <- spread(a[,c(1, 3:4)], key = Key, value = Density)
-  temp$Delta <- (temp$train - temp$agg)^2
-  temp$YearWeek <- max(test.period)
-  rolling.density <- rbind(rolling.density, temp)
+  temp.density <- spread(density.df[,c(1, 3:4)], key = Key, value = Density)
+  temp.density$Delta <- (temp.density$train - temp.density$agg)^2
+  temp.density$YearWeek <- max(test.period)
+  rolling.density <- rbind(rolling.density, temp.density)
   
   # maybe also try with correlation and/or variance of all clusters over time???
+  
+  # method 2: see how the centers of the clusters change from 26 weeks to 27-29 weeks...
+  train.extend.period <- as.character(year.weeks[year.weeks$ywIndex<=(i+2) & year.weeks$ywIndex>=(i-25), 'YearWeek'])
+  train.extend.df <- cp.clean.ts[cp.clean.ts$YearWeek %in% train.extend.period, ]
+  train.extend.base <- train.extend.df[,c(1:3,8)]
+  train.extend.features <- train.extend.df[,c(4:7)]
+  train.extend.pca <- predict(period.pca.trans, train.extend.features)
+  k.fit.extend.period <- kmeans(train.extend.pca, k.period, 100)
+  # train.extend.clustered <- data.frame(train.extend.base, train.extend.pca, Cluster = k.fit.extend.period$cluster)
+  # train.extend.clustered$Cluster <- as.factor(train.extend.clustered$Cluster)
+  
+  cluster.shift <- data.frame(Cluster = rownames(k.fit.period$centers),
+                              Shift = sqrt((data.frame(k.fit.period$centers)[,1] - data.frame(k.fit.extend.period$centers)[,1])^2 +
+                                             (data.frame(k.fit.period$centers)[,2] - data.frame(k.fit.extend.period$centers)[,2])^2 +
+                                             (data.frame(k.fit.period$centers)[,3] - data.frame(k.fit.extend.period$centers)[,3])^2
+                                           )
+  )
+  
+  temp.shift <- data.frame(YearWeek = max(train.extend.period), cluster.shift)
+  rolling.center <- rbind(rolling.center, temp.shift)
 }
+
+clustered.df <- cp.spread
+run.ids <- unique(cp.median$RunDataId)
+cp.ordered <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(cp.median[cp.median$RunDataId==run.ids[x], ][order(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), ], Index = seq(1, length(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), 1))))
+cp.sequence <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(RunDataId = run.ids[x], Sequence = paste(as.character(cp.ordered[cp.ordered$RunDataId==run.ids[x], 'AssayName']), collapse=', '))))
+clustered.df$SequenceFlag <- NA
+clustered.df[clustered.df$RunDataId %in% cp.sequence[grep('^HRV4$|^HRV4, HRV1, HRV2, HRV3$|^HRv4, HRV1, HRV2$|^HRV4, HRV1$', cp.sequence$Sequence), 'RunDataId'], 'SequenceFlag'] <- 'Positive'
+clustered.df[is.na(clustered.df$SequenceFlag), 'SequenceFlag'] <- 'Negative'
+clustered.df <- merge(clustered.df, unique(calendar.df[,c('Date','YearWeek')]), by='Date')
+clustered.df$Record <- 1
+
 ggplot(subset(clustered.df, YearWeek >= as.character(year.weeks[year.weeks$ywIndex==26, 'YearWeek'])), aes(x=YearWeek, y=Record, fill=SequenceFlag)) + geom_bar(stat='identity')+ scale_x_discrete(breaks = as.character(unique(clustered.df$YearWeek))[order(as.character(unique(clustered.df$YearWeek)))][seq(1, length(as.character(unique(clustered.df$YearWeek))), 12)]) + labs(title='HRV/EV Positive Test Count with Positive/Negative Sequences for EV-D68\nby Week')
 ggplot(rolling.density, aes(x=YearWeek, y=Delta, fill=Cluster)) + geom_bar(stat='identity') + scale_x_discrete(breaks = as.character(unique(rolling.density$YearWeek))[order(as.character(unique(rolling.density$YearWeek)))][seq(1, length(as.character(unique(rolling.density$YearWeek))), 12)]) + theme(axis.text.x=element_text(angle=90)) + labs(title='Delta in Densities between Training and Aggregate Data Sets\non Rolling Basis by Week')
 
-# method 2: see how the centers of the clusters change from 26 weeks to 27-29 weeks...
-
 # method 3: find the frequency of sequences and use twitter's AnomalyDetection package on GitHub
-sequence.freq <- merge(cp.clean.ts, cp.sequence, by='RunDataId')
+sequence.freq <- merge(clustered.df[clustered.df$YearWeek>='2013-26', c('Date','RunDataId')], cp.sequence, by='RunDataId') 
 sequence.freq <- with(data.frame(sequence.freq, Count = 1), aggregate(Count~Date+Sequence, FUN=sum))
+
+# the issue with this is that the count will go up over time due to growth of the data set... so change to a fraction
+sequence.freq <- merge(sequence.freq, with(sequence.freq, aggregate(Count~Date, FUN=sum)), by='Date')
+sequence.freq$Rate <- sequence.freq$Count.x/sequence.freq$Count.y
+sequence.freq <- sequence.freq[,c('Date','Sequence','Rate')]
+sequence.freq$Date <- as.POSIXct(sequence.freq$Date)
+AnomalyDetectionTs(sequence.freq[sequence.freq$Sequence=='HRV4, HRV1', c('Date','Rate')], max_anoms=0.01, direction='both', plot=TRUE)
+
+# other ideas: attempt potentially something that will just look at how sequences move together... maybe 
+#              label by sequence and have it use random forest... then see which ones follow a similar path
+#               until the lowest level (these potentially could be similar)
+head(cp.spread)
+ 
+
+
 
