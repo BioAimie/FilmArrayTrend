@@ -179,8 +179,9 @@ if(TRUE) {
   # https://www.census.gov/popclock/data_tables.php?component=growth
   population.dist.2016 <- data.frame(CensusRegionNational = c('Northeast','Midwest','West','South'), PopulationPercent = c(0.174, 0.21, 0.237, 0.379))
   prevalence.reg.census.wrap <- merge(merge(prevalence.reg.agg[,c('Bug','Code','YearWeek','CustomerSiteId','Rate','Runs','Positives')], shortnames.df, by.x='Bug', by.y='Organism'), unique(sitesByCensusRegions.etc[,c('CustomerSiteId','CensusRegionNational')]), by='CustomerSiteId')
-  prevalence.reg.census.agg <- with(prevalence.reg.census.wrap, aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+ShortName, FUN=sum))
+  prevalence.reg.census.agg <- with(prevalence.reg.census.wrap, aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+CustomerSiteId+ShortName, FUN=sum))
   prevalence.reg.census.agg$Prevalence <- with(prevalence.reg.census.agg, Positives/Runs)
+  prevalence.reg.census.agg <- with(prevalence.reg.census.agg, aggregate(Prevalence~YearWeek+CensusRegionNational+ShortName, FUN=mean))
   prevalence.nat.census.individual <- merge(prevalence.reg.census.agg, population.dist.2016, by='CensusRegionNational') 
   prevalence.nat.census.individual$WeightedPrevalence <- with(prevalence.nat.census.individual, Prevalence*PopulationPercent)
   prevalence.nat.census.individual <- with(prevalence.nat.census.individual, aggregate(WeightedPrevalence~YearWeek+ShortName, FUN=sum))  
@@ -212,17 +213,19 @@ if(TRUE) {
   p.PercentDetectionTrend_Grouped <- ggplot(prevalence.nat.families[with(prevalence.nat.families, order(Name, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=Name, group=Name, order=Name), stat='identity', position='stack') + scale_fill_manual(values=bug.family.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,0.8), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8), labels=c(0, 10, 20, 30, 40, 50, 60, 70, 80)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + labs(title='', y='Detection (%)', x='Date')
   
   # now do the same thing, but weight by population
-  prevalence.census.fluA <- with(prevalence.reg.census.agg[grep('Flu A|FluA', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational, FUN=sum))
+  prevalence.reg.census.agg.fam <- with(prevalence.reg.census.wrap, aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+CustomerSiteId+ShortName, FUN=sum))
+  prevalence.census.fluA <- with(prevalence.reg.census.agg.fam[grep('Flu A|FluA', prevalence.reg.census.agg.fam$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+CustomerSiteId, FUN=sum))
   prevalence.census.fluA$ShortName <- 'Influenza A'
-  prevalence.census.corona <- with(prevalence.reg.census.agg[grep('CoV', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational, FUN=sum))
+  prevalence.census.corona <- with(prevalence.reg.census.agg.fam[grep('CoV', prevalence.reg.census.agg.fam$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+CustomerSiteId, FUN=sum))
   prevalence.census.corona$ShortName <- 'Coronavirus'
-  prevalence.census.pivs <- with(prevalence.reg.census.agg[grep('PIV', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational, FUN=sum))
+  prevalence.census.pivs <- with(prevalence.reg.census.agg.fam[grep('PIV', prevalence.reg.census.agg.fam$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+CustomerSiteId, FUN=sum))
   prevalence.census.pivs$ShortName <- 'Parainfluenza'
-  prevalence.census.bacteria <- with(prevalence.reg.census.agg[grep('B. per|C. pne|M. pne', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational, FUN=sum))
+  prevalence.census.bacteria <- with(prevalence.reg.census.agg.fam[grep('B. per|C. pne|M. pne', prevalence.reg.census.agg.fam$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+CustomerSiteId, FUN=sum))
   prevalence.census.bacteria$ShortName <- 'Bacteria'
-  prevalence.census.other <- with(prevalence.reg.census.agg[grep('Adeno|FluB|hMPV|HRV/EV|RSV', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+ShortName, FUN=sum))[,c('YearWeek','CensusRegionNational','Runs','Positives','ShortName')]
+  prevalence.census.other <- with(prevalence.reg.census.agg.fam[grep('Adeno|FluB|hMPV|HRV/EV|RSV', prevalence.reg.census.agg.fam$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+CustomerSiteId+ShortName, FUN=sum))[,c('YearWeek','CensusRegionNational','CustomerSiteId','Runs','Positives','ShortName')]
   prevalence.census.families <- rbind(prevalence.census.fluA, prevalence.census.corona, prevalence.census.pivs, prevalence.census.bacteria, prevalence.census.other)
   prevalence.census.families$Prevalence <- with(prevalence.census.families, Positives/Runs)
+  prevalence.census.families <- with(prevalence.census.families, aggregate(Prevalence~YearWeek+CensusRegionNational+ShortName, FUN=mean))
   
   # now merge with population fraction and weight... then make the chart
   prevalence.census.families <- merge(prevalence.census.families, population.dist.2016, by='CensusRegionNational')
@@ -403,14 +406,28 @@ if(TRUE) {
   prev.pareto.side.by.side <- with(prev.pareto.side.by.side, aggregate(WeightedPrevalence~ShortName+Code, FUN=sum))
   colnames(prev.pareto.side.by.side) <- c('ShortName','Code','Prevalence')
   
-  ### THIS IS WHERE I STOPPED!!!! --- ALL PARETOS SHOULD BE REMADE AND WEIGHTED ---- THIS MEANS GIVING THEM NAMES AND PLOTTING!!!  
-  prev.pareto.seasonal.all.nat$Name <- factor(prev.pareto.seasonal.all.nat$ShortName, levels = label.order.seasonal.all)
-  label.order.season.ind <- prev.pareto.seasonal.all.nat.ind[with(prev.pareto.seasonal.all.nat.ind, order(Prevalence, decreasing = TRUE)), 'ShortName']
-  prev.pareto.seasonal.all.nat.ind$Name <- factor(prev.pareto.seasonal.all.nat.ind$ShortName, levels = label.order.season.ind)
-  label.order.seasonal.fam <- prev.pareto.seasonal.all.nat.fam[with(prev.pareto.seasonal.all.nat.fam, order(Prevalence, decreasing = TRUE)), 'ShortName']
-  prev.pareto.seasonal.all.nat.fam$Name <- factor(prev.pareto.seasonal.all.nat.fam$ShortName, levels = label.order.seasonal.fam)
+  ### THIS IS WHERE I STOPPED!!!! --- ALL PARETOS SHOULD BE REMADE AND WEIGHTED ---- THIS MEANS GIVING THEM NAMES AND PLOTTING!!! 
+  prev.pareto.seasonal.all.census <- with(prev.pareto.seasonal.all, aggregate(cbind(Runs, Positives)~CustomerSiteId+Code+ShortName, FUN=sum))
+  prev.pareto.seasonal.all.census$Prevalence <- with(prev.pareto.seasonal.all.census, Positives/Runs)
+  prev.pareto.seasonal.all.census <- merge(prev.pareto.seasonal.all.census, sitesByCensusRegions.etc[,c('CustomerSiteId','CensusRegionNational')], by='CustomerSiteId')
+  prev.pareto.seasonal.all.census <- with(prev.pareto.seasonal.all.census, aggregate(Prevalence~CensusRegionNational+Code+ShortName, FUN=mean))
+  prev.pareto.seasonal.all.census <- merge(prev.pareto.seasonal.all.census, population.dist.2016, by='CensusRegionNational')
+  prev.pareto.seasonal.all.census$WeightedPrevalence <- with(prev.pareto.seasonal.all.census, Prevalence*PopulationPercent)
+  prev.pareto.seasonal.all.census <- with(prev.pareto.seasonal.all.census, aggregate(WeightedPrevalence~Code+ShortName, FUN=sum))
+  colnames(prev.pareto.seasonal.all.census)[3] <- 'Prevalence'
+  prev.pareto.seasonal.all.census.ind <- prev.pareto.seasonal.all.census[!(prev.pareto.seasonal.all.census$Code %in% c('v','w','x','y')), ]
+  prev.pareto.seasonal.all.census.fam <- prev.pareto.seasonal.all.census[!(prev.pareto.seasonal.all.census$Code %in% c('b','c','d','e','f','g','j','k','l','m','o','p','q','r','s')), ]
+  prev.pareto.seasonal.all.census$Name <- factor(prev.pareto.seasonal.all.census$ShortName, levels = label.order.seasonal.all)
+  prev.pareto.seasonal.all.census.ind$Name <- factor(prev.pareto.seasonal.all.census.ind$ShortName, levels = label.order.season.ind)
+  prev.pareto.seasonal.all.census.fam$Name <- factor(prev.pareto.seasonal.all.census.fam$ShortName, levels = label.order.seasonal.fam)
   
-    
+  prev.pareto.seasonal.all.sbys <- rbind(data.frame(prev.pareto.seasonal.all.nat, Key = 'No Weighting'), data.frame(prev.pareto.seasonal.all.census, Key = 'Population Weighted'))
+  prev.pareto.seasonal.all.sbys.ind <- rbind(data.frame(prev.pareto.seasonal.all.nat.ind, Key = 'No Weighting'), data.frame(prev.pareto.seasonal.all.census.ind, Key = 'Population Weighted'))
+  prev.pareto.seasonal.all.sbys.fam <- rbind(data.frame(prev.pareto.seasonal.all.nat.fam, Key = 'No Weighting'), data.frame(prev.pareto.seasonal.all.census.fam, Key = 'Population Weighted'))
+  
+  p.PercentDetectionParetoSeasonal_SideBySide <- ggplot(prev.pareto.seasonal.all.sbys, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.sbys, 'Key'), name='') + scale_y_continuous(limits=c(0,0.3), breaks=c(0,0.05,0.1,0.15,0.2,0.25,0.3), labels=c('0','5','10','15','20','25','30')) + labs(x='', y='Detection (%)')
+  p.PercentDetectionParetoSeasonal_Individual_SideBySide <- ggplot(prev.pareto.seasonal.all.sbys.ind, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.sbys.ind, 'Key'), name='') + scale_y_continuous(limits=c(0,0.3), breaks=c(0,0.05,0.1,0.15,0.2,0.25,0.3), labels=c('0','5','10','15','20','25','30')) + labs(x='', y='Detection (%)')
+  p.PercentDetectionParetoSeasonal_Family_SideBySide <- ggplot(prev.pareto.seasonal.all.sbys.fam, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.sbys.fam, 'Key'), name='') + scale_y_continuous(limits=c(0,0.3), breaks=c(0,0.05,0.1,0.15,0.2,0.25,0.3), labels=c('0','5','10','15','20','25','30')) + labs(x='', y='Detection (%)')
 }
 
 # ILI VS. RP NORMALIZED BURN RATE
@@ -1449,51 +1466,10 @@ if(TRUE) {
   b <- b[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
 }
 
-# REMAKE SOME OF THE PARETO CHARTS USING A WIEGHTING BY POPULATION OF THE REGION
-a <- merge(positives.count.seasonal.agg, unique(runs.df[,c('CustomerSiteId','Province')]), by='CustomerSiteId')
-a <- merge(a, unique(regions.df[,c('StateAbv','CensusRegionNational')]), by.x='Province', by.y='StateAbv')
-# https://www.census.gov/popclock/data_tables.php?component=growth
-population.dist.2016 <- data.frame(CensusRegionNational = c('Northeast','Midwest','West','South'),
-                                   PopulationPercent = c(0.174, 0.21, 0.237, 0.379))
-# a.annual <- with(a, aggregate(cbind(Runs, Positives)~SeasonYear+CustomerSiteId+CensusRegionNational+ShortName, FUN=sum))
-# a.avg <- a
-# a.annual$Rate <- with(a.annual, Positives/Runs)
-# a.avg$Rate <- with(a, Positives/Runs)
-# a.annual.agg <- with(a.annual, aggregate(Rate~SeasonYear+CustomerSiteId+CensusRegionNational+ShortName, FUN=mean))
-# a.avg.agg <- with(a.avg, aggregate(Rate~SeasonYear+CustomerSiteId+CensusRegionNational+ShortName, FUN=mean))
-# a.annual.census <- with(a.annual.agg, aggregate(Rate~SeasonYear+CensusRegionNational+ShortName, FUN=mean))
-# a.avg.census <- with(a.avg.agg, aggregate(Rate~SeasonYear+CensusRegionNational+ShortName, FUN=mean))
-# a.annual.census <- merge(a.annual.census, population.dist.2016, by='CensusRegionNational')
-# a.avg.census <- merge(a.avg.census, population.dist.2016, by='CensusRegionNational')
-# a.annual.census$WeightedRate <- with(a.annual.census, Rate*PopulationPercent)
-# a.avg.census$WeightedRate <- with(a.avg.census, Rate*PopulationPercent)
-# a.annual.census.agg <- with(a.annual.census, aggregate(WeightedRate~SeasonYear+ShortName, FUN=sum))
-# a.avg.census.agg <- with(a.avg.census, aggregate(WeightedRate~SeasonYear+ShortName, FUN=sum))
-a.annual <- with(a, aggregate(cbind(Runs, Positives)~CustomerSiteId+CensusRegionNational+ShortName, FUN=sum))
-a.avg <- a
-a.annual$Rate <- with(a.annual, Positives/Runs)
-a.avg$Rate <- with(a, Positives/Runs)
-a.annual.agg <- with(a.annual, aggregate(Rate~CustomerSiteId+CensusRegionNational+ShortName, FUN=mean))
-a.avg.agg <- with(a.avg, aggregate(Rate~CustomerSiteId+CensusRegionNational+ShortName, FUN=mean))
-a.annual.census <- with(a.annual.agg, aggregate(Rate~CensusRegionNational+ShortName, FUN=mean))
-a.avg.census <- with(a.avg.agg, aggregate(Rate~CensusRegionNational+ShortName, FUN=mean))
-a.annual.census <- merge(a.annual.census, population.dist.2016, by='CensusRegionNational')
-a.avg.census <- merge(a.avg.census, population.dist.2016, by='CensusRegionNational')
-a.annual.census$WeightedRate <- with(a.annual.census, Rate*PopulationPercent)
-a.avg.census$WeightedRate <- with(a.avg.census, Rate*PopulationPercent)
-a.annual.census.agg <- with(a.annual.census, aggregate(WeightedRate~ShortName, FUN=sum))
-a.avg.census.agg <- with(a.avg.census, aggregate(WeightedRate~ShortName, FUN=sum))
-a.annual.census.agg$Name <- factor(a.annual.census.agg$ShortName, levels=a.annual.census.agg[with(a.annual.census.agg, order(WeightedRate, decreasing = TRUE)),'ShortName'])
-a.avg.census.agg$Name <- factor(a.avg.census.agg$ShortName, levels=a.avg.census.agg[with(a.avg.census.agg, order(WeightedRate, decreasing = TRUE)),'ShortName'])
-shortnames.grouped <- c('Adeno','Bacteria (all)','CoV (all)','Flu A (all)','FluB','hMPV','HRV/EV','PIV (all)','RSV')
-p.a.cdc <- ggplot(subset(a.annual.census.agg, ShortName %in% shortnames.grouped), aes(x=Name, y=WeightedRate, fill='Name')) + geom_bar(stat='identity') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(data.frame(Name = 'Name'), 'Name'), guide=FALSE) + scale_y_continuous(limits=c(0,0.30), breaks=c(0,0.05,0.1,0.15,0.2,0.25,0.3), labels=c('0','5','10','15','20','25','30')) + labs(x='', y='Detection (%)')
-
-
-
 # PRINT OUT ALL THE FIGURES
 plots <- ls()[grep('^p\\.',ls())]
 for(i in 1:length(plots)) {
-  
+
   imgName <- paste(substring(plots[i],3),'.png',sep='')
   png(file=paste('Figures', imgName, sep='/'), width=1200, height=800, units='px')
   print(eval(parse(text = plots[i])))
