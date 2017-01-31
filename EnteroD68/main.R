@@ -15,9 +15,6 @@ library(dplyr)
 # library(plot3D)
 library(AnomalyDetection)
 
-# pull in some custom functions
-source('../Rfunctions/normalizeBurnRate.R')
-
 # create an Epi date calendar that will be used by all the data sets
 startYear <- 2013
 calendar.df <- createCalendarLikeMicrosoft(startYear, 'Week')
@@ -67,14 +64,6 @@ cp.clean <- merge(cp.spread, filter(calendar.df[,c('Date','YearWeek')], YearWeek
 
 # second, since the final algorithm should be run on a site-by-site basis, determine which sites are "eligible"
 # ===========================================================================================
-# site.run.count <- with(merge(runs.df, calendar.df, by='Date'), aggregate(Run~YearWeek+CustomerSiteId, FUN=sum))
-# sites <- as.character(unique(site.run.count$CustomerSiteId))[order(as.character(unique(site.run.count$CustomerSiteId)))]
-# site.run.count <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(merge(data.frame(YearWeek = unique(calendar.df[,c('YearWeek')]), CustomerSiteId = sites[x]), site.run.count[site.run.count$CustomerSiteId==sites[x], c('YearWeek','Run')], by='YearWeek', all.x=TRUE))))
-# site.run.count[is.na(site.run.count$Run), 'Gap'] <- 1
-# site.run.count[is.na(site.run.count$Gap), 'Gap'] <- 0
-# periods <- unique(as.character(site.run.count$YearWeek))
-# site.gaps <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(5:length(periods), function(y) data.frame(YearWeek = periods[y], CustomerSiteId = sites[x], MissingPeriods = sum(site.run.count[site.run.count$CustomerSiteId==sites[x], 'Gap'][(y-4):y]))))))
-# site.starts <- do.call(rbind, lapply(1:length(sites), function(x) site.gaps[site.gaps$CustomerSiteId==sites[x],][max(which(site.gaps[site.gaps$CustomerSiteId==sites[x], 'MissingPeriods']==5)), c('CustomerSiteId','YearWeek')]))
 site.rhino.count <- with(merge(data.frame(cp.spread, Positive=1), calendar.df, by='Date'), aggregate(Positive~YearWeek+CustomerSiteId, FUN=sum))
 sites <- as.character(unique(site.rhino.count$CustomerSiteId))[order(as.character(unique(site.rhino.count$CustomerSiteId)))]
 site.rhino.count <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(merge(data.frame(YearWeek = unique(calendar.df[,c('YearWeek')]), CustomerSiteId = sites[x]), site.rhino.count[site.rhino.count$CustomerSiteId==sites[x], c('YearWeek','Positive')], by='YearWeek', all.x=TRUE))))
@@ -84,14 +73,36 @@ periods <- unique(as.character(site.rhino.count$YearWeek))
 site.gaps <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(5:length(periods), function(y) data.frame(YearWeek = periods[y], CustomerSiteId = sites[x], MissingPeriods = sum(site.rhino.count[site.rhino.count$CustomerSiteId==sites[x], 'Gap'][(y-4):y]))))))
 site.starts <- do.call(rbind, lapply(1:length(sites), function(x) site.gaps[site.gaps$CustomerSiteId==sites[x],][max(which(site.gaps[site.gaps$CustomerSiteId==sites[x], 'MissingPeriods']==5)), c('CustomerSiteId','YearWeek')]))
 
-
 # third, apply machine learning
 # ===========================================================================================
+#   determine labels
+run.ids <- unique(cp.median$RunDataId)
+cp.ordered <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(cp.median[cp.median$RunDataId==run.ids[x], ][order(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), ], Index = seq(1, length(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), 1))))
+cp.sequence <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(RunDataId = run.ids[x], Sequence = paste(as.character(cp.ordered[cp.ordered$RunDataId==run.ids[x], 'AssayName']), collapse=', '))))
+
+#   experiment with creating labels in different ways
+cp.labels <- cp.spread
+cp.labels[cp.labels$RunDataId %in% cp.ordered[cp.ordered$Index==1 & cp.ordered$AssayName=='HRV1', 'RunDataId'],'F1'] <- 'H1'
+cp.labels[cp.labels$RunDataId %in% cp.ordered[cp.ordered$Index==1 & cp.ordered$AssayName=='HRV2', 'RunDataId'],'F1'] <- 'H2'
+cp.labels[cp.labels$RunDataId %in% cp.ordered[cp.ordered$Index==1 & cp.ordered$AssayName=='HRV3', 'RunDataId'],'F1'] <- 'H3'
+cp.labels[cp.labels$RunDataId %in% cp.ordered[cp.ordered$Index==1 & cp.ordered$AssayName=='HRV4', 'RunDataId'],'F1'] <- 'H4'
+cp.labels[cp.labels$RunDataId %in% cp.ordered[cp.ordered$Index==1 & cp.ordered$AssayName=='Entero1', 'RunDataId'],'F1'] <- 'E1'
+cp.labels[cp.labels$RunDataId %in% cp.ordered[cp.ordered$Index==1 & cp.ordered$AssayName=='Entero2', 'RunDataId'],'F1'] <- 'E2'
+# cp.labels$F2 <- round(cp.ordered[cp.ordered$Index==1, 'Cp'])
+# cp.labels$F2 <- ifelse(nchar(cp.labels$F2) < 2, paste('0',cp.labels$F2,sep=''), cp.labels$F2)
+cp.labels$F2 <- cut(cp.ordered[cp.ordered$Index==1, 'Cp'], breaks=c(0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30), labels=c('01','02','03','04','05','06','07','08','09','10'))
+cp.labels$F3 <- paste('H', unname(apply(cp.labels[,colnames(cp.labels)[grep('HRV', colnames(cp.labels))]] < 40, 1, sum)), sep='')
+cp.labels$F4 <- paste('E', unname(apply(cp.labels[,colnames(cp.labels)[grep('Entero', colnames(cp.labels))]] < 40, 1, sum)), sep='')
+cp.labels$Label <- paste(cp.labels$F1, cp.labels$F2, cp.labels$F3, cp.labels$F4, sep='')
+cp.labels <- merge(cp.labels, calendar.df[,c('Date','YearWeek')], by='Date')
+
+
+
 #   the first method will utilize a user-defined time slicing technique to create a train & test set by site
 cp.features <- merge(cp.spread, calendar.df[,c('Date','YearWeek')], by='Date')
 train.weeks <- 12
 test.weeks <- 1
-max.clusters <- 10
+max.clusters <- 20
 
 set.seed(1234)
 site.rolling.density <- c()
@@ -104,41 +115,58 @@ for(i in 1:length(sites)) {
   if(l < (train.weeks+test.weeks)) { break() }
   
   rolling.density <- c()
-  for(j in train.weeks:(l-1)) {
+  for(j in (train.weeks+1):(l-1)) {
     
     # create the training set
-    print(site.periods[j])
-    train.set <- cp.features[cp.features$CustomerSiteId==sites[i] & cp.features$YearWeek <= site.periods[j] & cp.features$YearWeek >= site.periods[(j-train.weeks+1)], ]
+    # print(site.periods[j])
+    train.set <- cp.features[cp.features$CustomerSiteId==sites[i] & cp.features$YearWeek <= site.periods[j] & cp.features$YearWeek >= site.periods[(j-train.weeks)], ]
     
     # if the data set is too small, then skip forward in time
-    if(nrow(train.set) < 10) { break() }
+    if(nrow(train.set) < 40) { break() }
     
     # on the fly, determine the number of clusters for this data set
-    print('entering section to determine k')
+    # print('entering section to determine k')
     wss <- (nrow(train.set[, as.character(unique(cp.df$AssayName))])-1)*sum(apply(train.set[, as.character(unique(cp.df$AssayName))], 2, var))
-    for (k in 2:max.clusters) wss[k] <- sum(kmeans(train.set[, as.character(unique(cp.df$AssayName))], centers=k)$withinss)
+    # for (k in 2:max.clusters) wss[k] <- sum(kmeans(train.set[, as.character(unique(cp.df$AssayName))], centers=k)$withinss)
+    for (k in 2:max.clusters) wss[k] <- (kmeans(train.set[, as.character(unique(cp.df$AssayName))], centers=k)$betweenss/kmeans(train.set[, as.character(unique(cp.df$AssayName))], centers=k)$totss)
     k.curve <- sapply(2:length(wss), function(x) (wss[x-1] - wss[x])/wss[x-1])
     if(length(which(k.curve < 0))==0) {
-      
+
       k.centers <- max.clusters
     } else {
-      
+
       k.centers <- min(which(k.curve < 0)) - 1
     }
+    # k.centers = 10
     
     # perform k-means on the training set to get a cluster
-    print('entering section to cluster using k-means')
+    # print('entering section to cluster using k-means')
     k.fit <- kmeans(train.set[, as.character(unique(cp.df$AssayName))], centers = k.centers, iter.max = 100)
     train.set$Cluster <- as.factor(unname(k.fit$cluster))
     
     # use kNN with these labels and then predict the clustering of the next week
-    print('entering section to predict cluster using kNN as a training method')
+    # print('entering section to predict cluster using kNN as a training method')
     k.knn <- train(Cluster~., data = train.set[, c(as.character(unique(cp.df$AssayName)),'Cluster')], method='knn')
-    predicted.set <- cp.features[cp.features$CustomerSiteId==sites[i] & cp.features$YearWeek <= site.periods[j+1] & cp.features$YearWeek >= site.periods[(j-train.weeks+1)], as.character(unique(cp.df$AssayName))]
+    predicted.set <- cp.features[cp.features$CustomerSiteId==sites[i] & cp.features$YearWeek <= site.periods[j+1] & cp.features$YearWeek >= site.periods[(j-train.weeks)], as.character(unique(cp.df$AssayName))]
+    
+    # try to rerun kmeans on the new data set and see if the clusters remain similar or change
+    wss <- (nrow(predicted.set[, as.character(unique(cp.df$AssayName))])-1)*sum(apply(predicted.set[, as.character(unique(cp.df$AssayName))], 2, var))
+    for (k in 2:max.clusters) wss[k] <- sum(kmeans(predicted.set[, as.character(unique(cp.df$AssayName))], centers=k)$withinss)
+    k.curve <- sapply(2:length(wss), function(x) (wss[x-1] - wss[x])/wss[x-1])
+    if(length(which(k.curve < 0))==0) {
+      
+      k.centers.new <- max.clusters
+    } else {
+      
+      k.centers.new <- min(which(k.curve < 0)) - 1
+    }
+    k.fit.new <- kmeans(predicted.set[, as.character(unique(cp.df$AssayName))], centers = k.centers.new, iter.max = 100)
+    # ----------------------
+    
     predicted.set$Cluster <- predict(k.knn, newdata = predicted.set)
     
     # find the change in density
-    print('entering section to find the change in cluster density')
+    # print('entering section to find the change in cluster density')
     train.total <- nrow(train.set)
     train.density <- with(data.frame(train.set, Count = 1), aggregate(Count~Cluster, FUN=sum))
     predict.total <- nrow(predicted.set)
@@ -147,8 +175,9 @@ for(i in 1:length(sites)) {
     shift.density$Density <- shift.density$Count/predict.total
    
     # bind the data together to get a temporal view of density changes by site
-    print('entering section to bind data')
-    temp <- data.frame(CustomerSiteId = sites[i], YearWeek = site.periods[j+1], DensityShift = sum(abs((train.density$Density - shift.density$Density))/train.density$Density))
+    # print('entering section to bind data')
+    temp <- data.frame(CustomerSiteId = sites[i], YearWeek = site.periods[j+1], NoCluster = k.centers, TrainingSetSize = train.total, NewSetSize = predict.total, MedianDensityShift = median(abs((train.density$Density - shift.density$Density))/train.density$Density), SdDensityShift = sd(abs((train.density$Density - shift.density$Density))/train.density$Density), MaxDensityShift=max(abs((train.density$Density - shift.density$Density))/train.density$Density), MinDensityShift=min(abs((train.density$Density - shift.density$Density))/train.density$Density))
+    # temp <- data.frame(CustomerSiteId = sites[i], YearWeek = site.periods[j+1], NoClusters = max(as.numeric(as.character(train.density$Cluster))), merge(train.density, shift.density, by='Cluster'))
     rolling.density <- rbind(rolling.density, temp)
   }
   
@@ -158,6 +187,7 @@ for(i in 1:length(sites)) {
 a <- merge(site.rolling.density, with(data.frame(cp.features, Count = 1), aggregate(Count~YearWeek+CustomerSiteId, FUN=sum)), by=c('YearWeek','CustomerSiteId'))
 
 
+# theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
 
 
 if(FALSE) {
