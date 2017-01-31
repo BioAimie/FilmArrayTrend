@@ -175,6 +175,18 @@ if(TRUE) {
   
   p.PercentDetectionTrend <- ggplot(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,0.8), labels=c(0, 10, 20, 30, 40, 50, 60, 70, 80), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', y='Detection (%)', x='Date')
   
+  # now do the same thing, but weight by population
+  # https://www.census.gov/popclock/data_tables.php?component=growth
+  population.dist.2016 <- data.frame(CensusRegionNational = c('Northeast','Midwest','West','South'), PopulationPercent = c(0.174, 0.21, 0.237, 0.379))
+  prevalence.reg.census.wrap <- merge(merge(prevalence.reg.agg[,c('Bug','Code','YearWeek','CustomerSiteId','Rate','Runs','Positives')], shortnames.df, by.x='Bug', by.y='Organism'), unique(sitesByCensusRegions.etc[,c('CustomerSiteId','CensusRegionNational')]), by='CustomerSiteId')
+  prevalence.reg.census.agg <- with(prevalence.reg.census.wrap, aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+ShortName, FUN=sum))
+  prevalence.reg.census.agg$Prevalence <- with(prevalence.reg.census.agg, Positives/Runs)
+  prevalence.nat.census.individual <- merge(prevalence.reg.census.agg, population.dist.2016, by='CensusRegionNational') 
+  prevalence.nat.census.individual$WeightedPrevalence <- with(prevalence.nat.census.individual, Prevalence*PopulationPercent)
+  prevalence.nat.census.individual <- with(prevalence.nat.census.individual, aggregate(WeightedPrevalence~YearWeek+ShortName, FUN=sum))  
+  
+  p.PercentDetectionTrend_Weighted <- ggplot(prevalence.nat.census.individual[with(prevalence.nat.census.individual, order(ShortName, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=WeightedPrevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,0.8), labels=c(0, 10, 20, 30, 40, 50, 60, 70, 80), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', y='Detection (%)', x='Date')
+  
   # create the same chart, but group the organims into families
   positives.count.all <- positives.count.all[with(positives.count.all, order(CustomerSiteId, Code, YearWeek)), ]
   sites <- sites[order(as.numeric(sites))]
@@ -198,6 +210,27 @@ if(TRUE) {
   prevalence.nat.families <- prevalence.nat.families[as.character(prevalence.nat.families$YearWeek) >= '2013-26', ]
   
   p.PercentDetectionTrend_Grouped <- ggplot(prevalence.nat.families[with(prevalence.nat.families, order(Name, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=Name, group=Name, order=Name), stat='identity', position='stack') + scale_fill_manual(values=bug.family.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,0.8), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8), labels=c(0, 10, 20, 30, 40, 50, 60, 70, 80)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + labs(title='', y='Detection (%)', x='Date')
+  
+  # now do the same thing, but weight by population
+  prevalence.census.fluA <- with(prevalence.reg.census.agg[grep('Flu A|FluA', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational, FUN=sum))
+  prevalence.census.fluA$ShortName <- 'Influenza A'
+  prevalence.census.corona <- with(prevalence.reg.census.agg[grep('CoV', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational, FUN=sum))
+  prevalence.census.corona$ShortName <- 'Coronavirus'
+  prevalence.census.pivs <- with(prevalence.reg.census.agg[grep('PIV', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational, FUN=sum))
+  prevalence.census.pivs$ShortName <- 'Parainfluenza'
+  prevalence.census.bacteria <- with(prevalence.reg.census.agg[grep('B. per|C. pne|M. pne', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational, FUN=sum))
+  prevalence.census.bacteria$ShortName <- 'Bacteria'
+  prevalence.census.other <- with(prevalence.reg.census.agg[grep('Adeno|FluB|hMPV|HRV/EV|RSV', prevalence.reg.census.agg$ShortName), ], aggregate(cbind(Runs, Positives)~YearWeek+CensusRegionNational+ShortName, FUN=sum))[,c('YearWeek','CensusRegionNational','Runs','Positives','ShortName')]
+  prevalence.census.families <- rbind(prevalence.census.fluA, prevalence.census.corona, prevalence.census.pivs, prevalence.census.bacteria, prevalence.census.other)
+  prevalence.census.families$Prevalence <- with(prevalence.census.families, Positives/Runs)
+  
+  # now merge with population fraction and weight... then make the chart
+  prevalence.census.families <- merge(prevalence.census.families, population.dist.2016, by='CensusRegionNational')
+  prevalence.census.families$WeightedPrevalence <- with(prevalence.census.families, Prevalence*PopulationPercent)
+  prevalence.census.nat.families <- with(prevalence.census.families, aggregate(WeightedPrevalence~YearWeek+ShortName, FUN=sum))
+  prevalence.census.nat.families[grep('FluB', prevalence.census.nat.families$ShortName), 'ShortName'] <- 'Influenza B'
+  
+  p.PercentDetectionTrend_Grouped_Weighted <- ggplot(prevalence.census.nat.families[with(prevalence.census.nat.families, order(ShortName, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=WeightedPrevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.family.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,0.8), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8), labels=c(0, 10, 20, 30, 40, 50, 60, 70, 80)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + labs(title='', y='Detection (%)', x='Date')
 }
 
 # PREVALENCE OF ORGANISMS - PARETO-ISH TYPE CHARTS
@@ -226,14 +259,15 @@ if(FALSE) {
   # Make various paretos... 
   prev.pareto.all <- merge(positives.count.agg, unique(runs.reg.date[,c('YearWeek','Year')]), by='YearWeek')
   prev.pareto.all <- subset(prev.pareto.all, Year >= start.year)
-  prev.pareto.all$Prevalence <- with(prev.pareto.all, Positives/Runs)
   
-  # start with all data from the 8 sites starting in 2014-present showing all organisms and then grouping by family.
-  prev.pareto.all.nat <- with(prev.pareto.all, aggregate(Prevalence~ShortName+Code, FUN=mean))
+  # start with all data from the 8 sites starting in 2014-present showing all organisms and then grouping by family
+  prev.pareto.all.nat <- with(prev.pareto.all, aggregate(cbind(Runs, Positives)~ShortName+Code+CustomerSiteId, FUN=sum))
+  prev.pareto.all.nat$Prevalence <- with(prev.pareto.all.nat, Positives/Runs)
+  prev.pareto.all.nat <- with(prev.pareto.all.nat, aggregate(Prevalence~ShortName+Code, FUN=mean))
   prev.pareto.all.nat.ind <- prev.pareto.all.nat[!(prev.pareto.all.nat$Code %in% c('v','w','x','y')), ]
-  prev.pareto.all.nat.fam <- prev.pareto.all.nat[!(prev.pareto.all.nat$Code %in% c('b','c','d','e','f','g','j','k','l','m','n','p','q','r','s','t')), ]
+  prev.pareto.all.nat.fam <- prev.pareto.all.nat[!(prev.pareto.all.nat$Code %in% c('b','c','d','e','f','g','j','k','l','m','o','p','q','r','s')), ]
   label.order.all <- prev.pareto.all.nat[with(prev.pareto.all.nat, order(Prevalence, decreasing = TRUE)), 'ShortName']
-  label.order.all <- label.order.all[c(1,2,3,6,16,17,18,4,5,10,14,19,20,7,9,13,21,24,25,8,11,15,22,23,12)]
+  label.order.all <- label.order.all[c(1,2,3,8,17,18,19,4,10,13,16,20,5,9,11,21,24,6,7,12,14,15,22,23)]
   prev.pareto.all.nat$Name <- factor(prev.pareto.all.nat$ShortName, levels = label.order.all)
   label.order.ind <- prev.pareto.all.nat.ind[with(prev.pareto.all.nat.ind, order(Prevalence, decreasing = TRUE)), 'ShortName']
   prev.pareto.all.nat.ind$Name <- factor(prev.pareto.all.nat.ind$ShortName, levels = label.order.ind)
@@ -249,10 +283,13 @@ if(FALSE) {
   sites.child <- unique(runs.reg.date[runs.reg.date$Name %in% as.character(unique(runs.reg.date$Name))[grep('Children', unique(runs.reg.date$Name))],'CustomerSiteId'])
   prev.pareto.all.pop <- prev.pareto.all
   prev.pareto.all.pop$Key <- with(prev.pareto.all.pop, ifelse(CustomerSiteId %in% sites.mixed, 'Mixed', 'Pediatric'))
-  prev.pareto.all.nat.pop <- with(prev.pareto.all.pop, aggregate(Prevalence~ShortName+Code+Key, FUN=mean))
+  
+  prev.pareto.all.nat.pop <- with(prev.pareto.all.pop, aggregate(cbind(Runs, Positives)~ShortName+Code+Key+CustomerSiteId, FUN=sum))
+  prev.pareto.all.nat.pop$Prevalence <- with(prev.pareto.all.nat.pop, Positives/Runs)
+  prev.pareto.all.nat.pop <- with(prev.pareto.all.nat.pop, aggregate(Prevalence~ShortName+Code+Key, FUN=mean))
   prev.pareto.all.nat.pop$Name <- factor(prev.pareto.all.nat.pop$ShortName, levels=label.order.all)
   prev.pareto.all.nat.pop.ind <- prev.pareto.all.nat.pop[!(prev.pareto.all.nat.pop$Code %in% c('v','w','x','y')), ]
-  prev.pareto.all.nat.pop.fam <- prev.pareto.all.nat.pop[!(prev.pareto.all.nat.pop$Code %in% c('b','c','d','e','f','g','j','k','l','m','n','p','q','r','s','t')), ]
+  prev.pareto.all.nat.pop.fam <- prev.pareto.all.nat.pop[!(prev.pareto.all.nat.pop$Code %in% c('b','c','d','e','f','g','j','k','l','m','o','p','q','r','s')), ]
   prev.pareto.all.nat.pop.ind$Name <- factor(prev.pareto.all.nat.pop.ind$ShortName, levels=label.order.ind)
   prev.pareto.all.nat.pop.fam$Name <- factor(prev.pareto.all.nat.pop.fam$ShortName, levels=label.order.fam)
   
@@ -302,14 +339,15 @@ if(TRUE) {
   
   # Make various paretos... 
   prev.pareto.seasonal.all <- positives.count.seasonal.agg
-  prev.pareto.seasonal.all$Prevalence <- with(prev.pareto.seasonal.all, Positives/Runs)
   
   # start with all data from summer 2013-present showing all organisms and then grouping by family.
-  prev.pareto.seasonal.all.nat <- with(prev.pareto.seasonal.all, aggregate(Prevalence~ShortName+Code, FUN=mean))
+  prev.pareto.seasonal.all.nat <- with(prev.pareto.seasonal.all, aggregate(cbind(Runs, Positives)~ShortName+Code+CustomerSiteId, FUN=sum))
+  prev.pareto.seasonal.all.nat$Prevalence <- with(prev.pareto.seasonal.all.nat, Positives/Runs)
+  prev.pareto.seasonal.all.nat <- with(prev.pareto.seasonal.all.nat, aggregate(Prevalence~ShortName+Code, FUN=mean))
   prev.pareto.seasonal.all.nat.ind <- prev.pareto.seasonal.all.nat[!(prev.pareto.seasonal.all.nat$Code %in% c('v','w','x','y')), ]
-  prev.pareto.seasonal.all.nat.fam <- prev.pareto.seasonal.all.nat[!(prev.pareto.seasonal.all.nat$Code %in% c('b','c','d','e','f','g','j','k','l','m','o','p','q','r','s','t')), ]
+  prev.pareto.seasonal.all.nat.fam <- prev.pareto.seasonal.all.nat[!(prev.pareto.seasonal.all.nat$Code %in% c('b','c','d','e','f','g','j','k','l','m','o','p','q','r','s')), ]
   label.order.seasonal.all <- prev.pareto.seasonal.all.nat[with(prev.pareto.seasonal.all.nat, order(Prevalence, decreasing = TRUE)), 'ShortName']
-  label.order.seasonal.all <- label.order.seasonal.all[c(1,2,3,7,14,17,18,4,5,11,16,19,20,6,9,12,21,24,8,10,15,22,23,13)]
+  label.order.seasonal.all <- label.order.seasonal.all[c(1,2,3,8,16,18,19,4,9,11,21,24,5,10,14,17,20,6,7,12,13,15,22,23)]
   prev.pareto.seasonal.all.nat$Name <- factor(prev.pareto.seasonal.all.nat$ShortName, levels = label.order.seasonal.all)
   label.order.season.ind <- prev.pareto.seasonal.all.nat.ind[with(prev.pareto.seasonal.all.nat.ind, order(Prevalence, decreasing = TRUE)), 'ShortName']
   prev.pareto.seasonal.all.nat.ind$Name <- factor(prev.pareto.seasonal.all.nat.ind$ShortName, levels = label.order.season.ind)
@@ -326,10 +364,12 @@ if(TRUE) {
   sites.child <- unique(runs.reg.date[runs.reg.date$Name %in% as.character(unique(runs.reg.date$Name))[grep('Children', unique(runs.reg.date$Name))],'CustomerSiteId'])
   prev.pareto.seasonal.all.pop <- prev.pareto.seasonal.all
   prev.pareto.seasonal.all.pop$Key <- with(prev.pareto.seasonal.all.pop, ifelse(CustomerSiteId %in% sites.mixed, 'Mixed', 'Pediatric'))
+  prev.pareto.seasonal.all.pop <- with(prev.pareto.seasonal.all.pop, aggregate(cbind(Runs, Positives)~ShortName+Code+Key+CustomerSiteId, FUN=sum))
+  prev.pareto.seasonal.all.pop$Prevalence <- with(prev.pareto.seasonal.all.pop, Positives/Runs)
   prev.pareto.seasonal.all.nat.pop <- with(prev.pareto.seasonal.all.pop, aggregate(Prevalence~ShortName+Code+Key, FUN=mean))
   prev.pareto.seasonal.all.nat.pop$Name <- factor(prev.pareto.seasonal.all.nat.pop$ShortName, levels=label.order.seasonal.all)
   prev.pareto.seasonal.all.nat.pop.ind <- prev.pareto.seasonal.all.nat.pop[!(prev.pareto.seasonal.all.nat.pop$Code %in% c('v','w','x','y')), ]
-  prev.pareto.seasonal.all.nat.pop.fam <- prev.pareto.seasonal.all.nat.pop[!(prev.pareto.seasonal.all.nat.pop$Code %in% c('b','c','d','e','f','g','j','k','l','m','n','p','q','r','s','t')), ]
+  prev.pareto.seasonal.all.nat.pop.fam <- prev.pareto.seasonal.all.nat.pop[!(prev.pareto.seasonal.all.nat.pop$Code %in% c('b','c','d','e','f','g','j','k','l','m','o','p','q','r','s')), ]
   prev.pareto.seasonal.all.nat.pop.ind$Name <- factor(prev.pareto.seasonal.all.nat.pop.ind$ShortName, levels=label.order.season.ind)
   prev.pareto.seasonal.all.nat.pop.fam$Name <- factor(prev.pareto.seasonal.all.nat.pop.fam$ShortName, levels=label.order.seasonal.fam)
   
@@ -338,10 +378,12 @@ if(TRUE) {
   p.PercentDetectionParetoByPopulationSeasonal_Family <- ggplot(prev.pareto.seasonal.all.nat.pop.fam, aes(x=Name, y=Prevalence, fill=Key)) + geom_bar(stat='identity', position='dodge') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(prev.pareto.seasonal.all.pop, 'Key'), name='') + scale_y_continuous(limits=c(0,0.35), breaks=c(0,0.05,0.1,0.15,0.2,0.25,0.3,0.35), labels=c('0','5','10','15','20','25','30','35')) + labs(x='', y='Detection (%)')
   
   # subset by year (2014, 2015, 2016)
-  prev.pareto.seasonal.all.year <- with(prev.pareto.seasonal.all, aggregate(Prevalence~SeasonYear+ShortName+Code, FUN=mean))
+  prev.pareto.seasonal.all.year <- with(prev.pareto.seasonal.all, aggregate(cbind(Runs, Positives)~SeasonYear+ShortName+Code+CustomerSiteId, FUN=sum))
+  prev.pareto.seasonal.all.year$Prevalence <- with(prev.pareto.seasonal.all.year, Positives/Runs)
+  prev.pareto.seasonal.all.year <- with(prev.pareto.seasonal.all.year, aggregate(Prevalence~SeasonYear+ShortName+Code, FUN=mean))
   prev.pareto.seasonal.all.year$Name <- factor(prev.pareto.seasonal.all.year$ShortName, levels = label.order.seasonal.all)
   prev.pareto.seasonal.all.year.ind <- prev.pareto.seasonal.all.year[!(prev.pareto.seasonal.all.year$Code %in% c('v','w','x','y')), ]
-  prev.pareto.seasonal.all.year.fam <- prev.pareto.seasonal.all.year[!(prev.pareto.seasonal.all.year$Code %in% c('b','c','d','e','f','g','j','k','l','m','n','p','q','r','s','t')), ]
+  prev.pareto.seasonal.all.year.fam <- prev.pareto.seasonal.all.year[!(prev.pareto.seasonal.all.year$Code %in% c('b','c','d','e','f','g','j','k','l','m','o','p','q','r','s')), ]
   prev.pareto.seasonal.all.year.ind$Name <- factor(prev.pareto.seasonal.all.year.ind$ShortName, levels = label.order.season.ind)
   prev.pareto.seasonal.all.year.fam$Name <- factor(prev.pareto.seasonal.all.year.fam$ShortName, levels = label.order.seasonal.fam)
   
@@ -352,6 +394,23 @@ if(TRUE) {
   # make a table using the seasonal year data
   prev.table.seasonal.all <- do.call(cbind, lapply(1:length(unique(prev.pareto.seasonal.all.year$SeasonYear)), function(x) data.frame(ShortName = prev.pareto.seasonal.all.year[prev.pareto.seasonal.all.year$SeasonYear==unique(prev.pareto.seasonal.all.year$SeasonYear)[x],'ShortName'], Prevalence = prev.pareto.seasonal.all.year[prev.pareto.seasonal.all.year$SeasonYear==unique(prev.pareto.seasonal.all.year$SeasonYear)[x],'Prevalence'])))
   prev.table.seasonal.all.pop <- do.call(cbind, lapply(1:length(unique(prev.pareto.seasonal.all.nat.pop$Key)), function(x) data.frame(Key = unique(prev.pareto.seasonal.all.nat.pop$Key)[x], ShortName = prev.pareto.seasonal.all.nat.pop[prev.pareto.seasonal.all.nat.pop$Key == unique(prev.pareto.seasonal.all.nat.pop$Key)[x], 'ShortName'], Prevalence = prev.pareto.seasonal.all.nat.pop[prev.pareto.seasonal.all.nat.pop$Key == unique(prev.pareto.seasonal.all.nat.pop$Key)[x],'Prevalence'])))
+  prev.pareto.side.by.side <- with(prev.pareto.seasonal.all, aggregate(cbind(Runs, Positives)~ShortName+Code+CustomerSiteId, FUN=sum))
+  prev.pareto.side.by.side <- merge(prev.pareto.side.by.side, sitesByCensusRegions.etc[,c('CustomerSiteId','CensusRegionNational')], by='CustomerSiteId')
+  prev.pareto.side.by.side <- with(prev.pareto.side.by.side, aggregate(cbind(Runs, Positives)~CensusRegionNational+ShortName+Code, FUN=sum))
+  prev.pareto.side.by.side$Prevalence <- with(prev.pareto.side.by.side, Positives/Runs)
+  prev.pareto.side.by.side <- merge(prev.pareto.side.by.side, population.dist.2016, by='CensusRegionNational')
+  prev.pareto.side.by.side$WeightedPrevalence <- with(prev.pareto.side.by.side, Prevalence*PopulationPercent)
+  prev.pareto.side.by.side <- with(prev.pareto.side.by.side, aggregate(WeightedPrevalence~ShortName+Code, FUN=sum))
+  colnames(prev.pareto.side.by.side) <- c('ShortName','Code','Prevalence')
+  
+  ### THIS IS WHERE I STOPPED!!!! --- ALL PARETOS SHOULD BE REMADE AND WEIGHTED ---- THIS MEANS GIVING THEM NAMES AND PLOTTING!!!  
+  prev.pareto.seasonal.all.nat$Name <- factor(prev.pareto.seasonal.all.nat$ShortName, levels = label.order.seasonal.all)
+  label.order.season.ind <- prev.pareto.seasonal.all.nat.ind[with(prev.pareto.seasonal.all.nat.ind, order(Prevalence, decreasing = TRUE)), 'ShortName']
+  prev.pareto.seasonal.all.nat.ind$Name <- factor(prev.pareto.seasonal.all.nat.ind$ShortName, levels = label.order.season.ind)
+  label.order.seasonal.fam <- prev.pareto.seasonal.all.nat.fam[with(prev.pareto.seasonal.all.nat.fam, order(Prevalence, decreasing = TRUE)), 'ShortName']
+  prev.pareto.seasonal.all.nat.fam$Name <- factor(prev.pareto.seasonal.all.nat.fam$ShortName, levels = label.order.seasonal.fam)
+  
+    
 }
 
 # ILI VS. RP NORMALIZED BURN RATE
