@@ -65,6 +65,11 @@ cp.spread <- spread(data = cp.median, key = AssayName, value = Cp)
 sparse.handler <- 40
 cp.spread[,c(4:9)][is.na(cp.spread[,c(4:9)])] <- sparse.handler
 
+# determine the sequence associated with each HRV/EV positive
+run.ids <- unique(cp.median$RunDataId)
+cp.ordered <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(cp.median[cp.median$RunDataId==run.ids[x], ][order(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), ], Index = seq(1, length(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), 1))))
+cp.sequence <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(RunDataId = run.ids[x], Sequence = paste(as.character(cp.ordered[cp.ordered$RunDataId==run.ids[x], 'AssayName']), collapse=', '))))
+
 # since the final algorithm should be run on a site-by-site basis, determine which data by site are "eligible"
 site.rhino.count <- with(merge(data.frame(cp.spread, Positive=1), calendar.df, by='Date'), aggregate(Positive~YearWeek+CustomerSiteId, FUN=sum))
 sites <- as.character(unique(site.rhino.count$CustomerSiteId))[order(as.character(unique(site.rhino.count$CustomerSiteId)))]
@@ -90,77 +95,140 @@ cp.clean <- cp.clean[,colnames(cp.clean) %in% c('RunDataId','Date','YearWeek','C
 cp.features <- merge(cp.clean, calendar.df[,c('Date','YearWeek')], by='Date')
 cp.features <- cp.features[with(cp.features, order(CustomerSiteId, Date)), ]
 sites <- unique(cp.features$CustomerSiteId)[order(unique(cp.features$CustomerSiteId))]
-train.weeks <- 12
-test.weeks <- 1
+# train.weeks <- 12
+# test.weeks <- 1
 # max.clusters <- 20
+initial.window <- 100
+test.horizon <- 10
 
+scored.df <- c()
 for (i in 1:length(sites)) {
   
   # parition the data by site and set up a timeframe
   site.start <- as.character(site.starts[site.starts$CustomerSiteId==sites[i], 'YearWeek'])
-  site.features <- cp.features[cp.features$CustomerSiteId==sites[i] & as.character(cp.features$YearWeek) > site.start, ] 
+  site.features <- cp.features[cp.features$CustomerSiteId==sites[i] & as.character(cp.features$YearWeek) > site.start, ]
+  site.features <- site.features[with(site.features, order(Date)), ]
+  site.features$Obs <- seq(1, length(site.features$Date), 1)
   
-  # every "train.weeks" consecutive period will be used as the train set and then the forward "test.weeks" period will be predicted
-  site.train.periods <- unique(cp.features[cp.features$YearWeek > site.start, 'YearWeek'])
-  
-  for(j in (train.weeks+2):(length(site.train.periods)-test.weeks)) {
-  
-    # j <- j+1  
-    # print(paste('At j =', j, 'the number of periods =', length(unique(site.features[site.features$YearWeek >= (site.train.periods[j-train.weeks]) & site.features$YearWeek <= site.train.periods[j], 'YearWeek'])), sep=' '))
-    print(site.train.periods[j])
-    site.train <- site.features[site.features$YearWeek >= (site.train.periods[j-train.weeks]) & site.features$YearWeek <= site.train.periods[j], ]
-    site.test <- site.features[site.features$YearWeek == site.train.periods[j+1], ]
+  # this section was using weeks as the breaks, which is arbitrary... Try rolling by sequence instead
+  site.df <- c()
+  for(j in (initial.window+1):(length(site.features$Obs)-test.horizon)) {
     
-    if(nrow(site.train) < 50) { break() }
+    site.train <- site.features[site.features$Obs < j & site.features$Obs >= (j - initial.window), ]
+    site.test <- site.features[site.features$Obs < (j + test.horizon) & site.features$Obs >= j, ]
     
-    # preprocess data using the PCA method
-    set.seed(1234)
-    period.pca.trans <- preProcess(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], method = 'pca')
-    site.train.pca <- predict(period.pca.trans, site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))])
-    site.test.pca <- predict(period.pca.trans, site.test[,(colnames(site.test) %in% as.character(unique(cp.df$AssayName)))])
-    
-    # apply dbscan to the train data set... determine eps based on minimizing the ratio of points considered as noise
-    guess.eps <- 0.01
-    guess.mpt <- 10
-    noise.threshold <- 0.10
-    eps.interval <- 0.01
-    guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
-    noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
-    
-    while(noise.threshold < noise.ratio) {
-      
-      guess.eps <- guess.eps + eps.interval
+      # preprocess data using the PCA method
+      set.seed(1234)
+      period.pca.trans <- preProcess(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], method = 'pca')
+      site.train.pca <- predict(period.pca.trans, site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))])
+      site.test.pca <- predict(period.pca.trans, site.test[,(colnames(site.test) %in% as.character(unique(cp.df$AssayName)))])
+     
+      # apply dbscan to the train data set... determine eps based on reducing the ratio of points considered as noise to some threshold
+      guess.eps <- 0.01
+      guess.mpt <- 10
+      noise.threshold <- 0.10
+      eps.interval <- 0.01
       guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
-      noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)        
-    }
-    
-    # with the "correct" dbscan clustering, predict the clusters for the test data
-    site.train.pca$Cluster <- as.factor(guess.res$cluster)
-    site.test.pca$Cluster <- unname(predict(guess.res, site.train.pca[,colnames(site.train.pca)[grep('^PC', colnames(site.train.pca))]],
-                                     site.test.pca[,colnames(site.test.pca)[grep('^PC', colnames(site.test.pca))]]))
+      noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
+
+      while(noise.threshold < noise.ratio) {
+
+        guess.eps <- guess.eps + eps.interval
+        guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
+        noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
+      }
       
-    
-    b <- rbind(data.frame(cbind(site.train[,c('YearWeek','CustomerSiteId')], site.train.pca)), data.frame(cbind(site.test[,c('YearWeek','CustomerSiteId')], site.test.pca)))
-    ggplot(b, aes(x=YearWeek, fill=Cluster)) + geom_bar()
-    
-    
-    # THERE IS AN ERROR HERE DUE TO CLUSTER 0 NOT APPEARING IN ALL PERIODS. BUT IT ***HAS*** TO!!!
-    d <- with(data.frame(b, Count=1), aggregate(Count~YearWeek+Cluster, FUN=sum))
-    d <- merge(d, with(d, aggregate(Count~YearWeek, FUN=sum)), by='YearWeek')
-    d$Portion <- d$Count.x/d$Count.y
-    w <- data.frame(YearWeek = unique(d$YearWeek)[1:train.weeks], Weight = seq(1, train.weeks, 1)/sum(seq(1, train.weeks, 1)))
-    f <- merge(subset(d, Cluster==0), w, by='YearWeek', all=TRUE)
-    f[is.na(f$Cluster),'Cluster'] <- as.factor(0)
-    f[is.na(f$Portion),'Portion'] <- 0
-    
-    if(sum((f$Portion*f$Weight)[!(is.na((f$Portion*f$Weight)))]) < f$Portion[is.na(f$Weight)]) {
+      # with the "correct" dbscan clustering, predict the clusters for the test data
+      site.train.pca$Cluster <- as.factor(guess.res$cluster)
+      site.test.pca$Cluster <- unname(predict(guess.res, site.train.pca[,colnames(site.train.pca)[grep('^PC', colnames(site.train.pca))]],
+                                              site.test.pca[,colnames(site.test.pca)[grep('^PC', colnames(site.test.pca))]]))
       
-      message <- paste('For site', sites[i], 'at time period', site.train.periods[j+1], 'there would be an anomaly.', sep=' ')
-      print(message)
-    }
+      # this scoring algorithm could work, but the issue is with the time period of the observations... it needs to be normalized
+      test.noise <- length(site.test.pca[site.test.pca$Cluster==0, 'Cluster'])
+      clust.count <- max(as.numeric(as.character(site.train.pca$Cluster)))+1
+      temp.df <- data.frame(Index = j, CustomerSiteId = sites[i], ClusterCount = clust.count, NoisePoints = test.noise, Eps = guess.eps, NoiseRation = noise.ratio, StartDate = min(site.train$Date), StopDate = max(site.test$Date))
+      temp.df$ObsWindowInDays <- as.numeric(temp.df$StopDate - temp.df$StartDate)
+      temp.df$Score <- (temp.df$ClusterCount + 1/temp.df$Eps*5 + temp.df$NoisePoints)/temp.df$ObsWindowInDays
+      site.df <- rbind(site.df, temp.df)
+
+      # print(paste(test.noise, 'observations are noise in the test set at j=', j, ' and there are', clust.count, 'clusters.', sep=' '))
+      
+      # site.period.df <- rbind(data.frame(cbind(site.train[,c('YearWeek','CustomerSiteId','Obs')], site.train.pca)), data.frame(cbind(site.test[,c('YearWeek','CustomerSiteId','Obs')], site.test.pca)))
+      # site.period.df$PCs <- length(colnames(site.period.df)[grep('^PC', colnames(site.period.df))])
+      # site.period.df$Key <- j
+      # site.period.df <- site.period.df[,c('YearWeek','Obs','Cluster','Key')]
+      # site.df <- rbind(site.df, site.period.df)
+      # ggplot(site.period.df, aes(x=as.factor(Obs), fill=Cluster)) + geom_bar() + labs(title = paste('Cluster Prediction at j =', j, sep=' '), x='Observation')
   }
-  
+   
+  scored.df <- rbind(scored.df, site.df)
+  if(FALSE) {
+  # # every "train.weeks" consecutive period will be used as the train set and then the forward "test.weeks" period will be predicted
+  # site.train.periods <- unique(cp.features[cp.features$YearWeek > site.start, 'YearWeek'])
+  # 
+  # for(j in (train.weeks+2):(length(site.train.periods)-test.weeks)) {
+  # 
+  #   site.train <- site.features[site.features$YearWeek >= (site.train.periods[j-train.weeks]) & site.features$YearWeek <= site.train.periods[j], ]
+  #   site.test <- site.features[site.features$YearWeek == site.train.periods[j+1], ]
+  #   
+  #   if(nrow(site.train) < 50) { break() }
+  #   
+  #   # preprocess data using the PCA method
+  #   set.seed(1234)
+  #   period.pca.trans <- preProcess(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], method = 'pca')
+  #   site.train.pca <- predict(period.pca.trans, site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))])
+  #   site.test.pca <- predict(period.pca.trans, site.test[,(colnames(site.test) %in% as.character(unique(cp.df$AssayName)))])
+  #   
+  #   # apply dbscan to the train data set... determine eps based on minimizing the ratio of points considered as noise
+  #   guess.eps <- 0.01
+  #   guess.mpt <- 10
+  #   noise.threshold <- 0.10
+  #   eps.interval <- 0.01
+  #   guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
+  #   noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
+  #   
+  #   while(noise.threshold < noise.ratio) {
+  #     
+  #     guess.eps <- guess.eps + eps.interval
+  #     guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
+  #     noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)        
+  #   }
+  #   
+  #   # with the "correct" dbscan clustering, predict the clusters for the test data
+  #   site.train.pca$Cluster <- as.factor(guess.res$cluster)
+  #   site.test.pca$Cluster <- unname(predict(guess.res, site.train.pca[,colnames(site.train.pca)[grep('^PC', colnames(site.train.pca))]],
+  #                                    site.test.pca[,colnames(site.test.pca)[grep('^PC', colnames(site.test.pca))]]))
+  #     
+  #   
+  #   site.period.df <- rbind(data.frame(cbind(site.train[,c('YearWeek','CustomerSiteId')], site.train.pca)), data.frame(cbind(site.test[,c('YearWeek','CustomerSiteId')], site.test.pca)))
+  #   ggplot(site.period.df, aes(x=YearWeek, fill=Cluster)) + geom_bar()
+  #   
+  #   
+  #   # I THINK THAT THERE IS SOMETHING HERE, BUT USING THE 95% CI ON THE NOISE CLUSTER DENSITY IS WAY TOO SENSITIVE
+  #   site.agg <- with(data.frame(site.period.df, Count=1), aggregate(Count~YearWeek+Cluster, FUN=sum))
+  #   fill.periods <- unique(site.agg$YearWeek)[order(unique(site.agg$YearWeek))]
+  #   clusters <- max(as.numeric(as.character(site.agg$Cluster)))
+  #   place.hold <- do.call(rbind, lapply(1:length(fill.periods), function(x) data.frame(YearWeek = fill.periods[x], Cluster = as.factor(seq(0, clusters, 1)))))
+  #   site.agg.fill <- merge(place.hold, site.agg, by=c('YearWeek','Cluster'), all=TRUE)
+  #   site.agg.fill[is.na(site.agg.fill$Count), 'Count'] <- 0
+  #   site.agg.fill <- merge(site.agg.fill, with(site.agg.fill, aggregate(Count~YearWeek, FUN=sum)), by='YearWeek')
+  #   colnames(site.agg.fill) <- c('YearWeek','Cluster','ClusterCount','Observations')
+  #   site.agg.fill$Portion <- with(site.agg.fill, ClusterCount/Observations)
+  #   site.ci.info <- merge(merge(with(site.agg.fill[as.character(site.agg.fill$YearWeek)!=max(as.character(site.agg.fill$YearWeek)), ], aggregate(Portion~Cluster, FUN=mean)), with(site.agg.fill[as.character(site.agg.fill$YearWeek)!=max(as.character(site.agg.fill$YearWeek)), ], aggregate(Portion~Cluster, FUN=sd)), by='Cluster'), with(site.agg.fill[as.character(site.agg.fill$YearWeek)!=max(as.character(site.agg.fill$YearWeek)), ], aggregate(ClusterCount~Cluster, FUN=sum)), by='Cluster')
+  #   colnames(site.ci.info) <- c('Cluster','sMean','sSdev','n')
+  #   flag <- (site.ci.info[site.ci.info$Cluster==0,'sMean'] + qnorm(0.975)*site.ci.info[site.ci.info$Cluster==0, 'sSdev']/sqrt(site.ci.info[site.ci.info$Cluster==0, 'n'])) < site.agg.fill[site.agg.fill$Cluster==0 & as.character(site.agg.fill$YearWeek)==max(as.character(site.agg.fill$YearWeek)),'Portion']
+  #   
+  #   if(flag) {
+  #     
+  #     message <- paste('For site', sites[i], 'at time period', site.train.periods[j+1], '(j = ', j, ')','there would be an anomaly.', sep=' ')
+  #     print(message)
+  #     break()
+  #   }
+  # }
+  }  
 }
+
+mark.pos <- cp.sequence[as.character(cp.sequence$Sequence) %in% unique(as.character(cp.sequence[grep('^HRV4$|^HRV4, HRV1$|^HRV4, HRV1, HRV2$|^HRV4, HRV1, HRV2, HRV3$', cp.sequence$Sequence), 'Sequence'])), 'RunDataId']
 
 
 if(FALSE) {
@@ -414,5 +482,3 @@ if(FALSE) {
   #               until the lowest level (these potentially could be similar)
   head(cp.spread)
 }   
-  
-  
