@@ -1,6 +1,5 @@
-# This function takes in a data frame that has a YearWeek that is created by merging a runs data frame to a calendar by the date. The 
-# result will include a YearWeek that is made using the makeEvenWeeks user-defined function such that run data can be compared to CDC
-# reported data. The other inputs are the filter column (something that will break out by site) and the filter (e.g. 2, 7, 5 etc. if the
+# This function takes in a data frame that has a YearWeek that is created by merging a runs data frame to an Epi calendar by the date. T
+# The other inputs are the filter column (something that will break out by site) and the filter (e.g. 2, 7, 5 etc. if the
 # filterCol is CustomerSiteId).
 normalizeBurnRate <- function(dataFrame, filterCol, filter) {
   

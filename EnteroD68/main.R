@@ -92,9 +92,12 @@ cp.clean <- cp.clean[,colnames(cp.clean) %in% c('RunDataId','Date','YearWeek','C
 # Apply machine learning
 # ===========================================================================================
 # data should be analyzed on a site-by-site basis
-cp.features <- merge(cp.clean, calendar.df[,c('Date','YearWeek')], by='Date')
+# cp.features <- merge(cp.clean, calendar.df[,c('Date','YearWeek')], by='Date') 
+cp.features <- merge(cp.spread, calendar.df[,c('Date','YearWeek')], by='Date') 
 cp.features <- cp.features[with(cp.features, order(CustomerSiteId, Date)), ]
 sites <- unique(cp.features$CustomerSiteId)[order(unique(cp.features$CustomerSiteId))]
+
+# set up the intial window and horizon for time slices
 # train.weeks <- 12
 # test.weeks <- 1
 # max.clusters <- 20
@@ -104,6 +107,66 @@ test.horizon <- 10
 scored.df <- c()
 for (i in 1:length(sites)) {
   
+  # parition the data by site and set up a timeframe
+  site.start <- as.character(site.starts[site.starts$CustomerSiteId==sites[i], 'YearWeek'])
+  site.features <- cp.features[cp.features$CustomerSiteId==sites[i] & as.character(cp.features$YearWeek) > site.start, ]
+  site.features <- site.features[with(site.features, order(Date)), ]
+  if(nrow(site.features)==0) { next }
+  site.features$Obs <- seq(1, length(site.features$Date), 1)
+ 
+  site.df <- c()
+  site.start.time <- Sys.time()
+  for(j in (initial.window+1):(length(site.features$Obs)-test.horizon)) {
+    
+    site.train <- site.features[site.features$Obs < j & site.features$Obs >= (j - initial.window), ]
+    site.test <- site.features[site.features$Obs < (j + test.horizon) & site.features$Obs >= j, ]
+    
+    train.nzv <- nearZeroVar(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], saveMetrics = TRUE)
+    train.remove.vars <- row.names(train.nzv[train.nzv$nzv==TRUE,])
+    site.train <- site.train[,!(colnames(site.train) %in% train.remove.vars)]
+    site.test <- site.test[,!(colnames(site.test) %in% train.remove.vars)]
+    
+    pca.tranform <- preProcess(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], method = 'pca')
+    site.train.pca <- predict(pca.tranform, site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))])
+    site.test.pca <- predict(pca.tranform, site.test[,(colnames(site.test) %in% as.character(unique(cp.df$AssayName)))])
+    
+    # apply dbscan to the train data set... determine eps based on the point where there are 2 clusters (1 cluster + noise)
+    guess.eps <- 0.01
+    guess.mpt <- 90
+    eps.interval <- 0.01
+    guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
+    cluster.int <- max(guess.res$cluster)
+    
+    iter.start.time <- Sys.time()
+    while(cluster.int < 1) {
+      
+      guess.eps <- guess.eps + eps.interval
+      guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
+      noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
+      cluster.int <- max(guess.res$cluster)
+    }
+    print(Sys.time() - iter.start.time)
+    
+    # with the "correct" dbscan clustering, predict the clusters for the test data
+    site.train.pca$Cluster <- as.factor(guess.res$cluster)
+    site.test.pca$Cluster <- unname(predict(guess.res, site.train.pca[,grep('^PC', colnames(site.train.pca))], site.test.pca))
+    
+    # count the number of clusters in the test set that are considered noise
+    pca.count <- max(grep('^PC', colnames(site.train.pca)))
+    train.noise <- nrow(site.train.pca[site.train.pca$Cluster==0, ])
+    test.noise <- nrow(site.test.pca[site.test.pca$Cluster==0, ])
+    temp <- data.frame(CustomerSiteId = sites[i], Seq = j, TrainNoise = train.noise, TestNoise = test.noise, PCAs = pca.count)
+    site.df <- rbind(site.df, temp)
+  } 
+  
+  site.df$PCTrainWeightedScore <- mean(site.df$TrainNoise) + site.df$PCAs*sd(site.df$TrainNoise)
+  site.df$PCTestWeightedScore <- mean(site.df$TestNoise) + site.df$PCAs*sd(site.df$TestNoise)
+  print(Sys.time() - site.start.time)
+  scored.df <- rbind(scored.df, site.df)
+}
+  
+
+  if(FALSE) {
   # parition the data by site and set up a timeframe
   site.start <- as.character(site.starts[site.starts$CustomerSiteId==sites[i], 'YearWeek'])
   site.features <- cp.features[cp.features$CustomerSiteId==sites[i] & as.character(cp.features$YearWeek) > site.start, ]
@@ -160,8 +223,7 @@ for (i in 1:length(sites)) {
       # site.df <- rbind(site.df, site.period.df)
       # ggplot(site.period.df, aes(x=as.factor(Obs), fill=Cluster)) + geom_bar() + labs(title = paste('Cluster Prediction at j =', j, sep=' '), x='Observation')
   }
-   
-  scored.df <- rbind(scored.df, site.df)
+  } 
   if(FALSE) {
   # # every "train.weeks" consecutive period will be used as the train set and then the forward "test.weeks" period will be predicted
   # site.train.periods <- unique(cp.features[cp.features$YearWeek > site.start, 'YearWeek'])
@@ -226,10 +288,8 @@ for (i in 1:length(sites)) {
   #   }
   # }
   }  
-}
 
 mark.pos <- cp.sequence[as.character(cp.sequence$Sequence) %in% unique(as.character(cp.sequence[grep('^HRV4$|^HRV4, HRV1$|^HRV4, HRV1, HRV2$|^HRV4, HRV1, HRV2, HRV3$', cp.sequence$Sequence), 'Sequence'])), 'RunDataId']
-
 
 if(FALSE) {
   #   determine labels
