@@ -510,7 +510,7 @@ if(TRUE) {
 if(TRUE) {
   
   # BFDx - All fluAs and fluB percent detection
-  bfdx.flu.reg <- with(prevalence.reg.count, aggregate(cbind(Runs, j, k, l, m, n, o)~YearWeek+Region+CustomerSiteId, FUN=sum))
+  bfdx.flu.reg <- with(prevalence.reg.count, aggregate(cbind(Runs, j, k, l, m, n)~YearWeek+Region+CustomerSiteId, FUN=sum))
   bfdx.flu.reg$FluDetections <- with(bfdx.flu.reg, j+k+l+m+n+o)
 
   # CDC - Clinical Labs (only has data from 2015+)
@@ -1465,6 +1465,104 @@ if(TRUE) {
   a <- a[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
   b <- b[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
 }
+
+# FOR YAREMA
+if(FALSE) {
+  p1 <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(Bug, decreasing=TRUE)),], as.character(ShortName)!='HRV/EV' ), aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=Bug, group=Bug), stat='identity', position='stack') + scale_fill_manual(values=createPaletteOfVariableLength(prevalence.nat.individual.wrap, 'Bug'), name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(label=percent, limits=c(0,0.8)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank())  + labs(title='National Percent Detection of Organisms with ILI Overlay', y='Percent Detection', x='Date') + geom_line(aes(x=YearWeek, y=15*Rate, group='Reported ILI'), data=subset(ili.burn.nat, YearWeek %in% unique(prevalence.nat.individual.wrap$YearWeek)), color='black', lwd=1.5)
+  p2 <- ggplot(subset(ili.burn.nat,YearWeek %in% prevalence.nat.individual.wrap$YearWeek), aes(x=YearWeek, y=15*Rate, group='Reported ILI', color='Reported ILI')) + geom_line(lwd=1.5, color='black') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0, 0.8), breaks=c(0.0, 0.2, 0.4, 0.6, 0.8), labels=c('1%','2%','3%','4%','5%')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI Prevalence (CDC)')
+  
+  # Get the ggplot grobs
+  g1 <- ggplotGrob(p1)
+  g2 <- ggplotGrob(p2)
+  
+  # Get the location of the plot panel in g1.
+  # These are used later when transformed elements of g2 are put back into g1
+  pp <- c(subset(g1$layout, name == "panel", se = t:r))
+  
+  # Overlap panel for second plot on that of the first plot
+  g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+  
+  # Get the y axis title from g2
+  # index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
+  index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
+  ylab <- g2$grobs[[index]]                # Extract that grob
+  ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
+  
+  # Put the transformed label on the right side of g1
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+  
+  # Get the y axis from g2 (axis line, tick marks, and tick mark labels)
+  index <- which(g2$layout$name == "axis-l")  # Which grob
+  yaxis <- g2$grobs[[index]]                  # Extract the grob
+  
+  # yaxis is a complex of grobs containing the axis line, the tick marks, and the tick mark labels.
+  # The relevant grobs are contained in axis$children:
+  #   axis$children[[1]] contains the axis line;
+  #   axis$children[[2]] contains the tick marks and tick mark labels.
+  
+  # First, move the axis line to the left
+  yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+  
+  # Second, swap tick marks and tick mark labels
+  ticks <- yaxis$children[[2]]
+  ticks$widths <- rev(ticks$widths)
+  ticks$grobs <- rev(ticks$grobs)
+  
+  # Third, move the tick marks
+  ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+  
+  # Fourth, swap margins and fix justifications for the tick mark labels
+  ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+  
+  # Fifth, put ticks back into yaxis
+  yaxis$children[[2]] <- ticks
+  
+  # Put the transformed yaxis on the right side of g1
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  yarema.all <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+  
+  # Draw it
+  grid.newpage()
+  png('Figures/Yarema_Subset.png', height=800, width=1400)
+  grid.draw(yarema.all)
+  dev.off()
+}
+
+# FOR LAB MEETING
+if(FALSE) {
+  negatives.df <- runs.df[!(runs.df$RunDataId %in% bugs.df$RunDataId), ]
+  negatives.df <- merge(negatives.df, calendar.df[,c('Date','YearWeek')], by='Date')
+  negatives.agg <- with(data.frame(negatives.df, Negatives = 1), aggregate(Negatives~YearWeek+CustomerSiteId, FUN=sum))
+  negatives.fill <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(merge(data.frame(YearWeek = unique(calendar.df$YearWeek)), negatives.agg[negatives.agg$CustomerSiteId==sites[x], c('YearWeek','Negatives')], by='YearWeek', all.x=TRUE), CustomerSiteId = sites[x])))
+  negatives.fill[is.na(negatives.fill$Negatives), 'Negatives'] <- 0
+  neg.periods <- as.character(unique(negatives.fill$YearWeek))[order(as.character(unique(negatives.fill$YearWeek)))]
+  negatives.roll <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(2:(length(neg.periods)-1), function(y) data.frame(YearWeek = neg.periods[y], CustomerSiteId = sites[x], Negatives = sum(negatives.fill[negatives.fill$CustomerSiteId==sites[x], 'Negatives'][(y-1):(y+1)]))))))
+  negatives.roll[is.na(negatives.roll$Negatives), 'Negatives'] <- 0
+  negatives.prev <- merge(runs.reg.roll, negatives.roll, by=c('YearWeek','CustomerSiteId'))
+  negatives.prev$NegRate <- with(negatives.prev, Negatives/Runs)
+  neg.burn.df <- merge(runs.reg.norm[,c('YearWeek','CustomerSiteId','NormalizedBurn')], negatives.prev, by=c('YearWeek','CustomerSiteId'))
+  p.NegativesAndTURNBySite <- ggplot(neg.burn.df, aes(x=YearWeek, y=NormalizedBurn, group='TURN', color='TURN')) + geom_line(lwd=1.5) + geom_line(aes(x=YearWeek, y=10*NegRate, group='NegRate', color='NegRate'), lwd=1.5, data=neg.burn.df) + facet_wrap(~CustomerSiteId) + scale_color_manual(values=c('black','red'), name='') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + labs(y='TURN, 10*NegRate', x='Date') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels)
+  neg.burn.df$TURNByNegs <- with(neg.burn.df, NegRate*NormalizedBurn)
+  p.NegativesFactoredByTURNBySite <- ggplot(neg.burn.df, aes(x=YearWeek, y=TURNByNegs, group='TURN Factored by Negative Test Rate')) + geom_line(color='black', lwd=1.5) + facet_wrap(~CustomerSiteId) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + labs(y='TURN*NegRate', x='Date') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels)
+  neg.burn.nat <- with(neg.burn.df, aggregate(cbind(NegRate, NormalizedBurn, TURNByNegs)~YearWeek, FUN=mean))
+  p.NegativesFactoredByTURN <- ggplot(neg.burn.nat, aes(x=YearWeek, y=TURNByNegs, group='TURN Factored by Negative Test Rate')) + geom_line(color='black', lwd=1.5) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + labs(y='TURN*NegRate', x='Date') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels)
+  
+  prevalence.cdc.fluA <- read.csv('../DataSources/RegionalInfluenzaByType.csv', header=TRUE, sep=',')
+  prevalence.cdc.fluA <- data.frame(YearWeek = with(prevalence.cdc.fluA, ifelse(WEEK < 10, paste(YEAR, WEEK, sep='-0'), paste(YEAR, WEEK, sep='-'))), Region = prevalence.cdc.fluA$REGION, TotalPatients = prevalence.cdc.fluA$TOTAL.SPECIMENS, TotalFluObservations = prevalence.cdc.fluA$TOTAL.A)
+  prevalence.cdc.fluA <- do.call(rbind, lapply(1:length(unique(prevalence.cdc.fluA$Region)), function(x) data.frame(YearWeek = prevalence.cdc.fluA[prevalence.cdc.fluA$Region == unique(prevalence.cdc.fluA$Region)[x],'YearWeek'][2:(length(prevalence.cdc.fluA[prevalence.cdc.fluA$Region == unique(prevalence.cdc.fluA$Region)[x],'YearWeek'])-1)], Region = unique(prevalence.cdc.fluA$Region)[x], TotalPatients = sapply(2:(length(prevalence.cdc.fluA[prevalence.cdc.fluA$Region == unique(prevalence.cdc.fluA$Region)[x],'YearWeek'])-1), function(y) sum(prevalence.cdc.fluA[prevalence.cdc.fluA$Region == unique(prevalence.cdc.fluA$Region)[x],'TotalPatients'][(y-1):(y+1)])), TotalFluObservations = sapply(2:(length(prevalence.cdc.fluA[prevalence.cdc.fluA$Region == unique(prevalence.cdc.fluA$Region)[x],'YearWeek'])-1), function(y) sum(prevalence.cdc.fluA[prevalence.cdc.fluA$Region == unique(prevalence.cdc.fluA$Region)[x],'TotalFluObservations'][(y-1):(y+1)])))))
+  prevalence.cdc.fluA$Prevalence <- with(prevalence.cdc.fluA, TotalFluObservations/TotalPatients)
+  prevalence.cdc.fluA <- with(prevalence.cdc.fluA, aggregate(Prevalence~YearWeek, FUN=mean))
+  prev.cdc.bfdx.fluA <- merge(prevalence.cdc.fluA, prevalence.nat.fluA, by='YearWeek')
+  corAnnotation <- as.character(round(with(prev.cdc.bfdx.fluA, cor(Prevalence.y, Prevalence.x)), 3))
+  summary(lm(Prevalence.y~Prevalence.x, data=prev.cdc.bfdx.fluA))
+  rSqAnnotation <- '0.985'
+  
+  ggplot(prev.cdc.bfdx.fluA, aes(x=YearWeek, y=Prevalence.x, fill='CDC Flu A Prevalence')) + geom_bar(stat='identity') + geom_line(aes(x=YearWeek, y=Prevalence.y, group='FilmArray Flu A Detection', color='FilmArray Flu A Detection'), prev.cdc.bfdx.fluA, lwd=1.5) + scale_fill_manual(values=c('dodgerblue'), name='') + scale_color_manual(values=c('black'), name='') + scale_y_continuous(label=percent) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection, Flu Prevalence', x='Date') + scale_x_discrete(breaks=c('2015-41','2016-01','2016-14','2016-26','2016-40','2017-01'), labels=c('Oct-2015','Jan-2016','Mar-2016','Jul-2016','Oct-2016','Jan-2017')) + annotate('text', x='2016-35', y=0.15, label=paste('R2 = ', rSqAnnotation, sep=''), size=6)  + annotate('text', x='2016-35', y=0.14, label=paste('Cor = ', corAnnotation, sep=''), size=6)
+}
+
+
+
 
 # PRINT OUT ALL THE FIGURES
 plots <- ls()[grep('^p\\.',ls())]
