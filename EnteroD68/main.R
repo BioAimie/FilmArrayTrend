@@ -163,48 +163,17 @@ for (i in 1:length(sites)) {
                        TrainNoise = train.noise, TestNoise = test.noise, PCAs = pca.count, TrainDaysMean = train.days.mean,
                        TrainDaysMedian = train.days.median, TestDaysMean = test.days.mean, TestDaysMedian = test.days.median)
     temp$Score <- temp$TestNoise/temp$TrainNoise*pca.count
-    # temp$AdjScore <- temp$Score - mean(temp$Score)
-    # temp$flag <- ifelse(temp$AdjScore > 0.3, 1, 0)
-    
-    # temp <- rbind(data.frame(site.train, site.train.pca), data.frame(site.test, site.test.pca))
-    # temp$TrainDaysMean <- train.days.mean
-    # temp$TestDaysMean <- test.days.mean
-    # temp$TrainNoise <- train.noise
-    # temp$TestNoise <- test.noise
-    # temp$PCAs <- pca.count
-    # temp$NoiseCount <- ifelse(temp$Cluster==0, 1, 0)
-    
-    ## RIGHT HERE IS WHERE I NEED TO DO MORE WORK!!!
-    # a <- data.frame(temp[10:length(temp$Date), ], Score = sapply(10:length(temp$Date), function(x) mean(temp$NoiseCount[(x-9):x])))
-    # a$SmoothScore <- predict(loess(Score~Obs, data = a))
-    # a$Outside <- ifelse(a$SmoothScore > (mean(a$SmoothScore)+2*sd(a$SmoothScore)), 1, 0)
-    # ggplot(a, aes(x=Obs, y=Score)) + geom_smooth() + geom_line(aes(x=Obs, y=mean(SmoothScore)+2*sd(SmoothScore)), data = a)
-    
     site.df <- rbind(site.df, temp)
   } 
 
-  # LOOP WILL BE DONE, CHECK OUT site.df FOR SITE 13
-  
-  # site.scored <- site.df
-  # site.scored$PCTrainWeightedScore <- mean(site.scored$TrainNoise) + site.scored$PCAs*sd(site.scored$TrainNoise)
-  # site.scored$PCTestWeightedScore <- mean(site.scored$TestNoise) + site.scored$PCAs*sd(site.scored$TestNoise)
-  # site.scored <- merge(site.scored, site.features[,c('Obs','Date','YearWeek')], by.x='Seq', by.y='Obs')
-  # site.scored <- cbind(site.scored[10:length(site.scored$TestNoise), ], TestNoiseSummed10 = sapply(10:length(site.scored$TestNoise), function(x) sum(site.scored[,'TestNoise'][(x-9):x])))
-  # site.scored$LoessPredict <- predict(loess((TestNoiseSummed10*PCAs)~Seq, data=site.scored))
-  # ggplot(site.scored, aes(x=Seq, y=TestNoiseSummed10*PCAs)) + geom_point() + geom_smooth(aes(outfit=fit<<-..y..), n=length(site.scored$TestNoise))
-  # site.scored$GamPredict <- fit
-  
-  # p.plot <- ggplot(site.scored, aes(x=Date, y=GamPredict)) + geom_line(lwd=1.5) + geom_line(aes(x=Date, y=mean(GamPredict)+sd(GamPredict)), data=site.scored, color='red', lwd=1.5) + theme(panel.background = element_rect(fill='white',color='white'), axis.text=element_text(color='black', face='bold'), text=element_text(face='bold', size=20)) + labs(title=paste('Site', sites[i], 'at time', max(site.scored$Date), sep=' '), x='Date', y='Noise-GAM Score')
-  # predict(loess((TestNoiseSummed10*PCAs)~Seq, data=site.scored))
-  
   print(Sys.time() - site.start.time)
   scored.df <- rbind(scored.df, site.df)
 }
 
-# LOESS SMOOTHING... TRY TO FIND AREAS THAT ARE ELEVATED OVER A LONGER STRETCH
-a <- scored.df[scored.df$CustomerSiteId==sites[5], ]
-a$TestNoiseSummed10 <- c(rep(1, 9), sapply(10:length(a$TestNoise), function(x) sum(a[,'TestNoise'][(x-9):x])))
-ggplot(a[10:length(a$Seq), ], aes(x=Seq, y=PCAs*TestNoiseSummed10)) + geom_point() + geom_smooth()
+# ATTEMPT TO DO SOME SORT OF ROLLING SUM OF THE SCORE AT A SITE... THIS SHOULD HELP IDENTIFY PERIODS WHERE SCORES ARE
+# SUSTAINED AT A HIGHER LEVEL
+a <- scored.df[scored.df$CustomerSiteId==2, ]
+ggplot(a, aes(x=TestStartDate, y=Score)) + geom_point() + geom_line(aes(x=TestStartDate, y=mean(Score)+3*sd(Score)), data=a, color='red', lwd=1.25)
 
 # TWITTER ALGORITHM ... AUTOMATION OF ALGORITHM 1
 sequence.freq <- merge(sequence.freq, with(sequence.freq, aggregate(Count~Date, FUN=sum)), by='Date')
