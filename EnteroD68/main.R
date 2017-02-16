@@ -6,6 +6,7 @@ setwd('~/FilmArrayTrend/EnteroD68/')
 library(RODBC)
 library(lubridate)
 library(ggplot2)
+library(mgcv)
 library(devtools)
 require(dateManip)
 library(cluster)
@@ -58,7 +59,7 @@ for(j in 1:length(choose.sites)) {
 rm(cp.site.df)
 
 # Clean the data
-# ===========================================================================================
+# =================================================== ========================================
 # with the cp data, determine the median Cp of each assay in the HRV/EV target
 cp.median <- aggregate(Cp~RunDataId+CustomerSiteId+Date+AssayName, FUN=median, data=cp.df)
 cp.spread <- spread(data = cp.median, key = AssayName, value = Cp)
@@ -98,12 +99,10 @@ cp.features <- cp.features[with(cp.features, order(CustomerSiteId, Date)), ]
 sites <- unique(cp.features$CustomerSiteId)[order(unique(cp.features$CustomerSiteId))]
 
 # set up the intial window and horizon for time slices
-# train.weeks <- 12
-# test.weeks <- 1
-# max.clusters <- 20
 initial.window <- 100
 test.horizon <- 10
 
+# sites <- c(13, 25, 26) # , 33, 36, 38)
 scored.df <- c()
 for (i in 1:length(sites)) {
   
@@ -113,11 +112,12 @@ for (i in 1:length(sites)) {
   site.features <- site.features[with(site.features, order(Date)), ]
   if(nrow(site.features)==0) { next }
   site.features$Obs <- seq(1, length(site.features$Date), 1)
- 
+  site.features$DaysBetween <- c(0, as.numeric(sapply(2:length(site.features$Date), function(x) site.features[x,'Date']-site.features[(x-1),'Date'])))
+  
   site.df <- c()
   site.start.time <- Sys.time()
   for(j in (initial.window+1):(length(site.features$Obs)-test.horizon)) {
-    
+  
     site.train <- site.features[site.features$Obs < j & site.features$Obs >= (j - initial.window), ]
     site.test <- site.features[site.features$Obs < (j + test.horizon) & site.features$Obs >= j, ]
     
@@ -155,18 +155,66 @@ for (i in 1:length(sites)) {
     pca.count <- max(grep('^PC', colnames(site.train.pca)))
     train.noise <- nrow(site.train.pca[site.train.pca$Cluster==0, ])
     test.noise <- nrow(site.test.pca[site.test.pca$Cluster==0, ])
-    temp <- data.frame(CustomerSiteId = sites[i], Seq = j, TrainNoise = train.noise, TestNoise = test.noise, PCAs = pca.count)
+    train.days.mean <- mean(site.train$DaysBetween)
+    test.days.mean <- mean(site.test$DaysBetween)
+    train.days.median <- median(site.train$DaysBetween)
+    test.days.median <- median(site.test$DaysBetween)
+    temp <- data.frame(CustomerSiteId = sites[i], Seq = j, TestStartDate = site.test[site.test$Obs==min(site.test$Obs), 'Date'],
+                       TrainNoise = train.noise, TestNoise = test.noise, PCAs = pca.count, TrainDaysMean = train.days.mean,
+                       TrainDaysMedian = train.days.median, TestDaysMean = test.days.mean, TestDaysMedian = test.days.median)
+    temp$Score <- temp$TestNoise/temp$TrainNoise*pca.count
+    # temp$AdjScore <- temp$Score - mean(temp$Score)
+    # temp$flag <- ifelse(temp$AdjScore > 0.3, 1, 0)
+    
+    # temp <- rbind(data.frame(site.train, site.train.pca), data.frame(site.test, site.test.pca))
+    # temp$TrainDaysMean <- train.days.mean
+    # temp$TestDaysMean <- test.days.mean
+    # temp$TrainNoise <- train.noise
+    # temp$TestNoise <- test.noise
+    # temp$PCAs <- pca.count
+    # temp$NoiseCount <- ifelse(temp$Cluster==0, 1, 0)
+    
+    ## RIGHT HERE IS WHERE I NEED TO DO MORE WORK!!!
+    # a <- data.frame(temp[10:length(temp$Date), ], Score = sapply(10:length(temp$Date), function(x) mean(temp$NoiseCount[(x-9):x])))
+    # a$SmoothScore <- predict(loess(Score~Obs, data = a))
+    # a$Outside <- ifelse(a$SmoothScore > (mean(a$SmoothScore)+2*sd(a$SmoothScore)), 1, 0)
+    # ggplot(a, aes(x=Obs, y=Score)) + geom_smooth() + geom_line(aes(x=Obs, y=mean(SmoothScore)+2*sd(SmoothScore)), data = a)
+    
     site.df <- rbind(site.df, temp)
   } 
+
+  # LOOP WILL BE DONE, CHECK OUT site.df FOR SITE 13
   
-  site.df$PCTrainWeightedScore <- mean(site.df$TrainNoise) + site.df$PCAs*sd(site.df$TrainNoise)
-  site.df$PCTestWeightedScore <- mean(site.df$TestNoise) + site.df$PCAs*sd(site.df$TestNoise)
+  # site.scored <- site.df
+  # site.scored$PCTrainWeightedScore <- mean(site.scored$TrainNoise) + site.scored$PCAs*sd(site.scored$TrainNoise)
+  # site.scored$PCTestWeightedScore <- mean(site.scored$TestNoise) + site.scored$PCAs*sd(site.scored$TestNoise)
+  # site.scored <- merge(site.scored, site.features[,c('Obs','Date','YearWeek')], by.x='Seq', by.y='Obs')
+  # site.scored <- cbind(site.scored[10:length(site.scored$TestNoise), ], TestNoiseSummed10 = sapply(10:length(site.scored$TestNoise), function(x) sum(site.scored[,'TestNoise'][(x-9):x])))
+  # site.scored$LoessPredict <- predict(loess((TestNoiseSummed10*PCAs)~Seq, data=site.scored))
+  # ggplot(site.scored, aes(x=Seq, y=TestNoiseSummed10*PCAs)) + geom_point() + geom_smooth(aes(outfit=fit<<-..y..), n=length(site.scored$TestNoise))
+  # site.scored$GamPredict <- fit
+  
+  # p.plot <- ggplot(site.scored, aes(x=Date, y=GamPredict)) + geom_line(lwd=1.5) + geom_line(aes(x=Date, y=mean(GamPredict)+sd(GamPredict)), data=site.scored, color='red', lwd=1.5) + theme(panel.background = element_rect(fill='white',color='white'), axis.text=element_text(color='black', face='bold'), text=element_text(face='bold', size=20)) + labs(title=paste('Site', sites[i], 'at time', max(site.scored$Date), sep=' '), x='Date', y='Noise-GAM Score')
+  # predict(loess((TestNoiseSummed10*PCAs)~Seq, data=site.scored))
+  
   print(Sys.time() - site.start.time)
   scored.df <- rbind(scored.df, site.df)
 }
-  
 
-  if(FALSE) {
+# LOESS SMOOTHING... TRY TO FIND AREAS THAT ARE ELEVATED OVER A LONGER STRETCH
+a <- scored.df[scored.df$CustomerSiteId==sites[5], ]
+a$TestNoiseSummed10 <- c(rep(1, 9), sapply(10:length(a$TestNoise), function(x) sum(a[,'TestNoise'][(x-9):x])))
+ggplot(a[10:length(a$Seq), ], aes(x=Seq, y=PCAs*TestNoiseSummed10)) + geom_point() + geom_smooth()
+
+# TWITTER ALGORITHM ... AUTOMATION OF ALGORITHM 1
+sequence.freq <- merge(sequence.freq, with(sequence.freq, aggregate(Count~Date, FUN=sum)), by='Date')
+sequence.freq$Rate <- sequence.freq$Count.x/sequence.freq$Count.y
+sequence.freq <- sequence.freq[,c('Date','Sequence','Rate')]
+sequence.freq$Date <- as.POSIXct(sequence.freq$Date)
+AnomalyDetectionTs(sequence.freq[sequence.freq$Sequence=='HRV4, HRV1', c('Date','Rate')], max_anoms=0.01, direction='both', plot=TRUE)
+
+  
+if(FALSE) {
   # parition the data by site and set up a timeframe
   site.start <- as.character(site.starts[site.starts$CustomerSiteId==sites[i], 'YearWeek'])
   site.features <- cp.features[cp.features$CustomerSiteId==sites[i] & as.character(cp.features$YearWeek) > site.start, ]
@@ -224,7 +272,7 @@ for (i in 1:length(sites)) {
       # ggplot(site.period.df, aes(x=as.factor(Obs), fill=Cluster)) + geom_bar() + labs(title = paste('Cluster Prediction at j =', j, sep=' '), x='Observation')
   }
   } 
-  if(FALSE) {
+if(FALSE) {
   # # every "train.weeks" consecutive period will be used as the train set and then the forward "test.weeks" period will be predicted
   # site.train.periods <- unique(cp.features[cp.features$YearWeek > site.start, 'YearWeek'])
   # 
@@ -288,9 +336,6 @@ for (i in 1:length(sites)) {
   #   }
   # }
   }  
-
-mark.pos <- cp.sequence[as.character(cp.sequence$Sequence) %in% unique(as.character(cp.sequence[grep('^HRV4$|^HRV4, HRV1$|^HRV4, HRV1, HRV2$|^HRV4, HRV1, HRV2, HRV3$', cp.sequence$Sequence), 'Sequence'])), 'RunDataId']
-
 if(FALSE) {
   #   determine labels
   run.ids <- unique(cp.median$RunDataId)
@@ -404,7 +449,6 @@ if(FALSE) {
   
   # theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
 }
-
 if(FALSE) {
   #   ************* NOTE: MAY WANT TO DO THIS WITH A MOVING WINDOW OF THE DATA SET (e.g. THE LAST 52 WEEKS??)
   #   ************* LOOK INTO DATA SPLITTING USING createTimeSlices INSTEAD OF createDataPartition!!!
