@@ -10,4 +10,4 @@ FROM [FADataWarehouse].[dbo].[RunData] R WITH(NOLOCK) INNER JOIN [FADataWarehous
 	ON R.[ConnectorLaptopId] = L.[ConnectorLaptopId] INNER JOIN [FADataWarehouse].[dbo].[CustomerSites] S WITH(NOLOCK)
 		ON L.[CustomerSiteId] = S.[CustomerSiteId] INNER JOIN [FADataWarehouse].[dbo].[Customers] C WITH(NOLOCK)
 			ON S.[CustomerId] = C.[CustomerId]
-WHERE R.[RunStatus] LIKE 'Completed' AND R.[SuppressState] LIKE 'Trendable' AND R.[PouchTitle] LIKE '%Resp%'
+WHERE R.[RunStatus] LIKE 'Completed' AND R.[PouchTitle] LIKE '%Resp%' AND R.[PositiveAssays] BETWEEN 0 AND 4
