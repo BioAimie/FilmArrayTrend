@@ -71,19 +71,21 @@ positives.unique <- data.frame(positives.trim[,c('YearWeek','CustomerSiteId','Bu
 distinct.postives.site <- with(positives.unique, aggregate(Count~YearWeek+CustomerSiteId, FUN=sum))
 distinct.positives.avg <- with(distinct.postives.site, aggregate(Count~YearWeek, FUN=mean))
 
-# For each site, determine the number of dual detections in a period, then take the average accross all sites
+# For each site, determine the number of dual detections in a period, then take the average accross all sites 
 test.detections <- with(data.frame(bugs.reg, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))
-dual.detections <- bugs.reg[bugs.reg$RunDataId %in% test.detections[test.detections$Positives > 1, 'RunDataId'], ]
-dual.detections <- dual.detections[with(dual.detections, order(RunDataId, Bug)), ]
-dual.detections.concat <- do.call(rbind, lapply(1:length(unique(dual.detections$RunDataId)), function(x) data.frame(RunDataId = unique(dual.detections$RunDataId)[x], Bugs = paste0(dual.detections[dual.detections$RunDataId==unique(dual.detections$RunDataId)[x],'Bug'], collapse = ', '))))
-dual.detections.agg <- merge(dual.detections.concat, runs.reg[,c('RunDataId','CustomerSiteId','YearWeek')], by='RunDataId')
-distinct.duals.bugs.site <- unique(dual.detections.agg[,c('YearWeek','CustomerSiteId','Bugs')])
-distinct.duals.bugs.site$Count <- 1
-distinct.duals.site <- with(distinct.duals.bugs.site, aggregate(Count~YearWeek+CustomerSiteId, FUN=sum))
-distinct.duals.avg <- with(distinct.duals.site, aggregate(Count~YearWeek, FUN=mean))
+###### (this actually is taking up to 4 detections)
+co.detections <- bugs.reg[bugs.reg$RunDataId %in% test.detections[test.detections$Positives > 1, 'RunDataId'], ]
+co.detections <- co.detections[with(co.detections, order(RunDataId, Bug)), ]
+co.detections.concat <- do.call(rbind, lapply(1:length(unique(co.detections$RunDataId)), function(x) data.frame(RunDataId = unique(co.detections$RunDataId)[x], Bugs = paste0(co.detections[co.detections$RunDataId==unique(co.detections$RunDataId)[x],'Bug'], collapse = ', '))))
+co.detections.agg <- merge(co.detections.concat, runs.reg[,c('RunDataId','CustomerSiteId','YearWeek')], by='RunDataId')
+distinct.cos.bugs.site <- unique(co.detections.agg[,c('YearWeek','CustomerSiteId','Bugs')])
+distinct.cos.bugs.site$Count <- 1
+distinct.cos.site <- with(distinct.cos.bugs.site, aggregate(Count~YearWeek+CustomerSiteId, FUN=sum))
+distinct.cos.avg <- with(distinct.cos.site, aggregate(Count~YearWeek, FUN=mean))
 
 # put all the data into one data frame
-distinct.df <- merge(distinct.positives.avg, distinct.duals.avg, by='YearWeek', all.x=TRUE)
+distinct.df <- merge(distinct.positives.avg, distinct.cos.avg, by='YearWeek', all.x=TRUE)
+ggplot(distinct.df, aes(x=YearWeek, y=Count.x, fill='Count Unique')) + geom_bar(stat='identity') + geom_line(aes(x=YearWeek, y=Count.y, group='Count Co-Detections', group='Count Co-Detections'), data=distinct.df, lwd=1.5) + scale_color_manual(values=c('black'), name='') + scale_fill_manual(values=c('dodgerblue'), name='')
 
 # -------------------------------------------------------------------------------------------------------------------------
 # Lindsay would like to see the percent of runs that are dual detections by week and correlate that to the unique organisms
@@ -96,28 +98,29 @@ calendar.alt <- data.frame(Date = calendar.df$Date, Year = calendar.df$Year, Wee
 calendar.alt$DateGroup <- as.character(calendar.alt$DateGroup)
 bugs.fill <- aggregateAndFillDateGroupGaps(calendar.alt, 'Week', bugs.sparse, c('CustomerSiteId','BugPositive','ShortName'), min(bugs.agg$YearWeek), 'Positives', 'sum', 0)
 # remove Flu A (equivocal) and Flu A (no subtype)
-bugs.fill <- bugs.fill[!(bugs.fill$ShortName %in% c('Flu A','Flu A (no subtype)')), ]
-bugs.fill$UniquePositives <- with(bugs.fill, ifelse(Positives > 0, 1, 0))
-bugs.fill.agg <- with(bugs.fill, aggregate(UniquePositives~DateGroup+CustomerSiteId+BugPositive+ShortName, FUN=sum))
+##### do we still want to do this? how should co-detections that already exist be handled... e.g. if a person is HRv+RSV, should they be excluded???
+bugs.fill.trim <- bugs.fill[!(bugs.fill$ShortName %in% c('Flu A','Flu A (no subtype)')), ]
+bugs.fill.trim$UniquePositives <- with(bugs.fill.trim, ifelse(Positives > 0, 1, 0))
+bugs.fill.agg <- with(bugs.fill.trim, aggregate(UniquePositives~DateGroup+CustomerSiteId+BugPositive+ShortName, FUN=sum))
 site.bugs.unique <- with(bugs.fill.agg, aggregate(UniquePositives~DateGroup+CustomerSiteId, FUN=sum))
 site.bugs.roll <- do.call(rbind, lapply(1:length(unique(site.bugs.unique$CustomerSiteId)), function(x) data.frame(DateGroup = site.bugs.unique[site.bugs.unique$CustomerSiteId==unique(site.bugs.unique$CustomerSiteId)[x], 'DateGroup'][3:(length(site.bugs.unique[site.bugs.unique$CustomerSiteId==unique(site.bugs.unique$CustomerSiteId)[x], 'DateGroup'])-2)], CustomerSiteId = unique(site.bugs.unique$CustomerSiteId)[x], UniquePositives = sapply(3:(length(site.bugs.unique[site.bugs.unique$CustomerSiteId==unique(site.bugs.unique$CustomerSiteId)[x], 'DateGroup'])-2), function(y) sum(site.bugs.unique[site.bugs.unique$CustomerSiteId==unique(site.bugs.unique$CustomerSiteId)[x], 'UniquePositives'][(y-2):(y+2)])/5))))
 
 # for each site, get the percent of runs that are dual detections in a given week
-dual.detection.runs <- unique(test.detections[test.detections$Positives > 1, 'RunDataId'])
-duals.sparse <- runs.reg[runs.reg$RunDataId %in% dual.detection.runs, c('Year','Week','CustomerSiteId','Runs')]
-duals.fill <- aggregateAndFillDateGroupGaps(calendar.alt, 'Week', duals.sparse, c('CustomerSiteId'), min(bugs.agg$YearWeek), 'Runs', 'sum', 0)
+co.detection.runs <- unique(test.detections[test.detections$Positives > 1, 'RunDataId'])
+cos.sparse <- runs.reg[runs.reg$RunDataId %in% co.detection.runs, c('Year','Week','CustomerSiteId','Runs')]
+cos.fill <- aggregateAndFillDateGroupGaps(calendar.alt, 'Week', cos.sparse, c('CustomerSiteId'), min(bugs.agg$YearWeek), 'Runs', 'sum', 0)
 runs.fill <- aggregateAndFillDateGroupGaps(calendar.alt, 'Week', runs.reg[,c('Year','Week','CustomerSiteId','Runs')], c('CustomerSiteId'), min(bugs.agg$YearWeek), 'Runs', 'sum', 0)
-colnames(duals.fill) <- c('DateGroup','CustomerSiteId','DualPositives')
+colnames(cos.fill) <- c('DateGroup','CustomerSiteId','CoDetections')
 # find the rolling 5-week average of dual detections per total runs
 runs.roll <- do.call(rbind, lapply(1:length(unique(runs.fill$CustomerSiteId)), function(x) data.frame(DateGroup = runs.fill[runs.fill$CustomerSiteId==unique(runs.fill$CustomerSiteId)[x], 'DateGroup'][3:(length(runs.fill[runs.fill$CustomerSiteId==unique(runs.fill$CustomerSiteId)[x], 'DateGroup'])-2)], CustomerSiteId = unique(runs.fill$CustomerSiteId)[x], Runs = sapply(3:(length(runs.fill[runs.fill$CustomerSiteId==unique(runs.fill$CustomerSiteId)[x], 'DateGroup'])-2), function(y) sum(runs.fill[runs.fill$CustomerSiteId==unique(runs.fill$CustomerSiteId)[x], 'Runs'][(y-2):(y+2)])))))
-duals.roll <- do.call(rbind, lapply(1:length(unique(duals.fill$CustomerSiteId)), function(x) data.frame(DateGroup = duals.fill[duals.fill$CustomerSiteId==unique(duals.fill$CustomerSiteId)[x], 'DateGroup'][3:(length(duals.fill[duals.fill$CustomerSiteId==unique(duals.fill$CustomerSiteId)[x], 'DateGroup'])-2)], CustomerSiteId = unique(duals.fill$CustomerSiteId)[x], DualPositives = sapply(3:(length(duals.fill[duals.fill$CustomerSiteId==unique(duals.fill$CustomerSiteId)[x], 'DateGroup'])-2), function(y) sum(duals.fill[duals.fill$CustomerSiteId==unique(duals.fill$CustomerSiteId)[x], 'DualPositives'][(y-2):(y+2)])))))
+cos.roll <- do.call(rbind, lapply(1:length(unique(cos.fill$CustomerSiteId)), function(x) data.frame(DateGroup = cos.fill[cos.fill$CustomerSiteId==unique(cos.fill$CustomerSiteId)[x], 'DateGroup'][3:(length(cos.fill[cos.fill$CustomerSiteId==unique(cos.fill$CustomerSiteId)[x], 'DateGroup'])-2)], CustomerSiteId = unique(cos.fill$CustomerSiteId)[x], CoDetections = sapply(3:(length(cos.fill[cos.fill$CustomerSiteId==unique(cos.fill$CustomerSiteId)[x], 'DateGroup'])-2), function(y) sum(cos.fill[cos.fill$CustomerSiteId==unique(cos.fill$CustomerSiteId)[x], 'CoDetections'][(y-2):(y+2)])))))
 
 threshold <- 30
 
-duals.rate <- merge(runs.roll, duals.roll, by=c('DateGroup','CustomerSiteId'))
-duals.rate[duals.rate$Runs < threshold, 'Runs'] <- NA
-duals.rate$DualRate <- with(duals.rate, DualPositives/Runs)
-duals.rate.avg <- with(duals.rate, aggregate(DualRate~DateGroup, FUN=mean))
+cos.rate <- merge(runs.roll, cos.roll, by=c('DateGroup','CustomerSiteId'))
+cos.rate[cos.rate$Runs <= threshold, 'Runs'] <- NA
+cos.rate$CoDetectionRate <- with(cos.rate, CoDetections/Runs)
+cos.rate.avg <- with(cos.rate, aggregate(CoDetectionRate~DateGroup, FUN=mean))
 
 # some site/date combinations have zero unique positives because they had < 10 runs... merge this to the runs.roll to check the run count
 site.bugs.roll <- merge(site.bugs.roll, runs.roll, by=c('DateGroup','CustomerSiteId'))
@@ -126,22 +129,22 @@ sites.bugs.roll <- site.bugs.roll[,c('DateGroup','CustomerSiteId','UniquePositiv
 bug.count.avg <- with(sites.bugs.roll, aggregate(UniquePositives~DateGroup, FUN=mean))
 
 # combine the data & make a chart
-rolled.df <- merge(duals.rate.avg, bug.count.avg, by='DateGroup')
-p.dual.count.combo <- ggplot(subset(rolled.df, as.character(DateGroup) >= '2013-26'), aes(x=DateGroup, y=DualRate*100, fill='RateOfDualDetections')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=UniquePositives, color='CountUniqueOrganisms', group='CountUniqueOrganisms'), data=subset(rolled.df, as.character(DateGroup) >= '2014-01'), lwd=1.5) + scale_fill_manual(values='darkgrey', name='') + scale_color_manual(values='blue', name='') + scale_x_discrete(breaks=as.character(unique(subset(rolled.df, as.character(DateGroup) >= '2014-01')$DateGroup))[order(as.character(unique(subset(rolled.df, as.character(DateGroup) >= '2014-01')$DateGroup)))][seq(1, length(as.character(unique(subset(rolled.df, as.character(DateGroup) >= '2014-01')$DateGroup))),8)]) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=20, color='black'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + labs(title='Count of Unique Organisms Detected vs. Rate of Dual Detections\n(Averaged Across All Participating Trend Sites)', y='Count Unique Positives, % Dual Detections', x='Date')
-with(subset(rolled.df, as.character(DateGroup) >= '2013-26'), cor(UniquePositives, DualRate))
-with(subset(rolled.df, as.character(DateGroup) >= '2013-26'), plot(UniquePositives, DualRate))
-abline(lm(DualRate~UniquePositives, data=subset(rolled.df, as.character(DateGroup) >= '2013-26')), col='blue', lwd=1.5)
+rolled.df <- merge(cos.rate.avg, bug.count.avg, by='DateGroup')
+p.co.count.combo <- ggplot(subset(rolled.df, as.character(DateGroup) >= '2013-33'), aes(x=DateGroup, y=CoDetectionRate*100, fill='Rate Of Co-Detections')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=UniquePositives, color='Unique Organisms', group='Unique Organisms'), data=subset(rolled.df, as.character(DateGroup) >= '2013-33'), lwd=1.5) + scale_fill_manual(values='darkgrey', name='') + scale_color_manual(values='blue', name='') + scale_x_discrete(breaks=as.character(unique(subset(rolled.df, as.character(DateGroup) >= '2013-33')$DateGroup))[order(as.character(unique(subset(rolled.df, as.character(DateGroup) >= '2013-33')$DateGroup)))][seq(1, length(as.character(unique(subset(rolled.df, as.character(DateGroup) >= '2013-33')$DateGroup))),8)]) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=20, color='black'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + labs(title='Unique Organisms in Circulation and Rate of Co-Detections\n(Averaged Across All Participating Trend Sites)', y='Unique Circulating Organisms (Count), Co-Detections (%)', x='Date')
+with(subset(rolled.df, as.character(DateGroup) >= '2013-33'), cor(UniquePositives, CoDetectionRate))
+with(subset(rolled.df, as.character(DateGroup) >= '2013-33'), plot(UniquePositives, CoDetectionRate))
+abline(lm(CoDetectionRate~UniquePositives, data=subset(rolled.df, as.character(DateGroup) >= '2013-33')), col='blue', lwd=1.5)
 
 # -----------------------------------------------------------------------------------------------------------
 # Create a metric that's like a risk index for susceptibility... for example, if there's 3 organisms circulating
 # and one is much more prevalent than the others, this should lower the risk index from 3 to something else
 # -----------------------------------------------------------------------------------------------------------
 # first, create a data frame that has all the bugs by site with placeholders of 0 if there are no positive tests
-bugs <- as.character(unique(bugs.fill$ShortName))
-sites <- as.character(unique(bugs.fill$CustomerSiteId))
-missing.entries <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(CustomerSiteId=sites[x], ShortName = length(bugs[!(bugs %in% unique(as.character(bugs.fill[bugs.fill$CustomerSiteId == sites[x], 'ShortName'])))]))))
+bugs <- as.character(unique(bugs.fill.trim$ShortName))
+sites <- as.character(unique(bugs.fill.trim$CustomerSiteId))
+missing.entries <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(CustomerSiteId=sites[x], ShortName = length(bugs[!(bugs %in% unique(as.character(bugs.fill.trim[bugs.fill.trim$CustomerSiteId == sites[x], 'ShortName'])))]))))
 missing.sites <- as.character(missing.entries[missing.entries$ShortName > 0, 'CustomerSiteId'])
-bugs.sparse.add <- do.call(rbind, lapply(1:length(missing.sites), function(x) data.frame(CustomerSiteId=missing.sites[x], ShortName = bugs[!(bugs %in% unique(as.character(bugs.fill[bugs.fill$CustomerSiteId == missing.sites[x], 'ShortName'])))], Positives = 0)))
+bugs.sparse.add <- do.call(rbind, lapply(1:length(missing.sites), function(x) data.frame(CustomerSiteId=missing.sites[x], ShortName = bugs[!(bugs %in% unique(as.character(bugs.fill.trim[bugs.fill.trim$CustomerSiteId == missing.sites[x], 'ShortName'])))], Positives = 0)))
 bugs.sparse.add$Year <- max(bugs.sparse$Year)
 bugs.sparse.add$Week <- min(bugs.sparse$Week)
 bugs.sparse.update <- rbind(bugs.sparse[,c('Year','Week','CustomerSiteId','ShortName','Positives')], bugs.sparse.add[,c('Year','Week','CustomerSiteId','ShortName','Positives')])
@@ -163,23 +166,23 @@ percent.det.site$PercentNegative <- with(percent.det.site, Negatives/Runs)
 # multiplied by the total percent detection of all other organisms in the same period. The idea behind this is that
 # it will indicate the risk of a person who is positive for a single organism to contract any other organism when they
 # visit the hospital.
-periods <- as.character(unique(percent.det.site$DateGroup))[as.character(unique(percent.det.site$DateGroup)) >= '2013-26']
+periods <- as.character(unique(percent.det.site$DateGroup))[as.character(unique(percent.det.site$DateGroup)) >= '2013-33']
 riskratio.site <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(1:length(periods), function(y) do.call(rbind, lapply(1:length(bugs), function(z) data.frame(DateGroup = periods[y], CustomerSiteId = sites[x], ShortName = bugs[z], RiskRatio = percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection']*sum(percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName!=bugs[z],'PercentDetection']))))))))
 # see if this will work to filter out weeks where there are very few runs
 riskratio.site.mrg <- merge(runs.roll, riskratio.site, by=c('DateGroup','CustomerSiteId'))
-riskratio.site.mrg[riskratio.site.mrg$Runs < threshold, 'RiskRatio'] <- NA
+riskratio.site.mrg[riskratio.site.mrg$Runs <= threshold, 'RiskRatio'] <- NA
 # aggregate the risk ratios over all sites and take the mean for each period with 'enough' data and then add in the unique
 # organism count as well as the % dual detections
 riskratio.avg <- with(riskratio.site.mrg, aggregate(RiskRatio~DateGroup+ShortName, FUN=mean))
-risk.count.duals <- merge(merge(bug.count.avg, duals.rate.avg, by='DateGroup'), riskratio.avg, by='DateGroup')
-risk.count.duals.trim <- subset(risk.count.duals, as.character(DateGroup) >= '2013-26')
+risk.count.cos <- merge(merge(bug.count.avg, cos.rate.avg, by='DateGroup'), riskratio.avg, by='DateGroup')
+risk.count.cos.trim <- subset(risk.count.cos, as.character(DateGroup) >= '2013-33')
 # the correlation between the risk ratio and the count of unique organsims circulating is quite good
-cor(with(risk.count.duals.trim, aggregate(UniquePositives~DateGroup, FUN=mean))$UniquePositives, with(risk.count.duals.trim, aggregate(RiskRatio~DateGroup, FUN=sum))$RiskRatio)
-ggplot(risk.count.duals.trim[with(risk.count.duals.trim, order(DateGroup, ShortName, decreasing=TRUE)), ], aes(x=DateGroup)) + geom_area(aes(y=RiskRatio*25, fill=ShortName, order=ShortName, group=ShortName), stat='identity', position='stack') + geom_line(aes(x=DateGroup, y=DualRate*100, group='Dual Detections/Total Tests', color='Dual Detections/Total Tests'), size=2, data=risk.count.duals.trim) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Detections in Period', color='Unique Detections in Period'), size=2, data=risk.count.duals.trim) + scale_fill_manual(values=createPaletteOfVariableLength(risk.count.duals.trim, 'ShortName'), name='') + scale_color_manual(values=c('black','blue'), name='') + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=12, color='black'), axis.title.y=element_text(size=12), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + scale_x_discrete(breaks = as.character(unique(risk.count.duals.trim$DateGroup))[order(as.character(unique(risk.count.duals.trim$DateGroup)))][seq(1, length(as.character(unique(risk.count.duals.trim$DateGroup))), 8)]) + labs(title='Dual Detections, Unique Organism Detection Count, and Risk Ratio\n(5-week centered rolling average)', x='Year-Week', y='% Dual Detections, Organism Count, Risk Ratio')
+cor(with(risk.count.cos.trim, aggregate(UniquePositives~DateGroup, FUN=mean))$UniquePositives, with(risk.count.cos.trim, aggregate(RiskRatio~DateGroup, FUN=sum))$RiskRatio)
+ggplot(risk.count.cos.trim[with(risk.count.cos.trim, order(DateGroup, ShortName, decreasing=TRUE)), ], aes(x=DateGroup)) + geom_area(aes(y=RiskRatio*25, fill=ShortName, order=ShortName, group=ShortName), stat='identity', position='stack') + geom_line(aes(x=DateGroup, y=CoDetectionRate*100, group='Co-Detections/Total Tests', color='Co-Detections/Total Tests'), size=2, data=risk.count.cos.trim) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Detections', color='Unique Detections'), size=2, data=risk.count.cos.trim) + scale_fill_manual(values=createPaletteOfVariableLength(risk.count.cos.trim, 'ShortName'), name='') + scale_color_manual(values=c('black','blue'), name='') + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=12, color='black'), axis.title.y=element_text(size=12), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + scale_x_discrete(breaks = as.character(unique(risk.count.cos.trim$DateGroup))[order(as.character(unique(risk.count.cos.trim$DateGroup)))][seq(1, length(as.character(unique(risk.count.cos.trim$DateGroup))), 8)]) + labs(title='Co-Detections, Unique Organism Detections, and Risk Ratio\n(5-week centered rolling average)', x='Year-Week', y='% Co-Detections, Organism Count, Risk Ratio')
 
-risk.count.duals.agg <- merge(with(risk.count.duals.trim, aggregate(UniquePositives~DateGroup, FUN=mean)), with(risk.count.duals.trim, aggregate(RiskRatio~DateGroup, FUN=sum)), by='DateGroup')
-risk.count.duals.agg <- merge(risk.count.duals.agg, with(risk.count.duals.trim, aggregate(DualRate~DateGroup, FUN=mean)), by='DateGroup')
-ggplot(risk.count.duals.agg, aes(x=DateGroup, y=100*DualRate, fill='Dual Detections/Total Runs')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=25*RiskRatio, group='Aggregate Risk Ratio', color='Aggregate Risk Ratio'), data=risk.count.duals.agg, size=2) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.duals.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=12, color='black'), axis.title.y=element_text(size=12), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + scale_x_discrete(breaks = as.character(unique(risk.count.duals.trim$DateGroup))[order(as.character(unique(risk.count.duals.trim$DateGroup)))][seq(1, length(as.character(unique(risk.count.duals.trim$DateGroup))), 8)]) + scale_color_manual(values=c('blue','black'), name='') + scale_fill_manual(values='grey', name='')
+risk.count.cos.agg <- merge(with(risk.count.cos.trim, aggregate(UniquePositives~DateGroup, FUN=mean)), with(risk.count.cos.trim, aggregate(RiskRatio~DateGroup, FUN=sum)), by='DateGroup')
+risk.count.cos.agg <- merge(risk.count.cos.agg, with(risk.count.cos.trim, aggregate(CoDetectionRate~DateGroup, FUN=mean)), by='DateGroup')
+ggplot(risk.count.cos.agg, aes(x=DateGroup, y=100*CoDetectionRate, fill='Co-Detections/Total Runs')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=25*RiskRatio, group='Aggregate Risk Ratio', color='Aggregate Risk Ratio'), data=risk.count.cos.agg, size=2) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=12, color='black'), axis.title.y=element_text(size=12), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + scale_x_discrete(breaks = as.character(unique(risk.count.cos.trim$DateGroup))[order(as.character(unique(risk.count.cos.trim$DateGroup)))][seq(1, length(as.character(unique(risk.count.cos.trim$DateGroup))), 8)]) + scale_color_manual(values=c('blue','black'), name='') + scale_fill_manual(values='grey', name='')
 
 # dual axes for ILI overlay plots
 hinvert_title_grob <- function(grob){
@@ -201,10 +204,8 @@ hinvert_title_grob <- function(grob){
 dateBreaks <- c('2013-27','2013-40','2014-01', '2014-14','2014-27','2014-40','2015-01', '2015-14','2015-27','2015-40','2016-01','2016-14','2016-27','2016-40','2017-01')
 dateLabels <- c('Jul-2013','-','Jan-2014','-','Jul-2014','-','Jan-2015','-','Jul-2015','-','Jan-2016','-','Jul-2016','-','Jan-2017')
 
-# p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='Percent Detection', fill='Percent Detection')) + geom_bar(stat='identity') + scale_fill_manual(values=createPaletteOfVariableLength(data.frame(Name=c('Percent Detection')), 'Name'), name='') + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=10*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue'), name='') + scale_y_continuous(label=percent, breaks=c(0,.07,0.14,0.21,0.28,0.35)) + expand_limits(y=0.35) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(title='FilmArray Percent Detection of Influenza Overlaid with CDC Data', y='Percent Detection, CDC Flu Prevalence', x='Date')
-# p2 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + scale_y_continuous(limits=c(0,0.35), breaks=c(0, 0.07, 0.14, 0.21, 0.28, 0.35), labels=c('0.0%','0.7%','1.4%','2.1%','2.8%','3.5%')) + theme(text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='CDC Reported ILI Rate')
-p1 <- ggplot(risk.count.duals.agg, aes(x=DateGroup, y=100*DualRate, group='Co-Detections Rate', color='Co-Detections Rate')) + geom_line(size=2) + geom_line(aes(x=DateGroup, y=25*RiskRatio, group='Aggregate Risk Ratio', color='Aggregate Risk Ratio'), data=risk.count.duals.agg, size=2) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.duals.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection (%), Unique Positives', x='Date')
-p2 <- ggplot(risk.count.duals.agg, aes(x=DateGroup, y=25*RiskRatio, group=1)) + geom_line() + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,0.125), breaks=c(0, 0.025, 0.05, 0.075, 0.1, 0.125), labels=c('0','10','20','30','40','50')) + theme(panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) + labs(y='People at Risk per 100 Patients')
+p1 <- ggplot(risk.count.cos.agg, aes(x=DateGroup, y=100*CoDetectionRate, group='Co-Detections Rate', color='Co-Detections Rate')) + geom_line(size=2) + geom_line(aes(x=DateGroup, y=25*RiskRatio, group='Aggregate Risk Ratio', color='Aggregate Risk Ratio'), data=risk.count.cos.agg, size=2) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14)) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection (%), Unique Positives', x='Date')
+p2 <- ggplot(risk.count.cos.agg, aes(x=DateGroup, y=25*RiskRatio, group=1)) + geom_line(color='transparent') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14), labels=c('0','8','16','24','32','40','48','56')) + theme(panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) + labs(y='People at Risk per 100 Patients')
 
 # Get the ggplot grobs
 g1 <- ggplotGrob(p1)
