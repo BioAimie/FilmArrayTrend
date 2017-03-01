@@ -26,6 +26,7 @@ if(TRUE) {
   
   # load custom functions
   source('../Rfunctions/normalizeBurnRate.R')
+  source('../Rfunctions/generateCombosBetter.R')
   source('~/WebHub/AnalyticsWebHub/Rfunctions/createPaletteOfVariableLength.R')
   
   # dual axes for ILI overlay plots
@@ -47,7 +48,7 @@ if(TRUE) {
   
   # read in the data from FilmArray Data Warehouse DB (ODBC object in Windows "FA_DW" with Lindsay's credentials)
   FADWcxn <- odbcConnect(dsn = 'FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD')
-  queryVector <- scan('../DataSources/AllSitesRespiratoryTrendableRuns.txt',what=character(),quote="")
+  queryVector <- scan('../DataSources/AllSitesRespiratoryTrendableRuns.txt', what=character(), quote="")
   query <- paste(queryVector,collapse=" ")
   runs.df <- sqlQuery(FADWcxn,query)
   queryVector <- scan('../DataSources/PositiveBugsRP.txt',what=character(),quote="")
@@ -239,16 +240,16 @@ if(TRUE) {
 # PREVALENCE OF ORGANISMS - PARETO-ISH TYPE CHARTS
 if(FALSE) {
   
-  start.year <- 2014
+  start.year <- 2013
   
   # use data from all time and show a pareto of prevalence (collapsing fluA, coronas, pivs, and bacterias)
-  positives.count.trim <- positives.count.all[as.character(positives.count.all$YearWeek) >= '2014-01', ]
+  positives.count.trim <- positives.count.all[as.character(positives.count.all$YearWeek) >= '2013-01', ]
   
   # need to sum up flu As, CoVs, PIVs, and Bacterias by customer site Id... then join these onto the positives.count.trim data frame
-  positives.count.fluas <- merge(do.call(rbind, lapply(1:length(unique(positives.count.trim$CustomerSiteId)), function(x) do.call(rbind, lapply(1:length(unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])), function(y) data.frame(YearWeek = unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], CustomerSiteId = unique(positives.count.trim$CustomerSiteId)[x], Code = 'v', Positives = sum(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x] & positives.count.trim$Code %in% as.character(decoder[decoder$Bug %in% fluAs,'Code']) & positives.count.trim$YearWeek == unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], 'Positives'])))))), prevalence.reg.agg[,c('YearWeek','CustomerSiteId','Runs')], by=c('YearWeek','CustomerSiteId'))
-  positives.count.covs <- merge(do.call(rbind, lapply(1:length(unique(positives.count.trim$CustomerSiteId)), function(x) do.call(rbind, lapply(1:length(unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])), function(y) data.frame(YearWeek = unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], CustomerSiteId = unique(positives.count.trim$CustomerSiteId)[x], Code = 'w', Positives = sum(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x] & positives.count.trim$Code %in% as.character(decoder[decoder$Bug %in% corona,'Code']) & positives.count.trim$YearWeek == unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], 'Positives'])))))), prevalence.reg.agg[,c('YearWeek','CustomerSiteId','Runs')], by=c('YearWeek','CustomerSiteId'))
-  positives.count.pivs <- merge(do.call(rbind, lapply(1:length(unique(positives.count.trim$CustomerSiteId)), function(x) do.call(rbind, lapply(1:length(unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])), function(y) data.frame(YearWeek = unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], CustomerSiteId = unique(positives.count.trim$CustomerSiteId)[x], Code = 'x', Positives = sum(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x] & positives.count.trim$Code %in% as.character(decoder[decoder$Bug %in% pivs,'Code']) & positives.count.trim$YearWeek == unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], 'Positives'])))))), prevalence.reg.agg[,c('YearWeek','CustomerSiteId','Runs')], by=c('YearWeek','CustomerSiteId'))
-  positives.count.bacteria <- merge(do.call(rbind, lapply(1:length(unique(positives.count.trim$CustomerSiteId)), function(x) do.call(rbind, lapply(1:length(unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])), function(y) data.frame(YearWeek = unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], CustomerSiteId = unique(positives.count.trim$CustomerSiteId)[x], Code = 'y', Positives = sum(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x] & positives.count.trim$Code %in% as.character(decoder[decoder$Bug %in% bacterias,'Code']) & positives.count.trim$YearWeek == unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], 'Positives'])))))), prevalence.reg.agg[,c('YearWeek','CustomerSiteId','Runs')], by=c('YearWeek','CustomerSiteId'))
+  positives.count.fluas <- merge(do.call(rbind, lapply(1:length(unique(positives.count.trim$CustomerSiteId)), function(x) do.call(rbind, lapply(1:length(unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])), function(y) data.frame(YearWeek = unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], CustomerSiteId = unique(positives.count.trim$CustomerSiteId)[x], Code = 'v', Positives = sum(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x] & positives.count.trim$Code %in% as.character(decoder[decoder$Bug %in% fluAs,'Code']) & positives.count.trim$YearWeek == unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], 'Positives'])))))), unique(prevalence.reg.agg[,c('YearWeek','CustomerSiteId','Runs')]), by=c('YearWeek','CustomerSiteId'))
+  positives.count.covs <- merge(do.call(rbind, lapply(1:length(unique(positives.count.trim$CustomerSiteId)), function(x) do.call(rbind, lapply(1:length(unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])), function(y) data.frame(YearWeek = unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], CustomerSiteId = unique(positives.count.trim$CustomerSiteId)[x], Code = 'w', Positives = sum(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x] & positives.count.trim$Code %in% as.character(decoder[decoder$Bug %in% corona,'Code']) & positives.count.trim$YearWeek == unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], 'Positives'])))))), unique(prevalence.reg.agg[,c('YearWeek','CustomerSiteId','Runs')]), by=c('YearWeek','CustomerSiteId'))
+  positives.count.pivs <- merge(do.call(rbind, lapply(1:length(unique(positives.count.trim$CustomerSiteId)), function(x) do.call(rbind, lapply(1:length(unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])), function(y) data.frame(YearWeek = unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], CustomerSiteId = unique(positives.count.trim$CustomerSiteId)[x], Code = 'x', Positives = sum(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x] & positives.count.trim$Code %in% as.character(decoder[decoder$Bug %in% pivs,'Code']) & positives.count.trim$YearWeek == unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], 'Positives'])))))), unique(prevalence.reg.agg[,c('YearWeek','CustomerSiteId','Runs')]), by=c('YearWeek','CustomerSiteId'))
+  positives.count.bacteria <- merge(do.call(rbind, lapply(1:length(unique(positives.count.trim$CustomerSiteId)), function(x) do.call(rbind, lapply(1:length(unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])), function(y) data.frame(YearWeek = unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], CustomerSiteId = unique(positives.count.trim$CustomerSiteId)[x], Code = 'y', Positives = sum(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x] & positives.count.trim$Code %in% as.character(decoder[decoder$Bug %in% bacterias,'Code']) & positives.count.trim$YearWeek == unique(positives.count.trim[positives.count.trim$CustomerSiteId==unique(positives.count.trim$CustomerSiteId)[x],'YearWeek'])[y], 'Positives'])))))), unique(prevalence.reg.agg[,c('YearWeek','CustomerSiteId','Runs')]), by=c('YearWeek','CustomerSiteId'))
   positives.count.agg <- rbind(positives.count.trim[,c('YearWeek','CustomerSiteId','Code','Positives','Runs')], positives.count.fluas, positives.count.covs, positives.count.pivs, positives.count.bacteria)
   decoder.agg <- rbind(decoder, data.frame(Bug='Influenza A (all)', Code='v'), data.frame(Bug='Coronavirus (all)', Code='w'), data.frame(Bug='Parainfluenza (all)', Code='x'), data.frame(Bug='Bacteria (all)', Code='y'))
   positives.count.agg <- merge(positives.count.agg, decoder.agg, by='Code')
@@ -340,7 +341,7 @@ if(TRUE) {
   positives.count.seasonal.agg[as.character(positives.count.seasonal.agg$Code)=='x', 'ShortName'] <- 'PIV (all)'
   positives.count.seasonal.agg[as.character(positives.count.seasonal.agg$Code)=='y', 'ShortName'] <- 'Bacteria (all)'
   
-  # Make various paretos... 
+  # Make various paretos...
   prev.pareto.seasonal.all <- positives.count.seasonal.agg
   
   # start with all data from summer 2013-present showing all organisms and then grouping by family.
@@ -513,7 +514,7 @@ if(TRUE) {
   bfdx.flu.reg <- with(prevalence.reg.count, aggregate(cbind(Runs, j, k, l, m, n)~YearWeek+Region+CustomerSiteId, FUN=sum))
   bfdx.flu.reg$FluDetections <- with(bfdx.flu.reg, j+k+l+m+n+o)
 
-  # CDC - Clinical Labs (only has data from 2015+)
+  # CDC - Clinical Labs (only has data from 2015+... excludes public health lab data since I don't know how to add that in)
   cdc.flu.reg <- read.csv('../DataSources/RegionalInfluenzaByType.csv', header=TRUE, sep=',')
   cdc.flu.reg <- data.frame(YearWeek = with(cdc.flu.reg, ifelse(WEEK < 10, paste(YEAR, WEEK, sep='-0'), paste(YEAR, WEEK, sep='-'))), Region = cdc.flu.reg$REGION, TotalPatients = cdc.flu.reg$TOTAL.SPECIMENS, TotalFluObservations = cdc.flu.reg$TOTAL.A + cdc.flu.reg$TOTAL.B)
   cdc.flu.reg <- do.call(rbind, lapply(1:length(unique(cdc.flu.reg$Region)), function(x) data.frame(YearWeek = cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'][2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1)], Region = unique(cdc.flu.reg$Region)[x], TotalPatients = sapply(2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1), function(y) sum(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'TotalPatients'][(y-1):(y+1)])), TotalFluObservations = sapply(2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1), function(y) sum(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'TotalFluObservations'][(y-1):(y+1)])))))
@@ -535,8 +536,9 @@ if(TRUE) {
   dateLabelsAlt2 <- c('-','Jan-2016','-','Jul-2016','-','Jan-2017')
   
   # p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='Percent Detection', fill='FilmArray Detection')) + geom_bar(stat='identity') + scale_fill_manual(values=createPaletteOfVariableLength(data.frame(Name=c('FilmArray Detection')), 'Name'), name='') + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=10*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), CDC Flu Prevalence (%)', x='Date')
-  p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=10*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + geom_line(aes(x=YearWeek, y=NormalizedBurn/10, group='FilmArray Utilization', color='FilmArray Utilization'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
-  p2 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + scale_y_continuous(limits=c(0,0.35), breaks=c(0, 0.07, 0.14, 0.21, 0.28, 0.35), labels=c('0.0','0.7','1.4','2.1','2.8','3.5')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI (%), FilmArray Utilization')
+  # p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=10*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + geom_line(aes(x=YearWeek, y=NormalizedBurn/10, group='FilmArray Utilization', color='FilmArray Utilization'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
+  p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=10*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
+  p2 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + scale_y_continuous(limits=c(0,0.35), breaks=c(0, 0.07, 0.14, 0.21, 0.28, 0.35), labels=c('0.0','0.7','1.4','2.1','2.8','3.5')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI (%)')
   
   # Get the ggplot grobs
   g1 <- ggplotGrob(p1)
@@ -1294,18 +1296,86 @@ if(TRUE) {
   dev.off()
 }
 
-# REGRESSION ANALYSIS - ILI AND BURN vs. PERCENT DETECTION OF ORGANISMS
+# CORRELATION OF SUMMED PERCENT DETECTION WITH ILI AND TURN
 if(TRUE) {
   
-  prev.predict <- with(prev.pareto.all, aggregate(Prevalence~YearWeek+Code, FUN=mean))
+  # Get the prevalence of all organisms with all Flu A grouped together
+  cor.prev.noFluA <- prevalence.nat.individual.wrap[!(prevalence.nat.individual.wrap$ShortName %in% as.character(unique(prevalence.nat.individual.wrap[grep('Influenza A', prevalence.nat.individual.wrap$Bug), 'ShortName']))), c('YearWeek','ShortName','Prevalence')]
+  cor.prev.FluA <- prevalence.nat.families[prevalence.nat.families$Key=='Influenza A', c('YearWeek','Name','Prevalence')]
+  colnames(cor.prev.noFluA) <-  c('YearWeek','Name','Prevalence')
+  cor.prev <- rbind(cor.prev.noFluA, cor.prev.FluA)
+  cor.prev$YearWeek <- as.character(cor.prev$YearWeek)
+  cor.prev$Name <- as.character(cor.prev$Name)
+  cor.prev <- merge(cor.prev[cor.prev$YearWeek >= '2013-26', ], ili.burn.nat, by='YearWeek')
+  cor.prev[grep('Influenza A', cor.prev$Name), 'Name'] <- 'FluA'
+  weeks.in.cor <- unique(cor.prev$YearWeek)
+  weeks.in.cor <- weeks.in.cor[sapply(1:length(weeks.in.cor), function(x) length(cor.prev[cor.prev$YearWeek==weeks.in.cor[x], 'Name']))==17]
+  cor.prev <- cor.prev[cor.prev$YearWeek %in% weeks.in.cor, ]
+  
+  # next, determine the corelation of each of the organisms above with ILI AND TURN
+  cor.vars <- unique(cor.prev$Name)
+  cor.vars <- cor.vars[order(cor.vars)]
+  single.var.cor <- data.frame(Name = cor.vars, CorILI = sapply(1:length(cor.vars), function(x) cor(cor.prev[cor.prev$Name==cor.vars[x], 'Prevalence'], cor.prev[cor.prev$Name==cor.vars[x], 'Rate'])), CorTURN = sapply(1:length(cor.vars), function(x) cor(cor.prev[cor.prev$Name==cor.vars[x], 'Prevalence'], cor.prev[cor.prev$Name==cor.vars[x], 'NormalizedBurn'])), R2ILI = sapply(1:length(cor.vars), function(x) summary(lm(Rate~Prevalence, cor.prev[cor.prev$Name==cor.vars[x], ]))$adj.r.squared), R2TURN = sapply(1:length(cor.vars), function(x) summary(lm(NormalizedBurn~Prevalence, cor.prev[cor.prev$Name==cor.vars[x], ]))$adj.r.squared))
+  
+  # now iterate to find the best correlation/adjusted R2 with random combinations of N organisms (Flu A grouped) and stop when the correlation is not improved by the addition of variables
+  multiple.var.cor <- data.frame(VariableCount = 1, 
+                                 BestCorComboILI = as.character(single.var.cor[single.var.cor$CorILI==max(single.var.cor$CorILI), 'Name']),
+                                 BestCorILI  = max(single.var.cor$CorILI),
+                                 BestCorComboTURN = as.character(single.var.cor[single.var.cor$CorTURN==max(single.var.cor$CorTURN), 'Name']), 
+                                 BestCorTURN  = max(single.var.cor$CorTURN),
+                                 BestR2ComboILI = as.character(single.var.cor[single.var.cor$R2ILI==max(single.var.cor$R2ILI), 'Name']), 
+                                 BestR2ILI  = max(single.var.cor$R2ILI),
+                                 BestR2ComboTURN = as.character(single.var.cor[single.var.cor$R2TURN==max(single.var.cor$R2TURN), 'Name']),
+                                 BestR2TURN  = max(single.var.cor$R2TURN)
+                                 )
+  for(i in 2:length(cor.vars)) {
+    
+    combos <- generateCombos(cor.vars, i, FALSE)
+    var.cor <- c()
+    for(j in 1:length(combos)) {
+      
+      temp <- cor.prev[cor.prev$Name %in% combos[[j]], ]
+      temp.summed <- data.frame(YearWeek = unique(temp$YearWeek), SummedPrev = with(temp, aggregate(Prevalence~YearWeek, FUN=sum))$Prevalence, ILI = with(temp, aggregate(Rate~YearWeek, FUN=mean))$Rate, TURN = with(temp, aggregate(NormalizedBurn~YearWeek, FUN=mean))$NormalizedBurn)
+      temp.var.cor <- data.frame(Name = paste(combos[[j]], collapse=', '), CorILI = cor(temp.summed$SummedPrev, temp.summed$ILI), CorTURN = cor(temp.summed$SummedPrev, temp.summed$TURN), R2ILI = summary(lm(ILI~SummedPrev, data=temp.summed))$adj.r.squared, R2TURN = summary(lm(TURN~SummedPrev, data=temp.summed))$adj.r.squared)
+      var.cor <- rbind(var.cor, temp.var.cor)
+    }
+    
+    multiple.var.cor <- rbind(multiple.var.cor, data.frame(VariableCount = i, 
+                                                           BestCorComboILI = as.character(var.cor[var.cor$CorILI==max(var.cor$CorILI), 'Name']),
+                                                           BestCorILI  = max(var.cor$CorILI),
+                                                           BestCorComboTURN = as.character(var.cor[var.cor$CorTURN==max(var.cor$CorTURN), 'Name']), 
+                                                           BestCorTURN  = max(var.cor$CorTURN),
+                                                           BestR2ComboILI = as.character(var.cor[var.cor$R2ILI==max(var.cor$R2ILI), 'Name']), 
+                                                           BestR2ILI  = max(var.cor$R2ILI),
+                                                           BestR2ComboTURN = as.character(var.cor[var.cor$R2TURN==max(var.cor$R2TURN), 'Name']),
+                                                           BestR2TURN  = max(var.cor$R2TURN)
+                                                           )
+    )
+  }
+  
+  # THE BEST COMBINATION OF N ORGANISMS IN TERMS OF CORRELATION AND R2 HAVE BEEN DETERMINED, NOW FIGURE OUT WHICH N-COMBO PROVIDES THE BEST OVERALL
+  multiple.var.cor[multiple.var.cor$BestCorILI==max(multiple.var.cor$BestCorILI), c('VariableCount','BestCorComboILI','BestCorILI')]
+  multiple.var.cor[multiple.var.cor$BestCorTURN==max(multiple.var.cor$BestCorTURN), c('VariableCount','BestCorComboTURN','BestCorTURN')]
+  multiple.var.cor[multiple.var.cor$BestR2ILI==max(multiple.var.cor$BestR2ILI), c('VariableCount','BestR2ComboILI','BestR2ILI')]
+  multiple.var.cor[multiple.var.cor$BestR2TURN==max(multiple.var.cor$BestR2TURN), c('VariableCount','BestR2ComboTURN','BestR2TURN')]
+  write.csv(multiple.var.cor, 'Figures/summedPrevalenceCorrelation.csv', row.names = FALSE)
+}
+
+# REGRESSION ANALYSIS - ILI AND TURN vs. PERCENT DETECTION OF ORGANISMS
+if(TRUE) {
+  
+  prev.predict <- prev.pareto.all[prev.pareto.all$YearWeek >= '2013-26', ]
+  prev.predict$Prevalence <- with(prev.predict, Positives/Runs)
+  prev.predict[prev.predict$Runs < 30, 'Prevalence'] <- NA
+  prev.predict <- with(prev.predict, aggregate(Prevalence~YearWeek+Code+ShortName, FUN=mean))
   prev.predict <- prev.predict[with(prev.predict, order(Code, YearWeek)), ]
   prev.predict <- data.frame(YearWeek = unique(prev.predict$YearWeek), do.call(cbind, lapply(1:length(unique(prev.predict$Code)), function(x) prev.predict[prev.predict$Code==unique(prev.predict$Code)[x],'Prevalence'])))
-  colnames(prev.predict)[grep('X', colnames(prev.predict))] <- letters[1:(length(colnames(prev.predict))-1)]
+  colnames(prev.predict)[grep('X', colnames(prev.predict))] <- as.character(unique(prev.pareto.seasonal.all$Code)) # letters[1:(length(colnames(prev.predict))-1)]
   prev.predict <- merge(prev.predict, ili.burn.nat, by='YearWeek')
   prev.predict <- prev.predict[!(is.na(prev.predict$Rate)), ]
   
-  fit.vars <- c('a','b','c','d','e','f','g','h','i','o','p','q','r','s','t','u','v')
- 
+  fit.vars <- c('a','b','c','d','e','f','g','h','i','n','o','p','q','r','s','t','v')
+  
   # MACHINE LEARNING ALGORITHMS ----------------------------------------------------------------------------------------------
   # DO CART and RANDOM FOREST AND SOMEHOW COMPARE THE TWO METHODS... CAN ALSO COMPARE REGRESSION MODELS AS WELL
   # CART modeling (rpart)
@@ -1397,17 +1467,16 @@ if(TRUE) {
   # REGRESSION MODELING -------------------------------------------------------------------------------------------------------
   fit.ili.all <- lm(as.formula(paste('Rate', paste(fit.vars, collapse='+'), sep='~')), prev.predict)
   fit.burn.all <- lm(as.formula(paste('NormalizedBurn', paste(fit.vars, collapse='+'), sep='~')), prev.predict)
-
-  # read in model possibilities
-  combos.eight <- read.csv('../DataSources/compactCombos8.csv', header=TRUE, sep=',')
-  combos.nine <- read.csv('../DataSources/compactCombos9.csv', header=TRUE, sep=',')
-  combos.ten <- read.csv('../DataSources/compactCombos10.csv', header=TRUE, sep=',')
-  combos.eleven <- read.csv('../DataSources/compactCombos11.csv', header=TRUE, sep=',')
-  # have to create eleven combos... ugh.
   
+  # create model possibilities
+  combos.eight <- generateCombos(fit.vars, 8)
+  combos.nine <- generateCombos(fit.vars, 9)
+  combos.ten <- generateCombos(fit.vars, 10)
+  combos.eleven <- generateCombos(fit.vars, 11)
+  #### RESTART HERE!!!
   # Model ILI with prevalence of diseases in FilmArray test population (p-value = 5.00e-2 is established stop)
-  # ili.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
-  # ili.model.eval.eight[ili.model.eval.eight$anova.all == max(ili.model.eval.eight$anova.all), ]
+  ili.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
+  ili.model.eval.eight[ili.model.eval.eight$anova.all == max(ili.model.eval.eight$anova.all), ]
   
   ili.model.eval.nine <- do.call(rbind, lapply(1:length(combos.nine[,'Combo']), function(x) data.frame(Model = combos.nine[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict))$coeff[2:10,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.nine[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
   ili.model.eval.nine[ili.model.eval.nine$anova.all == max(ili.model.eval.nine$anova.all), ]
@@ -1415,7 +1484,7 @@ if(TRUE) {
   
   # ili.model.eval.ten <- do.call(rbind, lapply(1:length(combos.ten[,'Combo']), function(x) data.frame(Model = combos.ten[x,'Combo'], adjR2 = summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict)), prev.predict$Rate), alpha.0 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict))$coeff[2:11,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('Rate', as.character(combos.ten[x,]), sep='~')), prev.predict), fit.ili.all)[,'Pr(>F)'][2])))
   # ili.model.eval.ten[ili.model.eval.ten$anova.all == max(ili.model.eval.ten$anova.all), ]
-
+  
   # Model Burn with prevalence of diseases in FilmArray test population
   # burn.model.eval.eight <- do.call(rbind, lapply(1:length(combos.eight[,'Combo']), function(x) data.frame(Model = combos.eight[x,'Combo'], adjR2 = summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$adj.r.squared, corr = cor(fitted(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict)), prev.predict$NormalizedBurn), alpha.0 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] < 0.0001), alpha.001 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.001), alpha.01 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.01), alpha.05 = sum(summary(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict))$coeff[2:9,4] <= 0.05), alpha1 = 8, anova.all = anova(lm(as.formula(paste('NormalizedBurn', as.character(combos.eight[x,]), sep='~')), prev.predict), fit.burn.all)[,'Pr(>F)'][2])))
   # burn.model.eval.eight[burn.model.eval.eight$anova.all == max(burn.model.eval.eight$anova.all), ]
@@ -1456,12 +1525,12 @@ if(TRUE) {
   a <- a[row.names(a) != '(Intercept)', ]
   a <- merge(data.frame(a, Code = row.names(a)), decoder.agg, by='Code')
   a <- a[order(a[,'Pr...t..']), ]
-
+  
   b <- summary(lm(as.formula(paste('NormalizedBurn', as.character(burn.model.eval.eleven[burn.model.eval.eleven$anova.all == max(burn.model.eval.eleven$anova.all), 'Model']), sep='~')), data=prev.predict))$coeff
   b <- b[row.names(b) != '(Intercept)', ]
   b <- merge(data.frame(b, Code = row.names(b)), decoder.agg, by='Code')
   b <- b[order(b[,'Pr...t..']), ]
-
+  
   a <- a[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
   b <- b[,c('Bug','Estimate','Std..Error','t.value','Pr...t..')]
 }
@@ -1560,9 +1629,6 @@ if(FALSE) {
   
   ggplot(prev.cdc.bfdx.fluA, aes(x=YearWeek, y=Prevalence.x, fill='CDC Flu A Prevalence')) + geom_bar(stat='identity') + geom_line(aes(x=YearWeek, y=Prevalence.y, group='FilmArray Flu A Detection', color='FilmArray Flu A Detection'), prev.cdc.bfdx.fluA, lwd=1.5) + scale_fill_manual(values=c('dodgerblue'), name='') + scale_color_manual(values=c('black'), name='') + scale_y_continuous(label=percent) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection, Flu Prevalence', x='Date') + scale_x_discrete(breaks=c('2015-41','2016-01','2016-14','2016-26','2016-40','2017-01'), labels=c('Oct-2015','Jan-2016','Mar-2016','Jul-2016','Oct-2016','Jan-2017')) + annotate('text', x='2016-35', y=0.15, label=paste('R2 = ', rSqAnnotation, sep=''), size=6)  + annotate('text', x='2016-35', y=0.14, label=paste('Cor = ', corAnnotation, sep=''), size=6)
 }
-
-
-
 
 # PRINT OUT ALL THE FIGURES
 plots <- ls()[grep('^p\\.',ls())]
