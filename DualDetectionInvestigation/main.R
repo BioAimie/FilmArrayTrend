@@ -204,7 +204,9 @@ hinvert_title_grob <- function(grob){
 dateBreaks <- c('2013-27','2013-40','2014-01', '2014-14','2014-27','2014-40','2015-01', '2015-14','2015-27','2015-40','2016-01','2016-14','2016-27','2016-40','2017-01')
 dateLabels <- c('Jul-2013','-','Jan-2014','-','Jul-2014','-','Jan-2015','-','Jul-2015','-','Jan-2016','-','Jul-2016','-','Jan-2017')
 
-p1 <- ggplot(risk.count.cos.agg, aes(x=DateGroup, y=100*CoDetectionRate, group='Co-Detections Rate', color='Co-Detections Rate')) + geom_line(size=2) + geom_line(aes(x=DateGroup, y=25*RiskRatio, group='Aggregate Risk Ratio', color='Aggregate Risk Ratio'), data=risk.count.cos.agg, size=2) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14)) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection (%), Unique Positives', x='Date')
+# p1 <- ggplot(risk.count.cos.agg, aes(x=DateGroup, y=100*CoDetectionRate, group='Co-Detections Rate', color='Co-Detections Rate')) + geom_line(size=2) + geom_line(aes(x=DateGroup, y=25*RiskRatio, group='Aggregate Risk Ratio', color='Aggregate Risk Ratio'), data=risk.count.cos.agg, size=2) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14)) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection (%), Unique Positives', x='Date')
+# p2 <- ggplot(risk.count.cos.agg, aes(x=DateGroup, y=25*RiskRatio, group=1)) + geom_line(color='transparent') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14), labels=c('0','8','16','24','32','40','48','56')) + theme(panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) + labs(y='People at Risk per 100 Patients')
+p1 <- ggplot(risk.count.cos.agg, aes(x=DateGroup, y=100*CoDetectionRate, group='Co-Detection Rate', fill='Co-Detection Rate')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=25*RiskRatio, group='TCPM', color='TCPM'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14)) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection Rate (%)', x='Date')
 p2 <- ggplot(risk.count.cos.agg, aes(x=DateGroup, y=25*RiskRatio, group=1)) + geom_line(color='transparent') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14), labels=c('0','8','16','24','32','40','48','56')) + theme(panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) + labs(y='People at Risk per 100 Patients')
 
 # Get the ggplot grobs
@@ -219,7 +221,7 @@ pp <- c(subset(g1$layout, name == "panel", se = t:r))
 g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
 
 # Get the y axis title from g2
-index <- which(g2$layout$name == "ylab") # Which grob contains the y axis title?
+index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
 ylab <- g2$grobs[[index]]                # Extract that grob
 ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
 
@@ -230,11 +232,6 @@ g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", na
 # Get the y axis from g2 (axis line, tick marks, and tick mark labels)
 index <- which(g2$layout$name == "axis-l")  # Which grob
 yaxis <- g2$grobs[[index]]                  # Extract the grob
-
-# yaxis is a complex of grobs containing the axis line, the tick marks, and the tick mark labels.
-# The relevant grobs are contained in axis$children:
-#   axis$children[[1]] contains the axis line;
-#   axis$children[[2]] contains the tick marks and tick mark labels.
 
 # First, move the axis line to the left
 yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
@@ -262,3 +259,6 @@ grid.newpage()
 png('Figures/CoDetectionRiskMetrics.png', height=800, width=1400)
 grid.draw(tripleOverlay)
 dev.off()
+
+#  Make a chart showing the ciount of unique organisms circulating
+p.UniquePositives <- ggplot(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg) + geom_line(size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14)) + scale_color_manual(values=c('black'), name='', guide=FALSE) + labs(y='Count of Unique Organisms Circulating', x='Date')
