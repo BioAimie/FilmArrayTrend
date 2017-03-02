@@ -537,8 +537,8 @@ if(TRUE) {
   
   # p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='Percent Detection', fill='FilmArray Detection')) + geom_bar(stat='identity') + scale_fill_manual(values=createPaletteOfVariableLength(data.frame(Name=c('FilmArray Detection')), 'Name'), name='') + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=10*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), CDC Flu Prevalence (%)', x='Date')
   # p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=10*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + geom_line(aes(x=YearWeek, y=NormalizedBurn/10, group='FilmArray Utilization', color='FilmArray Utilization'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
-  p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=10*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
-  p2 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + scale_y_continuous(limits=c(0,0.35), breaks=c(0, 0.07, 0.14, 0.21, 0.28, 0.35), labels=c('0.0','0.7','1.4','2.1','2.8','3.5')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI (%)')
+  p1 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5)  + geom_line(aes(x=YearWeek, y=8*Rate, group='CDC ILI Rate', color='CDC ILI Rate'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
+  p2 <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + scale_y_continuous(limits=c(0,0.32), breaks=c(0, 0.04, 0.08, 0.12, 0.16, 0.20, 0.24, 0.28, 0.32), labels=c('0.0','0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI (%)')
   
   # Get the ggplot grobs
   g1 <- ggplotGrob(p1)
@@ -1359,6 +1359,51 @@ if(TRUE) {
   multiple.var.cor[multiple.var.cor$BestR2ILI==max(multiple.var.cor$BestR2ILI), c('VariableCount','BestR2ComboILI','BestR2ILI')]
   multiple.var.cor[multiple.var.cor$BestR2TURN==max(multiple.var.cor$BestR2TURN), c('VariableCount','BestR2ComboTURN','BestR2TURN')]
   write.csv(multiple.var.cor, 'Figures/summedPrevalenceCorrelation.csv', row.names = FALSE)
+  
+  # now re-do the same sort of thing, but just do it with a count of positives correlated with the total run count (days don't matter b/c it would be runs/day and positives/day)
+  # first, lump together Flu A
+  cor.count.fluA <- positives.count.all[grep('Influenza A', positives.count.all$Bug), ]
+  cor.count.fluA <- with(cor.count.fluA, aggregate(Positives~YearWeek+CustomerSiteId+Runs+Region+Name, FUN=sum))
+  cor.count.fluA <- data.frame(cor.count.fluA, Code = 'v', Bug = 'FluA')[,c('YearWeek','CustomerSiteId','Runs','Region','Name','Bug','Code','Positives')]
+  cor.count.noFluA <- positives.count.all[!(as.character(positives.count.all$Bug) %in% as.character(unique(positives.count.all$Bug))[grep('Influenza A', unique(as.character(positives.count.all$Bug)))]), ]
+  cor.count <- rbind(cor.count.noFluA, cor.count.fluA)
+  cor.count <- merge(cor.count, shortnames.df, by.x='Bug', by.y='Organism', all.x=TRUE)
+  cor.count$ShortName <- as.character(cor.count$ShortName)
+  cor.count[is.na(cor.count$ShortName), 'ShortName'] <- 'FluA'
+  
+  # sum everything nationally, because I don't really know how to do it otherwise... I'd get like 20 different values...
+  cor.count.agg <- with(cor.count, aggregate(cbind(Positives, Runs)~YearWeek+ShortName, FUN=sum))
+  single.var.cor.count <- do.call(rbind, lapply(1:length(unique(cor.count.agg$ShortName)), function(x) data.frame(ShortName = unique(cor.count.agg$ShortName)[x], CorTUR = cor(cor.count.agg[cor.count.agg$ShortName==unique(cor.count.agg$ShortName)[x], 'Positives'], cor.count.agg[cor.count.agg$ShortName==unique(cor.count.agg$ShortName)[x], 'Runs']), R2TUR = summary(lm(Runs~Positives, data = cor.count.agg[cor.count.agg$ShortName==unique(cor.count.agg$ShortName)[x], ]))$adj.r.squared)))
+  
+  multiple.var.cor.count <- data.frame(VariableCount = 1, 
+                                       BestCorCombo = as.character(single.var.cor.count[single.var.cor.count$CorTUR==max(single.var.cor.count$CorTUR), 'ShortName']),
+                                       BestCor = max(single.var.cor.count$CorTUR),
+                                       BestR2Combo = as.character(single.var.cor.count[single.var.cor.count$R2TUR==max(single.var.cor.count$R2TUR), 'ShortName']),
+                                       BestR2 = max(single.var.cor.count$R2TUR)
+                                       )
+  for(i in 2:length(cor.vars)) {
+    
+    combos <- generateCombos(cor.vars, i, FALSE)
+    var.cor <- c()
+    for(j in 1:length(combos)) {
+      
+      temp <- cor.count.agg[cor.count.agg$ShortName %in% combos[[j]], ]
+      temp.summed <- data.frame(YearWeek = unique(temp$YearWeek), SummedPositives = with(temp, aggregate(Positives~YearWeek, FUN=sum))$Positives, SummedRuns = with(temp, aggregate(Runs~YearWeek, FUN=mean))$Runs)
+      temp.var.cor <- data.frame(ShortName = paste(combos[[j]], collapse=', '), CorTUR = cor(temp.summed$SummedPositives, temp.summed$SummedRuns), R2TUR = summary(lm(SummedRuns~SummedPositives, data=temp.summed))$adj.r.squared)
+      var.cor <- rbind(var.cor, temp.var.cor)
+    }
+    
+    multiple.var.cor.count <- rbind(multiple.var.cor.count, data.frame(VariableCount = i, 
+                                                                       BestCorCombo = as.character(var.cor[var.cor$CorTUR==max(var.cor$CorTUR), 'ShortName']),
+                                                                       BestCor = max(var.cor$CorTUR),
+                                                                       BestR2Combo = as.character(var.cor[var.cor$R2TUR==max(var.cor$R2TUR), 'ShortName']),
+                                                                       BestR2 = max(var.cor$R2TUR)
+    ))
+  }
+
+  # evaluate the results
+  multiple.var.cor.count[multiple.var.cor.count$BestCor==max(multiple.var.cor.count$BestCor), c('VariableCount','BestCorCombo','BestCor')]
+  multiple.var.cor.count[multiple.var.cor.count$BestR2==max(multiple.var.cor.count$BestR2), c('VariableCount','BestR2Combo','BestR2')]
 }
 
 # REGRESSION ANALYSIS - ILI AND TURN vs. PERCENT DETECTION OF ORGANISMS
@@ -1628,6 +1673,13 @@ if(FALSE) {
   rSqAnnotation <- '0.985'
   
   ggplot(prev.cdc.bfdx.fluA, aes(x=YearWeek, y=Prevalence.x, fill='CDC Flu A Prevalence')) + geom_bar(stat='identity') + geom_line(aes(x=YearWeek, y=Prevalence.y, group='FilmArray Flu A Detection', color='FilmArray Flu A Detection'), prev.cdc.bfdx.fluA, lwd=1.5) + scale_fill_manual(values=c('dodgerblue'), name='') + scale_color_manual(values=c('black'), name='') + scale_y_continuous(label=percent) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection, Flu Prevalence', x='Date') + scale_x_discrete(breaks=c('2015-41','2016-01','2016-14','2016-26','2016-40','2017-01'), labels=c('Oct-2015','Jan-2016','Mar-2016','Jul-2016','Oct-2016','Jan-2017')) + annotate('text', x='2016-35', y=0.15, label=paste('R2 = ', rSqAnnotation, sep=''), size=6)  + annotate('text', x='2016-35', y=0.14, label=paste('Cor = ', corAnnotation, sep=''), size=6)
+}
+
+# FOR STEFAN
+if(FALSE) {
+  
+  avg.prev.northwell <- with(subset(prevalence.reg.wrap, CustomerSiteId %in% unique(runs.df[runs.df$Name=='North Shore LIJ Health System ', 'CustomerSiteId'])), aggregate(Prevalence~YearWeek+ShortName, FUN=mean))
+  p.PercentDetectionTrend_Northwell <- ggplot(avg.prev.northwell[with(avg.prev.northwell, order(ShortName, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,1), labels=c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', y='Detection (%)', x='Date')
 }
 
 # PRINT OUT ALL THE FIGURES
