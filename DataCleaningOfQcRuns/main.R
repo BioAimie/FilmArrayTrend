@@ -11,6 +11,8 @@ library(gridExtra)
 library(scales)
 library(gtable)
 require(dateManip)
+library(dplyr)
+library(tidyr)
 
 # load custom functions
 source('~/WebHub/AnalyticsWebHub/Rfunctions/createPaletteOfVariableLength.R')
@@ -51,7 +53,7 @@ runs.df[is.na(runs.df$Positives),'Positives'] <- 0
 # do some work to determine the dates of arival of instruments at a site, including rearrival after a service event
 serials <- unique(runs.df$Instrument)[order(unique(runs.df$Instrument))]
 inst.arrival.marked <- c()
-for(i in 294:length(serials)) {
+for(i in 1:length(serials)) {
   
   print(serials[i])
   inst.ship.dates <- shipments.df[shipments.df$SerialNo==serials[i], ][order(shipments.df[shipments.df$SerialNo==serials[i], 'Date']), ]
@@ -108,22 +110,44 @@ for(i in 294:length(serials)) {
 
 inst.arrival.marked$DaysSinceArrival <- with(inst.arrival.marked, as.numeric(Date - ArrivalDate))
 
+
+
+
+
 # identify runs as being Maine Molecular if they meet a certain criteria
-mm.assays <- unique(mm.df[mm.df$ResultType=='Organism',c('RunDataId','AssayName')])
+mm.assays <- unique(mm.df[mm.df$ResultType=='Organism', c('RunDataId','AssayName')])
 mm.assays <- mm.assays[with(mm.assays, order(RunDataId, AssayName)), ]
 mm.assays.combo <- do.call(rbind, lapply(1:length(unique(mm.assays$RunDataId)), function(x) data.frame(RunDataId = unique(mm.assays$RunDataId)[x], AssayCombo = paste(as.character(mm.assays[mm.assays$RunDataId==unique(mm.assays$RunDataId)[x], 'AssayName']), collapse=', '))))
 # since some might have false negatives, check for runs that match the signiture of Maine Molecular with a few missing
 m.211 <- c('Adeno','Adeno2','Entero1','Entero2','FluA-H1-2009','FluA-H1-pan','FluA-H3','FluA-pan2','hMPV','HRV1','HRV2','HRV3','HRV4','PIV1','PIV4')
 m.211.combos <- c(generateCombos(m.211, 11, FALSE), generateCombos(m.211, 12, FALSE), generateCombos(m.211, 13, FALSE), generateCombos(m.211, 14, FALSE), generateCombos(m.211, 15, FALSE))
 m.211.combos <- do.call(rbind, lapply(1:length(m.211.combos), function(x) data.frame(PossibleCombo = paste(m.211.combos[[x]], collapse=', '))))
-
-# Figure out how to do this later...
-do.call(rbind, lapply(1:length(m.211.combos$PossibleCombo), function(x) data.frame(mm.assays.combo[grep(as.character(m.211.combos$PossibleCombo[x]), mm.assays.combo$AssayCombo), ])))
-
-
+m.211.runs <- do.call(rbind, lapply(1:length(m.211.combos$PossibleCombo), function(x) data.frame(mm.assays.combo[grep(m.211.combos[x,'PossibleCombo'], mm.assays.combo[, 'AssayCombo']), ])))
+m.211.runs$Key <- 'M211v1.1'
+m.211.runs.distinct <- unique(m.211.runs)
 m.212 <- c('Bper','CoV-229E','CoV-HKU1','CoV-NL63','CoV-OC43','Cpne','FluA-H1-pan','FluA-pan1','FluB','Mpne','PIV2','PIV3','RSV')
 m.212.combos <- c(generateCombos(m.212, 9, FALSE), generateCombos(m.212, 10, FALSE), generateCombos(m.212, 11, FALSE), generateCombos(m.212, 12, FALSE), generateCombos(m.212, 13, FALSE))
 m.212.combos <- do.call(rbind, lapply(1:length(m.212.combos), function(x) data.frame(PossibleCombo = paste(m.212.combos[[x]], collapse=', '))))
+m.212.runs <- do.call(rbind, lapply(1:length(m.212.combos$PossibleCombo), function(x) data.frame(mm.assays.combo[grep(m.212.combos[x,'PossibleCombo'], mm.assays.combo[, 'AssayCombo']), ])))
+m.212.runs$Key <- 'M212v1.1'
+m.212.runs.distinct <- unique(m.212.runs)
+mm.runs.distinct <- rbind(m.211.runs.distinct, m.212.runs.distinct)
+# in the data frame of possible runs that are Maine Molecular with false negatives, join these onto a data frame that would be the result if all the assays were positive
+mm.qc.runs <- merge(mm.df, mm.runs.distinct[,c('RunDataId','Key')], by='RunDataId')
+mm.qc.cps.agg <- do.call(rbind, lapply(1:length(unique(mm.qc.runs$RunDataId)), function(x) do.call(rbind, lapply(1:length(unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])), function(y) data.frame(RunDataId = unique(mm.qc.runs$RunDataId)[x], Mix = unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x], 'Key']), AssayName = unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])[y], Cps = paste(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x] & mm.qc.runs$AssayName==unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])[y], 'Cp'], collapse=', '))))))
+mm.qc.cps.211 <- mm.qc.cps.agg[mm.qc.cps.agg$Mix=='M211v1.1', ]
+mm.qc.cps.211.base <- do.call(rbind, lapply(1:length(unique(mm.qc.cps.211$RunDataId)), function(x) data.frame(RunDataId = unique(mm.qc.cps.211$RunDataId)[x], Mix = 'M211v1.1', AssayName = c(m.211, 'yeastRNA'), Cps = NA)))
+mm.qc.cps.211 <- merge(mm.qc.cps.211.base, mm.qc.cps.211, by=c('RunDataId','Mix','AssayName'), all.x=TRUE)
+mm.qc.cps.211[!(is.na(mm.qc.cps.211$Cps.y)), 'Cps'] <- as.character(mm.qc.cps.211[!(is.na(mm.qc.cps.211$Cps.y)), 'Cps.y'])
+mm.qc.cps.211[is.na(mm.qc.cps.211$Cps.y), 'Cps'] <- 'SuspectedFalseNegative'
+mm.qc.cps.212 <- mm.qc.cps.agg[mm.qc.cps.agg$Mix=='M212v1.1', ]
+mm.qc.cps.212.base <- do.call(rbind, lapply(1:length(unique(mm.qc.cps.212$RunDataId)), function(x) data.frame(RunDataId = unique(mm.qc.cps.212$RunDataId)[x], Mix = 'M212v1.1', AssayName = c(m.212, 'yeastRNA'), Cps = NA)))
+mm.qc.cps.212 <- merge(mm.qc.cps.212.base, mm.qc.cps.212, by=c('RunDataId','Mix','AssayName'), all.x=TRUE)
+mm.qc.cps.212[!(is.na(mm.qc.cps.212$Cps.y)), 'Cps'] <- as.character(mm.qc.cps.212[!(is.na(mm.qc.cps.212$Cps.y)), 'Cps.y'])
+mm.qc.cps.212[is.na(mm.qc.cps.212$Cps.y), 'Cps'] <- 'SuspectedFalseNegative'
+mm.runs.cps <- rbind(mm.qc.cps.211[,c('RunDataId','Mix','AssayName','Cps')], mm.qc.cps.212[,c('RunDataId','Mix','AssayName','Cps')])
+write.csv(mm.runs.cps, 'PossibleMaineMolecularRunsWithFalseNegatives_TrendCpData.csv', row.names = FALSE)
+
 
 
 
