@@ -14,6 +14,7 @@ require(dateManip)
 
 # load custom functions
 source('~/WebHub/AnalyticsWebHub/Rfunctions/createPaletteOfVariableLength.R')
+source('../Rfunctions/generateCombosBetter.R')
 
 # read in the data from FilmArray Data Warehouse DB (ODBC object in Windows "FA_DW" with Lindsay's credentials)
 FADWcxn <- odbcConnect(dsn = 'FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD')
@@ -28,6 +29,9 @@ bugs.df <- bugs.df[bugs.df$BugPositive != 'Bocavirus',]
 queryVector <- readLines('../DataSources/ShortNames.sql')
 query <- paste(queryVector,collapse="\n")
 shortnames.df <- sqlQuery(FADWcxn,query)
+queryVector <- readLines('../DataSources/SQL/DataCleaningOfQcRuns/maineMolecular.sql')
+query <- paste(queryVector,collapse="\n")
+mm.df <- sqlQuery(FADWcxn,query)
 odbcClose(FADWcxn)
 
 # read in the data about dates of instrument shipments from PMS_PROD
@@ -39,56 +43,96 @@ shipments.df <- shipments.df[shipments.df$SerialNo %in% runs.df$Instrument, ]
 shipments.df$SerialNo <- as.character(shipments.df$SerialNo)
 odbcClose(PMScxn)
 
+# add the number of positive assays per run
+positives.per.run <- with(data.frame(bugs.df, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))
+runs.df <- merge(runs.df, positives.per.run, by='RunDataId', all.x=TRUE)
+runs.df[is.na(runs.df$Positives),'Positives'] <- 0
+
 # do some work to determine the dates of arival of instruments at a site, including rearrival after a service event
 serials <- unique(runs.df$Instrument)[order(unique(runs.df$Instrument))]
-inst.arrival.dates <- c()
-for(i in 1:length(serials)) {
+inst.arrival.marked <- c()
+for(i in 294:length(serials)) {
   
   print(serials[i])
-  inst.ship.dates <- shipments.df[shipments.df$SerialNo==serials[i], ]
-  inst.run.dates <- runs.df[runs.df$Instrument==serials[i], ]
+  inst.ship.dates <- shipments.df[shipments.df$SerialNo==serials[i], ][order(shipments.df[shipments.df$SerialNo==serials[i], 'Date']), ]
+  inst.run.dates <- runs.df[runs.df$Instrument==serials[i], ][order(runs.df[runs.df$Instrument==serials[i], 'Date']), ]
   
   inst.first.runs <- c()
   for(j in 1:length(inst.ship.dates$Date)) {
     
     inst.first.run <- min(inst.run.dates[inst.run.dates$Date >= inst.ship.dates$Date[j], 'Date'])
+    if(is.na(inst.first.run)) { break() }
     days.since.shipped <- as.numeric(inst.first.run - inst.ship.dates$Date[j])
     
     temp <- data.frame(Instrument = serials[i], ShipDate = inst.ship.dates$Date[j], FirstRunDate = inst.first.run, DaysSinceShipment = days.since.shipped)
     inst.first.runs <- rbind(inst.first.runs, temp)
   }
-  
+  print('made it through first j loop')
   inst.first.runs.agg <- with(inst.first.runs[!(is.infinite(inst.first.runs$DaysSinceShipment)), ], aggregate(DaysSinceShipment~FirstRunDate, FUN=min))
   temp <- merge(inst.first.runs, inst.first.runs.agg, by=c('FirstRunDate','DaysSinceShipment'))[,c('Instrument','ShipDate','FirstRunDate', 'DaysSinceShipment')]
+  temp <- unique(temp)
   
-  # now there is a data frame called temp that contains the shipment dates and run dates for each instrument... but I need to determine the days since arrival for
-  # each run
-  for(j in 1:length(temp$ShipDate)) {
+  # now there is a data frame called temp that contains the shipment dates and run dates for each instrument... but I need to determine the days since 
+  # arrival for each run, which will require determining the most recent arrival date
+  inst.run.dates <- inst.run.dates[with(inst.run.dates, order(Date)), ]
+  inst.runs.before <- inst.run.dates[inst.run.dates$Date < temp$FirstRunDate[1], ]
+  inst.runs.arrival <- inst.runs.before
+  if(nrow(inst.runs.arrival)!=0) { inst.runs.arrival$ArrivalDate <- as.Date('2000-01-01') }
+  
+  for(j in 1:length(temp$FirstRunDate)) {
     
-    inst.runs.keep <- inst.run.dates[inst.run.dates$Date > temp$ShipDate[j], ]
-    if(nrow(inst.runs.keep)==0) { break() }
+    inst.runs.temp <- inst.run.dates[inst.run.dates$Date >= temp$FirstRunDate[j], ]
+    if(nrow(inst.runs.temp)==0) { break() }
     
-    if(length(temp$ShipDate)==1) {
+    if(length(temp$FirstRunDate)==1) {
       
-      inst.runs.keep$ArrivalDate <- temp$FirstRunDate[j]
+      inst.runs.temp$ArrivalDate <- temp$FirstRunDate[j]
     } else {
       
-      
+      if(j < length(temp$FirstRunDate)) {
+        
+        inst.runs.temp <- inst.runs.temp[inst.runs.temp$Date >= temp$FirstRunDate[j] & inst.runs.temp$Date < temp$FirstRunDate[j+1], ]
+        inst.runs.temp$ArrivalDate <- temp$FirstRunDate[j]
+      } else {
+        
+        inst.runs.temp <- inst.runs.temp[inst.runs.temp$Date >= temp$FirstRunDate[j], ]
+        inst.runs.temp$ArrivalDate <- temp$FirstRunDate[j]
+      }
     }
+    
+    inst.runs.arrival <- rbind(inst.runs.arrival, inst.runs.temp)
   }
   
-  inst.arrival.dates <- rbind(inst.arrival.dates, temp)
+  inst.arrival.marked <- rbind(inst.arrival.marked, inst.runs.arrival)
 }
 
-inst.arrival.dates <- inst.arrival.dates[with(inst.arrival.dates, order(Instrument, ShipDate)), ]
+inst.arrival.marked$DaysSinceArrival <- with(inst.arrival.marked, as.numeric(Date - ArrivalDate))
+
+# identify runs as being Maine Molecular if they meet a certain criteria
+mm.assays <- unique(mm.df[mm.df$ResultType=='Organism',c('RunDataId','AssayName')])
+mm.assays <- mm.assays[with(mm.assays, order(RunDataId, AssayName)), ]
+mm.assays.combo <- do.call(rbind, lapply(1:length(unique(mm.assays$RunDataId)), function(x) data.frame(RunDataId = unique(mm.assays$RunDataId)[x], AssayCombo = paste(as.character(mm.assays[mm.assays$RunDataId==unique(mm.assays$RunDataId)[x], 'AssayName']), collapse=', '))))
+# since some might have false negatives, check for runs that match the signiture of Maine Molecular with a few missing
+m.211 <- c('Adeno','Adeno2','Entero1','Entero2','FluA-H1-2009','FluA-H1-pan','FluA-H3','FluA-pan2','hMPV','HRV1','HRV2','HRV3','HRV4','PIV1','PIV4')
+m.211.combos <- c(generateCombos(m.211, 11, FALSE), generateCombos(m.211, 12, FALSE), generateCombos(m.211, 13, FALSE), generateCombos(m.211, 14, FALSE), generateCombos(m.211, 15, FALSE))
+m.211.combos <- do.call(rbind, lapply(1:length(m.211.combos), function(x) data.frame(PossibleCombo = paste(m.211.combos[[x]], collapse=', '))))
+
+# Figure out how to do this later...
+do.call(rbind, lapply(1:length(m.211.combos$PossibleCombo), function(x) data.frame(mm.assays.combo[grep(as.character(m.211.combos$PossibleCombo[x]), mm.assays.combo$AssayCombo), ])))
+
+
+m.212 <- c('Bper','CoV-229E','CoV-HKU1','CoV-NL63','CoV-OC43','Cpne','FluA-H1-pan','FluA-pan1','FluB','Mpne','PIV2','PIV3','RSV')
+m.212.combos <- c(generateCombos(m.212, 9, FALSE), generateCombos(m.212, 10, FALSE), generateCombos(m.212, 11, FALSE), generateCombos(m.212, 12, FALSE), generateCombos(m.212, 13, FALSE))
+m.212.combos <- do.call(rbind, lapply(1:length(m.212.combos), function(x) data.frame(PossibleCombo = paste(m.212.combos[[x]], collapse=', '))))
+
+
+
+
 # hist(inst.arrival.dates$DaysSinceShipment)
 # there are several instruments where the days since it shipped to when the first run occurred are > 30, which is unexpected...
 # it looks like this could be due to the instrument shipping and running for some time at the institution prior to Trend exports
 # to figure out what the "correct" number of days should be to consider that this is happening, try to see the distribution of QC runs
 # of omega at the institutions
-positives.per.run <- with(data.frame(bugs.df, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))
-runs.df <- merge(runs.df, positives.per.run, by='RunDataId', all.x=TRUE)
-runs.df[is.na(runs.df$Positives),'Positives'] <- 0
 inst.arrival.dates.trim <- inst.arrival.dates[inst.arrival.dates$DaysSinceShipment < 30, ]
 runs.arrivals.marked <- merge(runs.df, inst.arrival.dates.trim, by.x=c('Instrument','Date'), by.y=c('Instrument','FirstRunDate'), all.x=TRUE)
 serials.trim <- as.character(unique(runs.arrivals.marked$Instrument))
