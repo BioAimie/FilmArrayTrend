@@ -162,9 +162,9 @@ for (i in 1:length(sites)) {
     temp <- data.frame(CustomerSiteId = sites[i], Seq = j, TestStartDate = site.test[site.test$Obs==min(site.test$Obs), 'Date'],
                        TrainNoise = train.noise, TestNoise = test.noise, PCAs = pca.count, TrainDaysMean = train.days.mean,
                        TrainDaysMedian = train.days.median, TestDaysMean = test.days.mean, TestDaysMedian = test.days.median)
-    temp$Score <- temp$TestNoise/temp$TrainNoise*pca.count
+    temp$Score <- with(temp, ifelse(TrainNoise > 0, TestNoise/TrainNoise*pca.count, TestNoise*pca.count))
     site.df <- rbind(site.df, temp)
-  } 
+  }
 
   print(Sys.time() - site.start.time)
   scored.df <- rbind(scored.df, site.df)
@@ -172,8 +172,10 @@ for (i in 1:length(sites)) {
 
 # ATTEMPT TO DO SOME SORT OF ROLLING SUM OF THE SCORE AT A SITE... THIS SHOULD HELP IDENTIFY PERIODS WHERE SCORES ARE
 # SUSTAINED AT A HIGHER LEVEL
-a <- scored.df[scored.df$CustomerSiteId==2, ]
+scored.df[is.na(scored.df$Score), 'Score']  <- scored.df[is.na(scored.df$Score), 'TestNoise']*scored.df[is.na(scored.df$Score), 'PCAs']
+a <- scored.df[scored.df$CustomerSiteId==13 &  scored.df$TestStartDate < as.Date('2014-06-01'), ]
 ggplot(a, aes(x=TestStartDate, y=Score)) + geom_point() + geom_line(aes(x=TestStartDate, y=mean(Score)+3*sd(Score)), data=a, color='red', lwd=1.25)
+
 
 # TWITTER ALGORITHM ... AUTOMATION OF ALGORITHM 1
 sequence.freq <- merge(sequence.freq, with(sequence.freq, aggregate(Count~Date, FUN=sum)), by='Date')

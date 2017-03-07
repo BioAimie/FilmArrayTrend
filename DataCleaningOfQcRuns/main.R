@@ -135,22 +135,24 @@ mm.runs.distinct <- rbind(m.211.runs.distinct, m.212.runs.distinct)
 # in the data frame of possible runs that are Maine Molecular with false negatives, join these onto a data frame that would be the result if all the assays were positive
 mm.qc.runs <- merge(mm.df, mm.runs.distinct[,c('RunDataId','Key')], by='RunDataId')
 mm.qc.cps.agg <- do.call(rbind, lapply(1:length(unique(mm.qc.runs$RunDataId)), function(x) do.call(rbind, lapply(1:length(unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])), function(y) data.frame(RunDataId = unique(mm.qc.runs$RunDataId)[x], Mix = unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x], 'Key']), AssayName = unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])[y], Cps = paste(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x] & mm.qc.runs$AssayName==unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])[y], 'Cp'], collapse=', '))))))
+  # do.call(rbind, lapply(1:length(unique(mm.qc.runs$RunDataId)), function(x) do.call(rbind, lapply(1:length(unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])), function(y) data.frame(RunDataId = unique(mm.qc.runs$RunDataId)[x], Mix = unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x], 'Key']), AssayName = unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])[y], Cps = paste(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x] & mm.qc.runs$AssayName==unique(mm.qc.runs[mm.qc.runs$RunDataId==unique(mm.qc.runs$RunDataId)[x],'AssayName'])[y], 'Cp'], collapse=', '))))))
 mm.qc.cps.211 <- mm.qc.cps.agg[mm.qc.cps.agg$Mix=='M211v1.1', ]
-mm.qc.cps.211.base <- do.call(rbind, lapply(1:length(unique(mm.qc.cps.211$RunDataId)), function(x) data.frame(RunDataId = unique(mm.qc.cps.211$RunDataId)[x], Mix = 'M211v1.1', AssayName = c(m.211, 'yeastRNA'), Cps = NA)))
+mm.qc.cps.211.base <- do.call(rbind, lapply(1:length(unique(mm.qc.cps.211$RunDataId)), function(x) data.frame(RunDataId = unique(mm.qc.cps.211$RunDataId)[x], LotNo = unique(mm.df[mm.df$RunDataId==unique(mm.qc.cps.211$RunDataId)[x],'LotNo']), SerialNo = unique(mm.df[mm.df$RunDataId==unique(mm.qc.cps.211$RunDataId)[x],'SerialNo']), Mix = 'M211v1.1', AssayName = c(m.211, 'yeastRNA'), Cps = NA)))
 mm.qc.cps.211 <- merge(mm.qc.cps.211.base, mm.qc.cps.211, by=c('RunDataId','Mix','AssayName'), all.x=TRUE)
 mm.qc.cps.211[!(is.na(mm.qc.cps.211$Cps.y)), 'Cps'] <- as.character(mm.qc.cps.211[!(is.na(mm.qc.cps.211$Cps.y)), 'Cps.y'])
 mm.qc.cps.211[is.na(mm.qc.cps.211$Cps.y), 'Cps'] <- 'SuspectedFalseNegative'
 mm.qc.cps.212 <- mm.qc.cps.agg[mm.qc.cps.agg$Mix=='M212v1.1', ]
-mm.qc.cps.212.base <- do.call(rbind, lapply(1:length(unique(mm.qc.cps.212$RunDataId)), function(x) data.frame(RunDataId = unique(mm.qc.cps.212$RunDataId)[x], Mix = 'M212v1.1', AssayName = c(m.212, 'yeastRNA'), Cps = NA)))
+mm.qc.cps.212.base <- do.call(rbind, lapply(1:length(unique(mm.qc.cps.212$RunDataId)), function(x) data.frame(RunDataId = unique(mm.qc.cps.212$RunDataId)[x], LotNo = unique(mm.df[mm.df$RunDataId==unique(mm.qc.cps.212$RunDataId)[x],'LotNo']), SerialNo = unique(mm.df[mm.df$RunDataId==unique(mm.qc.cps.212$RunDataId)[x],'SerialNo']), Mix = 'M212v1.1', AssayName = c(m.212, 'yeastRNA'), Cps = NA)))
 mm.qc.cps.212 <- merge(mm.qc.cps.212.base, mm.qc.cps.212, by=c('RunDataId','Mix','AssayName'), all.x=TRUE)
 mm.qc.cps.212[!(is.na(mm.qc.cps.212$Cps.y)), 'Cps'] <- as.character(mm.qc.cps.212[!(is.na(mm.qc.cps.212$Cps.y)), 'Cps.y'])
 mm.qc.cps.212[is.na(mm.qc.cps.212$Cps.y), 'Cps'] <- 'SuspectedFalseNegative'
-mm.runs.cps <- rbind(mm.qc.cps.211[,c('RunDataId','Mix','AssayName','Cps')], mm.qc.cps.212[,c('RunDataId','Mix','AssayName','Cps')])
+mm.runs.cps <- rbind(mm.qc.cps.211[,c('RunDataId','LotNo','SerialNo','Mix','AssayName','Cps')], mm.qc.cps.212[,c('RunDataId','LotNo','SerialNo','Mix','AssayName','Cps')])
+mm.runs.cps.avg <- with(mm.df, aggregate(Cp~RunDataId+AssayName, FUN=mean))
+mm.runs.cps <- merge(mm.runs.cps, mm.runs.cps.avg, by=c('RunDataId','AssayName'), all.x=TRUE)
+colnames(mm.runs.cps)[length(colnames(mm.runs.cps))] <- 'AverageCp'
+mm.runs.cps <- merge(mm.runs.cps, runs.df[,c('RunDataId','Date')], by='RunDataId')
+mm.runs.cps <- mm.runs.cps[with(mm.runs.cps, order(RunDataId, AssayName)), ]
 write.csv(mm.runs.cps, 'PossibleMaineMolecularRunsWithFalseNegatives_TrendCpData.csv', row.names = FALSE)
-
-
-
-
 
 # hist(inst.arrival.dates$DaysSinceShipment)
 # there are several instruments where the days since it shipped to when the first run occurred are > 30, which is unexpected...
