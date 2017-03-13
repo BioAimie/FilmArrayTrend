@@ -22,6 +22,8 @@ if(TRUE) {
   library(party)
   library(partykit)
   library(randomForest)
+  library(dplyr)
+  library(tidyr)
   require(dateManip)
   
   # load custom functions
@@ -344,14 +346,14 @@ if(TRUE) {
   # Make various paretos...
   prev.pareto.seasonal.all <- positives.count.seasonal.agg
   
-  # start with all data from summer 2013-present showing all organisms and then grouping by family.
+  # start with all data from summer 2013-present showing all organisms and then grouping by family
   prev.pareto.seasonal.all.nat <- with(prev.pareto.seasonal.all, aggregate(cbind(Runs, Positives)~ShortName+Code+CustomerSiteId, FUN=sum))
   prev.pareto.seasonal.all.nat$Prevalence <- with(prev.pareto.seasonal.all.nat, Positives/Runs)
   prev.pareto.seasonal.all.nat <- with(prev.pareto.seasonal.all.nat, aggregate(Prevalence~ShortName+Code, FUN=mean))
   prev.pareto.seasonal.all.nat.ind <- prev.pareto.seasonal.all.nat[!(prev.pareto.seasonal.all.nat$Code %in% c('v','w','x','y')), ]
   prev.pareto.seasonal.all.nat.fam <- prev.pareto.seasonal.all.nat[!(prev.pareto.seasonal.all.nat$Code %in% c('b','c','d','e','f','g','j','k','l','m','o','p','q','r','s')), ]
   label.order.seasonal.all <- prev.pareto.seasonal.all.nat[with(prev.pareto.seasonal.all.nat, order(Prevalence, decreasing = TRUE)), 'ShortName']
-  label.order.seasonal.all <- label.order.seasonal.all[c(1,2,3,8,16,18,19,4,9,11,21,24,5,10,14,17,20,6,7,12,13,15,22,23)]
+  label.order.seasonal.all <- label.order.seasonal.all[c(1,2,3,6,11,21,24,4,9,14,15,19,5,10,16,18,20,7,8,12,13,17,22,23)]
   prev.pareto.seasonal.all.nat$Name <- factor(prev.pareto.seasonal.all.nat$ShortName, levels = label.order.seasonal.all)
   label.order.season.ind <- prev.pareto.seasonal.all.nat.ind[with(prev.pareto.seasonal.all.nat.ind, order(Prevalence, decreasing = TRUE)), 'ShortName']
   prev.pareto.seasonal.all.nat.ind$Name <- factor(prev.pareto.seasonal.all.nat.ind$ShortName, levels = label.order.season.ind)
@@ -407,7 +409,7 @@ if(TRUE) {
   prev.pareto.side.by.side <- with(prev.pareto.side.by.side, aggregate(WeightedPrevalence~ShortName+Code, FUN=sum))
   colnames(prev.pareto.side.by.side) <- c('ShortName','Code','Prevalence')
   
-  ### THIS IS WHERE I STOPPED!!!! --- ALL PARETOS SHOULD BE REMADE AND WEIGHTED ---- THIS MEANS GIVING THEM NAMES AND PLOTTING!!! 
+  # ALL PARETOS SHOULD BE WEIGHTED BY POPULATION OF REGION 
   prev.pareto.seasonal.all.census <- with(prev.pareto.seasonal.all, aggregate(cbind(Runs, Positives)~CustomerSiteId+Code+ShortName, FUN=sum))
   prev.pareto.seasonal.all.census$Prevalence <- with(prev.pareto.seasonal.all.census, Positives/Runs)
   prev.pareto.seasonal.all.census <- merge(prev.pareto.seasonal.all.census, sitesByCensusRegions.etc[,c('CustomerSiteId','CensusRegionNational')], by='CustomerSiteId')
@@ -512,10 +514,10 @@ if(TRUE) {
   
   # BFDx - All fluAs and fluB percent detection
   bfdx.flu.reg <- with(prevalence.reg.count, aggregate(cbind(Runs, j, k, l, m, n)~YearWeek+Region+CustomerSiteId, FUN=sum))
-  bfdx.flu.reg$FluDetections <- with(bfdx.flu.reg, j+k+l+m+n+o)
+  bfdx.flu.reg$FluDetections <- with(bfdx.flu.reg, j+k+l+m+n)
 
   # CDC - Clinical Labs (only has data from 2015+... excludes public health lab data since I don't know how to add that in)
-  cdc.flu.reg <- read.csv('../DataSources/RegionalInfluenzaByType.csv', header=TRUE, sep=',')
+  cdc.flu.reg <- read.csv('../DataSources/RegionalInfluenzaByType_ClinicalLabs.csv', header=TRUE, sep=',')
   cdc.flu.reg <- data.frame(YearWeek = with(cdc.flu.reg, ifelse(WEEK < 10, paste(YEAR, WEEK, sep='-0'), paste(YEAR, WEEK, sep='-'))), Region = cdc.flu.reg$REGION, TotalPatients = cdc.flu.reg$TOTAL.SPECIMENS, TotalFluObservations = cdc.flu.reg$TOTAL.A + cdc.flu.reg$TOTAL.B)
   cdc.flu.reg <- do.call(rbind, lapply(1:length(unique(cdc.flu.reg$Region)), function(x) data.frame(YearWeek = cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'][2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1)], Region = unique(cdc.flu.reg$Region)[x], TotalPatients = sapply(2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1), function(y) sum(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'TotalPatients'][(y-1):(y+1)])), TotalFluObservations = sapply(2:(length(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'YearWeek'])-1), function(y) sum(cdc.flu.reg[cdc.flu.reg$Region == unique(cdc.flu.reg$Region)[x],'TotalFluObservations'][(y-1):(y+1)])))))
   
@@ -595,6 +597,8 @@ if(TRUE) {
   png('Figures/InfluenzaPrevalencePercentDetectionBurnAndILI.png', height=800, width=1400)
   grid.draw(fluTriple)
   dev.off()
+  
+  p.InfluezaPrevalencePercentDetectionNoILI <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
   
   # make time series percent detection by organism family with ILI and Normalized Utilization Overlays
   prevalence.nat.individual.wrap <- prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, YearWeek)), ]
@@ -1216,12 +1220,120 @@ if(TRUE) {
   #   grid.draw(overlay.negatives)
   #   dev.off()
   # }
+  
+  
+  
+  # Mark and Lindsay would like to see charts that show prevalence of Flu A by subtypes vs. FilmArray percent detection as well as FluB
+  public.health.flu <- read.csv('../DataSources/RegionalInfluenzaBySubType_PublicHealthLabs.csv', header=TRUE, sep=',')
+  public.health.flu <- data.frame(Region = public.health.flu$REGION, YearWeek = ifelse(public.health.flu$WEEK < 10, paste(public.health.flu$YEAR, public.health.flu$WEEK, sep='-0'), paste(public.health.flu$YEAR, public.health.flu$WEEK, sep='-')), TotalPatients = public.health.flu$TOTAL.SPECIMENS, FluAH109 = public.health.flu$A..2009.H1N1., FlAH3 = public.health.flu$A..H3., FluANoSubtype = public.health.flu$A..Subtyping.not.Performed., FluB = public.health.flu$B)
+  prev.reg.wrap <- merge(prevalence.reg.wrap, unique(runs.reg[,c('CustomerSiteId','Region')]), by='CustomerSiteId')
+  public.health.flu <- public.health.flu[public.health.flu$Region %in% unique(prev.reg.wrap$Region), ]
+  regions <- as.character(unique(public.health.flu$Region))
+  yearweeks <- as.character(unique(public.health.flu$YearWeek))
+  public.health.flu <- do.call(rbind, lapply(1:length(regions), function(x) do.call(rbind, lapply(2:(length(yearweeks)-1), function(y) data.frame(YearWeek = yearweeks[y], Region = regions[x], TotalPatients = sum(filter(public.health.flu, Region==regions[x])[, 'TotalPatients'][(y-1):(y+1)]), FluAH109 = sum(filter(public.health.flu, Region==regions[x])[, 'FluAH109'][(y-1):(y+1)]), FlAH3 = sum(filter(public.health.flu, Region==regions[x])[, 'FlAH3'][(y-1):(y+1)]), FluANoSubtype = sum(filter(public.health.flu, Region==regions[x])[, 'FluANoSubtype'][(y-1):(y+1)]), FluB = sum(filter(public.health.flu, Region==regions[x])[, 'FluB'][(y-1):(y+1)]))))))
+  
+  prev.reg.ph.flu <- merge(prev.reg.wrap, public.health.flu, by=c('YearWeek','Region'))
+  prev.reg.ph.flu$FluAH109 <- with(prev.reg.ph.flu, FluAH109/TotalPatients)
+  prev.reg.ph.flu$FlAH3 <- with(prev.reg.ph.flu, FlAH3/TotalPatients)
+  prev.reg.ph.flu$FluANoSubtype <- with(prev.reg.ph.flu, FluANoSubtype/TotalPatients)
+  prev.reg.ph.flu$FluB <- with(prev.reg.ph.flu, FluB/TotalPatients)
+  prev.nat.ph.flu <- with(prev.reg.ph.flu, aggregate(cbind(Prevalence, Rate, FluAH109, FlAH3, FluANoSubtype, FluB)~YearWeek+ShortName, FUN=mean))
+  
+  # FLU A H1-2009
+  p1 <- ggplot(subset(prev.nat.ph.flu, ShortName=='FluA H1-09'), aes(x=YearWeek, y=4*Prevalence, group='FilmArray Percent Detection of FluA H1-09', color='FilmArray Percent Detection of FluA H1-09')) + geom_line(lwd=2) + geom_line(aes(x=YearWeek, y=FluAH109, group='CDC Reported Rate of FluA H1-09', color='CDC Reported Rate of FluA H1-09'), data=prev.nat.ph.flu, lwd=2) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(limits=c(0,0.6), breaks=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c('10','20','30','40','50','60')) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='CDC Reported Detection (%)', x='Date')
+  p2 <- ggplot(subset(prev.nat.ph.flu, ShortName=='FluA H1-09'), aes(x=YearWeek, y=4*Prevalence, group=1), color='transparent') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.6), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c('0','2.5','5.0','7.5','10.0','12.5','15.0')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%)')
+  # Get the ggplot grobs
+  g1 <- ggplotGrob(p1)
+  g2 <- ggplotGrob(p2)
+  pp <- c(subset(g1$layout, name == "panel", se = t:r))
+  g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+  index <- which(g2$layout$name == "ylab-l")
+  ylab <- g2$grobs[[index]]           
+  ylab <- hinvert_title_grob(ylab)
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+  index <- which(g2$layout$name == "axis-l")
+  yaxis <- g2$grobs[[index]] 
+  yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+  ticks <- yaxis$children[[2]]
+  ticks$widths <- rev(ticks$widths)
+  ticks$grobs <- rev(ticks$grobs)
+  ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+  ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+  yaxis$children[[2]] <- ticks
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  # make the dual axes look nice
+  overlay.fluAH109 <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+  grid.newpage()
+  png('Figures/FluAH109PercentDetectionWithOverlay.png', height=800, width=1400)
+  grid.draw(overlay.fluAH109)
+  dev.off()
+  
+  # FLU A H3
+  p1 <- ggplot(subset(prev.nat.ph.flu, ShortName=='FluA H3'), aes(x=YearWeek, y=4*Prevalence, group='FilmArray Percent Detection of FluA H3', color='FilmArray Percent Detection of FluA H3')) + geom_line(lwd=2) + geom_line(aes(x=YearWeek, y=FlAH3, group='CDC Reported Rate of FluA H3', color='CDC Reported Rate of FluA H3'), data=prev.nat.ph.flu, lwd=2) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(limits=c(0,0.6), breaks=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c('10','20','30','40','50','60')) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='CDC Reported Detection (%)', x='Date')
+  p2 <- ggplot(subset(prev.nat.ph.flu, ShortName=='FluA H3'), aes(x=YearWeek, y=4*Prevalence, group=1), color='transparent') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.6), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c('0','2.5','5.0','7.5','10.0','12.5','15.0')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%)')
+  # Get the ggplot grobs
+  g1 <- ggplotGrob(p1)
+  g2 <- ggplotGrob(p2)
+  pp <- c(subset(g1$layout, name == "panel", se = t:r))
+  g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+  index <- which(g2$layout$name == "ylab-l")
+  ylab <- g2$grobs[[index]]           
+  ylab <- hinvert_title_grob(ylab)
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+  index <- which(g2$layout$name == "axis-l")
+  yaxis <- g2$grobs[[index]] 
+  yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+  ticks <- yaxis$children[[2]]
+  ticks$widths <- rev(ticks$widths)
+  ticks$grobs <- rev(ticks$grobs)
+  ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+  ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+  yaxis$children[[2]] <- ticks
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  # make the dual axes look nice
+  overlay.fluAH3 <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+  grid.newpage()
+  png('Figures/FluAH3PercentDetectionWithOverlay.png', height=800, width=1400)
+  grid.draw(overlay.fluAH3)
+  dev.off()
+  
+  # FLU B
+  p1 <- ggplot(subset(prev.nat.ph.flu, ShortName=='FluB'), aes(x=YearWeek, y=Prevalence, group='FilmArray Percent Detection of FluB', color='FilmArray Percent Detection of FluB')) + geom_line(lwd=2) + geom_line(aes(x=YearWeek, y=FluB, group='CDC Reported Rate of FluB', color='CDC Reported Rate of FluB'), data=prev.nat.ph.flu, lwd=2) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(limits=c(0,0.1), breaks=c(0.0, 0.02, 0.04, 0.06, 0.08, 0.1), labels=c('0','2','4','6','8','10')) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='CDC Reported Detection (%)', x='Date')
+  p2 <- ggplot(subset(prev.nat.ph.flu, ShortName=='FluB'), aes(x=YearWeek, y=Prevalence, group=1), color='transparent') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.1), breaks=c(0, 0.02, 0.04, 0.06, 0.08, 0.1), labels=c('0','2','4','6','8','10')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%)')
+  # Get the ggplot grobs
+  g1 <- ggplotGrob(p1)
+  g2 <- ggplotGrob(p2)
+  pp <- c(subset(g1$layout, name == "panel", se = t:r))
+  g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+  index <- which(g2$layout$name == "ylab-l")
+  ylab <- g2$grobs[[index]]           
+  ylab <- hinvert_title_grob(ylab)
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+  index <- which(g2$layout$name == "axis-l")
+  yaxis <- g2$grobs[[index]] 
+  yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+  ticks <- yaxis$children[[2]]
+  ticks$widths <- rev(ticks$widths)
+  ticks$grobs <- rev(ticks$grobs)
+  ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+  ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+  yaxis$children[[2]] <- ticks
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  # make the dual axes look nice
+  overlay.fluB <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+  grid.newpage()
+  png('Figures/FluBPercentDetectionWithOverlay.png', height=800, width=1400)
+  grid.draw(overlay.fluB)
+  dev.off()
 }
 
 # CO-DETECTIONS
 if(TRUE) {
   
-  # create a dual detection chart that will show all organisms broken out in order of highest -> lowest precent detection over all the data
+  # create a co-detection chart that will show all organisms broken out in order of highest -> lowest precent detection over all the data
   # with an overlay of the percent dual detection of that organism
   run.positive.count <- with(data.frame(merge(runs.reg.date[runs.reg.date$YearWeek >= '2013-26' & runs.reg.date$CustomerSiteId %in% sites, c('RunDataId','Year')], bugs.df, by='RunDataId'), Record=1), aggregate(Record~RunDataId, FUN=sum))
   dual.detection.runs <- data.frame(bugs.df[bugs.df$RunDataId %in% run.positive.count[run.positive.count$Record>1, 'RunDataId'], ], Record = 1)
@@ -1234,10 +1346,15 @@ if(TRUE) {
   prev.pareto.all.duals[is.na(prev.pareto.all.duals$PercentOfDuals),'PercentOfDuals'] <- 0
   prev.pareto.all.duals$Name <- factor(prev.pareto.all.duals$ShortName, levels=prev.pareto.all.duals[with(prev.pareto.all.duals, order(Prevalence, decreasing = TRUE)),'ShortName'])
   length(unique(run.positive.count[run.positive.count$Record > 1, 'RunDataId']))/total.runs
+  coParticipation.DetectionCount <- merge(with(data.frame(bugs.df[bugs.df$RunDataId %in% run.positive.count$RunDataId, ], Positives=1), aggregate(Positives~BugPositive, FUN=sum)), with(data.frame(bugs.df[bugs.df$RunDataId %in% dual.detection.runs$RunDataId, ], CoDetections=1), aggregate(CoDetections~BugPositive, FUN=sum)), by='BugPositive')
+  coParticipation.DetectionCount$PercentOfDetectionsWithACo <- with(coParticipation.DetectionCount, CoDetections/Positives)
+  prev.pareto.all.duals <- merge(prev.pareto.all.duals, coParticipation.DetectionCount, by='BugPositive')
   
   # make a nifty dual-axis chart
-  p1 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=Prevalence)) + geom_bar(stat='identity') + scale_fill_manual(values='grey', guide=FALSE) + scale_y_continuous(limits=c(0,0.3), breaks=c(0,0.5,0.10,0.15,0.20,0.25,0.30), labels=c('0','5','10','15','20','25','30')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Detection (%)', x='')
-  p2 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=5*PercentOfDuals, color='Percent of Dual Detections')) + geom_point(size=4) + scale_color_manual(values='black', guide=FALSE) + scale_y_continuous(limits=c(0,5*max(prev.pareto.all.duals$PercentOfDuals)), breaks=c(0, 0.05, 0.1, 0.15,0.2,0.25), labels=c('0','1','2','3','4','5')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank()) + labs(y='Co-Detection Occurrence (%)')
+  # p1 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=Prevalence)) + geom_bar(stat='identity') + scale_fill_manual(values='grey', guide=FALSE) + scale_y_continuous(limits=c(0,0.3), breaks=c(0,0.05,0.10,0.15,0.20,0.25,0.30), labels=c('0','5','10','15','20','25','30')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Detection (%)', x='')
+  # p2 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=5*PercentOfDuals, color='Percent of Dual Detections')) + geom_point(size=4) + scale_color_manual(values='black', guide=FALSE) + scale_y_continuous(limits=c(0,5*max(prev.pareto.all.duals$PercentOfDuals)), breaks=c(0, 0.05, 0.1, 0.15,0.2,0.25), labels=c('0','1','2','3','4','5')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank()) + labs(y='Co-Detection Occurrence (%)')
+  p1 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=Prevalence, fill='Percent Detection')) + geom_bar(stat='identity') + scale_fill_manual(values=c('grey','transparent'), guide=FALSE) + geom_point(aes(x=Name, y=PercentOfDetectionsWithACo/4, color='Percent of Detections with a Co-Detection Present'), data=prev.pareto.all.duals, size=4, color='black') + scale_y_continuous(limits=c(0,0.25), breaks=c(0,0.05,0.10,0.15,0.20,0.25), labels=c('0','5','10','15','20','25')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Detection (%)', x='')
+  p2 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=PercentOfDetectionsWithACo/4)) + geom_point() + scale_y_continuous(limits=c(0,0.25), breaks=c(0,0.05,0.1,0.15,0.2,0.25), labels=c('0','20','40','60','80','100')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank()) + labs(y='Detections with a Co-Detection (%)')
   
   # Get the ggplot grobs
   g1 <- ggplotGrob(p1)
@@ -1287,13 +1404,24 @@ if(TRUE) {
   
   # Put the transformed yaxis on the right side of g1
   g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
-  paretoCoDets <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+  paretoCoDets2 <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
   
   # Draw it
   grid.newpage()
-  png('Figures/PercentDetectionParetoWithCoDetections.png', height=800, width=1400)
-  grid.draw(paretoCoDets)
+  png('Figures/PercentDetectionParetoWithCoDetections2.png', height=800, width=1400)
+  grid.draw(paretoCoDets2)
   dev.off()
+  
+  coParticipation.DetectionCount.fillByCount <- data.frame(BugPositive = coParticipation.DetectionCount$BugPositive, Key = 'Single Detection', Positives = coParticipation.DetectionCount$Positives, Detections = coParticipation.DetectionCount$Positives - coParticipation.DetectionCount$CoDetections) 
+  coParticipation.DetectionCount.fillByCount <- merge(coParticipation.DetectionCount.fillByCount, shortnames.df, by.x='BugPositive', by.y='Organism')
+  coParticipation.DetectionCount.fillByCount$Name <- factor(coParticipation.DetectionCount.fillByCount$ShortName, levels=coParticipation.DetectionCount.fillByCount[with(coParticipation.DetectionCount.fillByCount, order(Positives, decreasing = TRUE)), 'ShortName'])
+  coParticipation.DetectionCount.fillByCount.2 <- merge(data.frame(BugPositive = coParticipation.DetectionCount$BugPositive, Key = 'Co-Detection', Positives = coParticipation.DetectionCount$Positives, Detections = coParticipation.DetectionCount$CoDetections), shortnames.df, by.x='BugPositive', by.y='Organism')
+  coParticipation.DetectionCount.fillByCount.2$Name <- factor(coParticipation.DetectionCount.fillByCount.2$ShortName, levels = levels(coParticipation.DetectionCount.fillByCount$Name))
+  coParticipation.DetectionCount.fillByCount <- rbind(coParticipation.DetectionCount.fillByCount, coParticipation.DetectionCount.fillByCount.2)
+  rm(coParticipation.DetectionCount.fillByCount.2)
+  coParticipation.DetectionCount.fillByCount$Percentage <- coParticipation.DetectionCount.fillByCount$Detections/total.runs
+  p.SingleAndCoDetectionPercentOfRuns <- ggplot(coParticipation.DetectionCount.fillByCount, aes(x=Name, y=Percentage, fill=Key)) + geom_bar(stat='identity') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(coParticipation.DetectionCount.fillByCount, 'Key'), name='') + scale_y_continuous(limits=c(0,0.25), breaks=c(0,0.05,0.1,0.15,0.2,0.25,0.3), labels=c('0','5','10','15','20','25','30')) + labs(x='', y='Detection (%)')
+  p.SingleAndCoDetectionPercentOfRuns_NoHRV <- ggplot(subset(coParticipation.DetectionCount.fillByCount, ShortName!='HRV/EV'), aes(x=Name, y=Percentage, fill=Key)) + geom_bar(stat='identity') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(coParticipation.DetectionCount.fillByCount, 'Key'), name='') + scale_y_continuous(limits=c(0,0.10), breaks=c(0,0.025,0.05,0.075,0.10), labels=c('0.0','2.5','5.0','7.5','10.0')) + labs(x='', y='Detection (%)')
 }
 
 # CORRELATION OF SUMMED PERCENT DETECTION WITH ILI AND TURN
@@ -1328,7 +1456,8 @@ if(TRUE) {
                                  BestR2ComboTURN = as.character(single.var.cor[single.var.cor$R2TURN==max(single.var.cor$R2TURN), 'Name']),
                                  BestR2TURN  = max(single.var.cor$R2TURN)
                                  )
-  for(i in 2:length(cor.vars)) {
+  # STOPPED HERE... SO I NEED TO RESTART HERE SO THAT I CAN MAKE THE CHARTS ASSOCIATED WITH ITEM 5 ON THE TRELLO CARD
+  for(i in 2:length(cor.vars)) { 
     
     combos <- generateCombos(cor.vars, i, FALSE)
     var.cor <- c()
@@ -1355,11 +1484,11 @@ if(TRUE) {
   
   # THE BEST COMBINATION OF N ORGANISMS IN TERMS OF CORRELATION AND R2 HAVE BEEN DETERMINED, NOW FIGURE OUT WHICH N-COMBO PROVIDES THE BEST OVERALL
   multiple.var.cor[multiple.var.cor$BestCorILI==max(multiple.var.cor$BestCorILI), c('VariableCount','BestCorComboILI','BestCorILI')]
-  multiple.var.cor[multiple.var.cor$BestCorTURN==max(multiple.var.cor$BestCorTURN), c('VariableCount','BestCorComboTURN','BestCorTURN')]
-  multiple.var.cor[multiple.var.cor$BestR2ILI==max(multiple.var.cor$BestR2ILI), c('VariableCount','BestR2ComboILI','BestR2ILI')]
-  multiple.var.cor[multiple.var.cor$BestR2TURN==max(multiple.var.cor$BestR2TURN), c('VariableCount','BestR2ComboTURN','BestR2TURN')]
-  write.csv(multiple.var.cor, 'Figures/summedPrevalenceCorrelation.csv', row.names = FALSE)
-  
+  # multiple.var.cor[multiple.var.cor$BestCorTURN==max(multiple.var.cor$BestCorTURN), c('VariableCount','BestCorComboTURN','BestCorTURN')]
+  # multiple.var.cor[multiple.var.cor$BestR2ILI==max(multiple.var.cor$BestR2ILI), c('VariableCount','BestR2ComboILI','BestR2ILI')]
+  # multiple.var.cor[multiple.var.cor$BestR2TURN==max(multiple.var.cor$BestR2TURN), c('VariableCount','BestR2ComboTURN','BestR2TURN')]
+  # write.csv(multiple.var.cor, 'Figures/summedPrevalenceCorrelation.csv', row.names = FALSE)
+  # 
   # now re-do the same sort of thing, but just do it with a count of positives correlated with the total run count (days don't matter b/c it would be runs/day and positives/day)
   # first, lump together Flu A
   cor.count.fluA <- positives.count.all[grep('Influenza A', positives.count.all$Bug), ]
@@ -1402,8 +1531,74 @@ if(TRUE) {
   }
 
   # evaluate the results
+  multiple.var.cor[multiple.var.cor$BestCorILI==max(multiple.var.cor$BestCorILI), c('VariableCount','BestCorComboILI','BestCorILI')]
   multiple.var.cor.count[multiple.var.cor.count$BestCor==max(multiple.var.cor.count$BestCor), c('VariableCount','BestCorCombo','BestCor')]
-  multiple.var.cor.count[multiple.var.cor.count$BestR2==max(multiple.var.cor.count$BestR2), c('VariableCount','BestR2Combo','BestR2')]
+  # multiple.var.cor.count[multiple.var.cor.count$BestR2==max(multiple.var.cor.count$BestR2), c('VariableCount','BestR2Combo','BestR2')]
+  
+  # MAKE A CHART OF TUR TO PLACE UNDER TURN
+  tur.nat <- with(with(positives.count.all, aggregate(Runs~YearWeek+CustomerSiteId, FUN=mean)), aggregate(Runs~YearWeek, FUN=sum)) 
+  tur.positives.nat <- merge(tur.nat, with(positives.count.all, aggregate(Positives~YearWeek+Bug, FUN=sum)), by='YearWeek')
+  tur.positives.nat <- merge(tur.positives.nat, shortnames.df, by.x='Bug', by.y='Organism')
+  p.DetectionsWithTUR_NoYAxis <- ggplot(subset(tur.positives.nat[with(tur.positives.nat, order(ShortName, decreasing=TRUE)),], YearWeek >= '2013-26'), aes(x=YearWeek)) + geom_area(aes(y=Positives, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + geom_line(aes(x=YearWeek, y=Runs, group='TUR'), data=subset(tur.positives.nat[with(tur.positives.nat, order(ShortName, decreasing=TRUE)),], YearWeek >= '2013-26'), size=1.5, color='black') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank(), axis.ticks.y=element_blank(), axis.text.y=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', y='Test Utilization, Detections', x='Date')
+  p.TUR_NoYAxis <- ggplot(aes(x=YearWeek, y=Runs, group='TUR'), data=subset(tur.positives.nat[with(tur.positives.nat, order(ShortName, decreasing=TRUE)),], YearWeek >= '2013-26')) + geom_line(size=1.5, color='black') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank(), axis.ticks.y=element_blank(), axis.text.y=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', y='Test Utilization', x='Date')
+
+  # MAKE SOME CHARTS WITH TUR AND ILL WITH CORRELATION VARIABLES - see the # evaluate the results above...
+  p1 <- ggplot(cor.prev[cor.prev$Name %in% strsplit(as.character(multiple.var.cor[multiple.var.cor$BestCorILI==max(multiple.var.cor$BestCorILI), 'BestCorComboILI']), split = ', ')[[1]], ], aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=Name, group=Name), stat='identity', position='stack') + scale_fill_manual(values=createPaletteOfVariableLength(cor.prev, 'Name'), name='') + geom_line(aes(x=YearWeek, y=6*Rate, group='ILI', color='ILI'), data=cor.prev, size=1.5, color='black') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', y='FilmArray Percent Detection (%)', x='Date') + scale_y_continuous(limits=c(0, 0.3), breaks=c(0.0,0.05,0.1,0.15,0.2,0.25,0.3), labels=c('0','5','10','15','20','25','30'))
+  p2 <- ggplot(cor.prev) + theme(panel.grid=element_blank(), plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='transparent'), axis.ticks.x=element_blank()) + labs(title='', y='ILI (%)', x='Date') + scale_y_continuous(limits=c(0, 0.3), breaks=c(0.0,0.05,0.1,0.15,0.2,0.25,0.3), labels=c('0.00','0.83','1.67','2.50','3.33','4.17','5.00'))
+  
+  # Get the ggplot grobs
+  g1 <- ggplotGrob(p1)
+  g2 <- ggplotGrob(p2)
+  
+  # Get the location of the plot panel in g1.
+  # These are used later when transformed elements of g2 are put back into g1
+  pp <- c(subset(g1$layout, name == "panel", se = t:r))
+  
+  # Overlap panel for second plot on that of the first plot
+  g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+  
+  # Get the y axis title from g2
+  index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
+  ylab <- g2$grobs[[index]]                # Extract that grob
+  ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
+  
+  # Put the transformed label on the right side of g1
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+  
+  # Get the y axis from g2 (axis line, tick marks, and tick mark labels)
+  index <- which(g2$layout$name == "axis-l")  # Which grob
+  yaxis <- g2$grobs[[index]]                  # Extract the grob
+ 
+  # First, move the axis line to the left
+  yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+  
+  # Second, swap tick marks and tick mark labels
+  ticks <- yaxis$children[[2]]
+  ticks$widths <- rev(ticks$widths)
+  ticks$grobs <- rev(ticks$grobs)
+  
+  # Third, move the tick marks
+  ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+  
+  # Fourth, swap margins and fix justifications for the tick mark labels
+  ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+  
+  # Fifth, put ticks back into yaxis
+  yaxis$children[[2]] <- ticks
+  
+  # Put the transformed yaxis on the right side of g1
+  g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+  iliBestCor <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+  
+  # Draw it
+  grid.newpage()
+  png('Figures/BestCorrelatedSummedPrevalenceWithILI.png', height=800, width=1400)
+  grid.draw(iliBestCor)
+  dev.off()
+  
+  # Same thing, but with TUR... So which summed prevalence has best correlation with TUR
+  p.BestCorrelatedSummedPrevalenceWithTUR <- ggplot(cor.count.agg[cor.count.agg$ShortName %in% strsplit(as.character(multiple.var.cor.count[multiple.var.cor.count$BestCor==max(multiple.var.cor.count$BestCor), 'BestCorCombo']), split = ', ')[[1]], ], aes(x=YearWeek)) + geom_area(aes(y=Positives, fill=ShortName, group=ShortName), stat='identity', position='stack') + scale_fill_manual(values=createPaletteOfVariableLength(cor.count.agg, 'ShortName'), name='') + geom_line(aes(x=YearWeek, y=Runs, group='TUR', color='TUR'), data=cor.count.agg, size=1.5, color='black') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank(), axis.ticks.y=element_blank(), axis.text.y=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', x='Date', y='')
 }
 
 # REGRESSION ANALYSIS - ILI AND TURN vs. PERCENT DETECTION OF ORGANISMS

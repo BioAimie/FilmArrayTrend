@@ -184,6 +184,28 @@ risk.count.cos.agg <- merge(with(risk.count.cos.trim, aggregate(UniquePositives~
 risk.count.cos.agg <- merge(risk.count.cos.agg, with(risk.count.cos.trim, aggregate(CoDetectionRate~DateGroup, FUN=mean)), by='DateGroup')
 ggplot(risk.count.cos.agg, aes(x=DateGroup, y=100*CoDetectionRate, fill='Co-Detections/Total Runs')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=25*RiskRatio, group='Aggregate Risk Ratio', color='Aggregate Risk Ratio'), data=risk.count.cos.agg, size=2) + geom_line(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=12, color='black'), axis.title.y=element_text(size=12), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + scale_x_discrete(breaks = as.character(unique(risk.count.cos.trim$DateGroup))[order(as.character(unique(risk.count.cos.trim$DateGroup)))][seq(1, length(as.character(unique(risk.count.cos.trim$DateGroup))), 8)]) + scale_color_manual(values=c('blue','black'), name='') + scale_fill_manual(values='grey', name='')
 
+
+#### RIGHT HERE!!!
+# a <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(1:length(periods), function(y) do.call(rbind, lapply(1:length(bugs), function(z) data.frame(DateGroup = periods[y], CustomerSiteId = sites[x], ShortName = bugs[z], RiskRatio = percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection']*sum(percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName!=bugs[z],'PercentDetection']), mVariance = (percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection']*(1-percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection'])/percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'Runs'])*(percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName!=bugs[z],'PercentDetection'])^2)))))))
+# a <- do.call(rbind, lapply(3:3, function(x) do.call(rbind, lapply(180:182, function(y) do.call(rbind, lapply(1:length(bugs), function(z) data.frame(DateGroup = periods[y], CustomerSiteId = sites[x], ShortName = bugs[z], RiskRatio = percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection']*sum(percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName!=bugs[z],'PercentDetection']), mVariance = (percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection']*(1-percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection'])/percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'Runs'])*(percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName!=bugs[z],'PercentDetection'])^2)))))))
+# do.call(rbind, lapply(1:length(bugs), function(x) (((b[b$ShortName==bugs[x], 'Positives']/b[b$ShortName==bugs[x], 'Runs'])*(1-b[b$ShortName==bugs[x], 'Positives']/b[b$ShortName==bugs[x], 'Runs']))/b[b$ShortName==bugs[x], 'Runs'])*(sum(b[b$ShortName!=bugs[x],'Positives'])/b[b$ShortName==bugs[x], 'Runs'])^2))
+# the issue is that the part finding the associated summation is returning an array, and that blows shit up
+riskratio.site.ci <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(1:length(periods), function(y) do.call(rbind, lapply(1:length(bugs), function(z) data.frame(DateGroup = periods[y], CustomerSiteId = sites[x], ShortName = bugs[z], RiskRatio = percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection']*sum(percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName!=bugs[z],'PercentDetection']), mVariance = (((percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection']*(1-percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'PercentDetection']))/percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName==bugs[z],'Runs'])*sum(percent.det.site[percent.det.site$CustomerSiteId==sites[x] & percent.det.site$DateGroup==periods[y] & percent.det.site$ShortName!=bugs[z],'PercentDetection'])^2))))))))
+riskratio.site.ci.mrg <- merge(runs.roll, riskratio.site.ci, by=c('DateGroup','CustomerSiteId'))
+riskratio.site.ci.mrg[riskratio.site.ci.mrg$Runs <= threshold, 'RiskRatio'] <- NA
+riskratio.site.ci.mrg[riskratio.site.ci.mrg$Runs <= threshold, 'mVariance'] <- NA
+ci.bounds <- with(riskratio.site.ci.mrg, aggregate(mVariance~DateGroup+CustomerSiteId, FUN=sum))
+ci.bounds$mVariance <- 4*ci.bounds$mVariance
+ci.bounds$sdev <- sqrt(ci.bounds$mVariance)
+riskratio.ci.avg <- with(riskratio.site.ci.mrg, aggregate(RiskRatio~DateGroup+ShortName, FUN=mean))
+risk.count.cos.ci <- merge(merge(merge(bug.count.avg, cos.rate.avg, by='DateGroup'), riskratio.ci.avg, by='DateGroup'), with(ci.bounds, aggregate(sdev~DateGroup, FUN=mean)), by='DateGroup')
+risk.count.cos.ci.trim <- subset(risk.count.cos.ci, as.character(DateGroup) >= '2013-33')
+risk.count.cos.ci.agg <- merge(with(risk.count.cos.ci.trim, aggregate(UniquePositives~DateGroup, FUN=mean)), with(risk.count.cos.ci.trim, aggregate(RiskRatio~DateGroup, FUN=sum)), by='DateGroup')
+risk.count.cos.ci.agg <- merge(risk.count.cos.ci.agg, with(risk.count.cos.ci.trim, aggregate(CoDetectionRate~DateGroup, FUN=mean)), by='DateGroup')
+risk.count.cos.ci.agg <- merge(risk.count.cos.ci.agg, with(risk.count.cos.ci.trim, aggregate(sdev~DateGroup, FUN=mean)), by='DateGroup')
+risk.count.cos.ci.agg$LL <- risk.count.cos.ci.agg$RiskRatio - qnorm(0.975)*risk.count.cos.ci.agg$sdev
+risk.count.cos.ci.agg$UL <- risk.count.cos.ci.agg$RiskRatio + qnorm(0.975)*risk.count.cos.ci.agg$sdev
+
 # dual axes for ILI overlay plots
 hinvert_title_grob <- function(grob){
   
@@ -238,7 +260,7 @@ yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
 
 # Second, swap tick marks and tick mark labels
 ticks <- yaxis$children[[2]]
-ticks$widths <- rev(ticks$widths)
+ticks$widths <- rev(ticks$widths) 
 ticks$grobs <- rev(ticks$grobs)
 
 # Third, move the tick marks
@@ -260,5 +282,62 @@ png('Figures/CoDetectionRiskMetrics.png', height=800, width=1400)
 grid.draw(tripleOverlay)
 dev.off()
 
-#  Make a chart showing the ciount of unique organisms circulating
-p.UniquePositives <- ggplot(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg) + geom_line(size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,14), breaks=c(0, 2, 4, 6, 8, 10, 12, 14)) + scale_color_manual(values=c('black'), name='', guide=FALSE) + labs(y='Count of Unique Organisms Circulating', x='Date')
+# WIth confidence intervals
+p1 <- ggplot(aes(x=DateGroup, y=25*RiskRatio, group='TCPM', color='TCPM'), data=risk.count.cos.ci.agg) + geom_line(size=2) + geom_ribbon(aes(ymin=25*LL, ymax=25*UL), alpha=0.2, data=risk.count.cos.ci.agg, color='transparent', fill='blue') + geom_line(aes(x=DateGroup, y=100*CoDetectionRate, color='Co-Detections/Total Runs', group='Co-Detections/Total Runs'), data=risk.count.cos.ci.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=12, color='black'), axis.title.y=element_text(size=12), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + scale_x_discrete(breaks = dateBreaks, labels=dateLabels) + scale_color_manual(values=c('black','blue'), name='') + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(title='', y='Co-Detection Rate (%)', x='Date') + scale_y_continuous(limits=c(0, 16), breaks=c(0,2,4,6,8,10,12,14,16))
+p2 <- ggplot(risk.count.cos.ci.agg) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,16), breaks=c(0, 2, 4, 6, 8, 10, 12, 14, 16), labels=c('0','8','16','24','32','40','48','56','62')) + theme(panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) + labs(y='People at Risk per 100 Patients')
+
+# Get the ggplot grobs
+g1 <- ggplotGrob(p1)
+g2 <- ggplotGrob(p2)
+
+# Get the location of the plot panel in g1.
+# These are used later when transformed elements of g2 are put back into g1
+pp <- c(subset(g1$layout, name == "panel", se = t:r))
+
+# Overlap panel for second plot on that of the first plot
+g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+
+# Get the y axis title from g2
+index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
+ylab <- g2$grobs[[index]]                # Extract that grob
+ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
+
+# Put the transformed label on the right side of g1
+g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+
+# Get the y axis from g2 (axis line, tick marks, and tick mark labels)
+index <- which(g2$layout$name == "axis-l")  # Which grob
+yaxis <- g2$grobs[[index]]                  # Extract the grob
+
+# First, move the axis line to the left
+yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+
+# Second, swap tick marks and tick mark labels
+ticks <- yaxis$children[[2]]
+ticks$widths <- rev(ticks$widths) 
+ticks$grobs <- rev(ticks$grobs)
+
+# Third, move the tick marks
+ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+
+# Fourth, swap margins and fix justifications for the tick mark labels
+ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+
+# Fifth, put ticks back into yaxis
+yaxis$children[[2]] <- ticks
+
+# Put the transformed yaxis on the right side of g1
+g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+overlayWithCI <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+
+# Draw it
+grid.newpage()
+png('Figures/CoDetectionRiskMetricWithConfidenceIntervals.png', height=800, width=1400)
+grid.draw(overlayWithCI)
+dev.off()
+
+#  Make a chart showing the count of unique organisms circulating
+risk.count.cos.agg <- merge(risk.count.cos.agg, with(sites.bugs.roll, aggregate(UniquePositives~DateGroup, FUN=sd)), by='DateGroup')
+colnames(risk.count.cos.agg)[grep('Unique', colnames(risk.count.cos.agg))] <- c('UniquePositives','Sdev')
+p.UniquePositives <- ggplot(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg) + geom_line(size=2) + geom_ribbon(aes(x=DateGroup, ymin=(UniquePositives-Sdev), ymax=(UniquePositives+Sdev)), data=risk.count.cos.agg, color='transparent', fill='grey', alpha=0.5) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,16), breaks=c(0, 2, 4, 6, 8, 10, 12, 14,16)) + scale_color_manual(values=c('black'), name='', guide=FALSE) + labs(y='Count of Unique Organisms Circulating', x='Date')
