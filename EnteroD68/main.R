@@ -173,7 +173,7 @@ for (i in 1:length(sites)) {
 # ATTEMPT TO DO SOME SORT OF ROLLING SUM OF THE SCORE AT A SITE... THIS SHOULD HELP IDENTIFY PERIODS WHERE SCORES ARE
 # SUSTAINED AT A HIGHER LEVEL
 scored.df[is.na(scored.df$Score), 'Score']  <- scored.df[is.na(scored.df$Score), 'TestNoise']*scored.df[is.na(scored.df$Score), 'PCAs']
-a <- scored.df[scored.df$CustomerSiteId==13 &  scored.df$TestStartDate < as.Date('2014-06-01'), ]
+a <- scored.df[scored.df$CustomerSiteId==13 &  scored.df$TestStartDate < as.Date('2017-03-01'), ]
 ggplot(a, aes(x=TestStartDate, y=Score)) + geom_point() + geom_line(aes(x=TestStartDate, y=mean(Score)+3*sd(Score)), data=a, color='red', lwd=1.25)
 
 
@@ -556,4 +556,4 @@ if(FALSE) {
   #              label by sequence and have it use random forest... then see which ones follow a similar path
   #               until the lowest level (these potentially could be similar)
   head(cp.spread)
-}   
+}
