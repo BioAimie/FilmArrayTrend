@@ -25,6 +25,7 @@ startYear <- 2013
 calendar.df <- createCalendarLikeMicrosoft(startYear, 'Week')
 calendar.df <- transformToEpiWeeks(calendar.df)
 calendar.df$YearWeek <- with(calendar.df, ifelse(Week < 10, paste(Year, Week, sep='-0'), paste(Year, Week, sep='-')))
+calendar.df$Days <- 1
 
 # set up some constants
 imgDir <- 'Figures/'
@@ -41,37 +42,57 @@ queryVector <- scan('../DataSources/SQL/EnteroD68/rpRunsBySite.sql',what=charact
 query <- paste(queryVector,collapse=" ")
 runs.df <- sqlQuery(FADWcxn,query)
 odbcClose(FADWcxn)
+PMScxn <- odbcConnect('PMS_PROD')
+queryVector <- readLines('../DataSources/SQL/EnteroD68/qcMedianCpRP.sql')
+query <- paste(queryVector, collapse = '\n')
+qc.lot.cps <- sqlQuery(PMScxn, query)
+odbcClose(PMScxn)
 
-# start a loop to gather Cp data for all sites running RP
-cp.df <- c()
+# start a loop to gather Cp, Tm, and MaxFluor data for all HRV/Entero Assays by site
+dat.df <- c()
 choose.sites <- as.character(sites.df[,'CustomerSiteId'])
 for(j in 1:length(choose.sites)) {
   
   FADWcxn <- odbcConnect('FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD') 
-  queryVector <- scan('../DataSources/SQL/EnteroD68/rhinoDataBySite.sql', what=character(), quote="")
-  query <- paste(gsub('SITE_INDEX', choose.sites[j], queryVector), collapse=" ")
-  cp.site.df <- sqlQuery(FADWcxn, query)
+  queryVector <- readLines('../DataSources/SQL/EnteroD68/rhinoDataBySite.sql')
+  query <- paste(gsub('SITE_INDEX', choose.sites[j], queryVector), collapse="\n")
+  dat.site.df <- sqlQuery(FADWcxn, query)
   odbcClose(FADWcxn)
   
-  cp.df <- rbind(cp.df, cp.site.df)
+  dat.df <- rbind(dat.df, dat.site.df)
 }
 
-rm(cp.site.df)
+rm(dat.site.df)
 
 # Clean the data
-# =================================================== ========================================
-# with the cp data, determine the median Cp of each assay in the HRV/EV target
-cp.median <- aggregate(Cp~RunDataId+CustomerSiteId+Date+AssayName, FUN=median, data=cp.df)
+# ============================================================================================
+# with the data, determine the median value of Tm, Cp, and Max Fluor for each assay in the HRV/EV target
+cp.median <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
 cp.spread <- spread(data = cp.median, key = AssayName, value = Cp)
-sparse.handler <- 40
-cp.spread[,c(4:9)][is.na(cp.spread[,c(4:9)])] <- sparse.handler
+cp.sparse.handler <- 40
+# cp.spread[,c(5:12)][is.na(cp.spread[,c(5:12)])] <- cp.sparse.handler
+tm.median <- aggregate(Tm~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
+tm.spread <- spread(data = tm.median, key = AssayName, value = Tm)
+tm.sparse.handler <- 100
+# tm.spread[,c(5:12)][is.na(tm.spread[,c(5:12)])] <- tm.sparse.handler
+# fluor.median <- aggregate(MaxFluor~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
+# fluor.spread <- spread(data = fluor.median, key = AssayName, value = MaxFluor)
+# fluor.sparse.handler <- 170
+# fluor.spread[,c(5:12)][is.na(fluor.spread[,c(5:12)])] <- fluor.sparse.handler
 
-# determine the sequence associated with each HRV/EV positive
-run.ids <- unique(cp.median$RunDataId)
-cp.ordered <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(cp.median[cp.median$RunDataId==run.ids[x], ][order(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), ], Index = seq(1, length(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), 1))))
-cp.sequence <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(RunDataId = run.ids[x], Sequence = paste(as.character(cp.ordered[cp.ordered$RunDataId==run.ids[x], 'AssayName']), collapse=', '))))
+# Scale assay median Cp and Tm data using the yeast control as well as QC data where applicable
+# ============================================================================================
+cp.norm <- merge(data.frame(cp.spread[,1:4], cp.spread[,5:10]/cp.spread$yeastRNA), qc.lot.cps[qc.lot.cps$Name=='yeastRNA',c('PouchLotNumber','MedianCp')], by.x='LotNo', by.y='PouchLotNumber')
+cp.norm <- data.frame(cp.norm[,1:4], cp.norm[,5:10]*cp.norm$MedianCp)
+colnames(cp.norm)[5:10] <- paste(colnames(cp.norm[5:10]), 'Cp', sep='_')
+cp.norm[,c(5:10)][is.na(cp.norm[,c(5:10)])] <- cp.sparse.handler
+tm.norm <- data.frame(RunDataId = tm.spread$RunDataId, tm.spread[,5:10]/tm.spread$yeastRNA)
+colnames(tm.norm)[2:7] <- paste(colnames(tm.norm[2:7]), 'Tm', sep='_')
+tm.norm[,c(2:7)][is.na(tm.norm[,c(2:7)])] <- tm.sparse.handler
+dat.norm <- merge(cp.norm, tm.norm, by='RunDataId')
 
-# since the final algorithm should be run on a site-by-site basis, determine which data by site are "eligible"
+# Since the proposed algorithm requires a certain amount of training data, figure out which sites are "eligible" for detection
+# ============================================================================================
 site.rhino.count <- with(merge(data.frame(cp.spread, Positive=1), calendar.df, by='Date'), aggregate(Positive~YearWeek+CustomerSiteId, FUN=sum))
 sites <- as.character(unique(site.rhino.count$CustomerSiteId))[order(as.character(unique(site.rhino.count$CustomerSiteId)))]
 site.rhino.count <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(merge(data.frame(YearWeek = unique(calendar.df[,c('YearWeek')]), CustomerSiteId = sites[x]), site.rhino.count[site.rhino.count$CustomerSiteId==sites[x], c('YearWeek','Positive')], by='YearWeek', all.x=TRUE))))
@@ -81,14 +102,165 @@ periods <- unique(as.character(site.rhino.count$YearWeek))
 site.gaps <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(5:length(periods), function(y) data.frame(YearWeek = periods[y], CustomerSiteId = sites[x], MissingPeriods = sum(site.rhino.count[site.rhino.count$CustomerSiteId==sites[x], 'Gap'][(y-4):y]))))))
 site.starts <- do.call(rbind, lapply(1:length(sites), function(x) site.gaps[site.gaps$CustomerSiteId==sites[x],][max(which(site.gaps[site.gaps$CustomerSiteId==sites[x], 'MissingPeriods']==5)), c('CustomerSiteId','YearWeek')]))
 
-# check to see if any of the features have near-zero variance (i.e. variables with very few unique values, which can skew results when data are split for train/test)
-nzv <- nearZeroVar(cp.spread[,c(4:9)], saveMetrics = TRUE)
-remove.vars <- row.names(nzv[nzv$nzv==TRUE,])
-cp.clean <- cp.spread[,!(colnames(cp.spread) %in% remove.vars)]
+dat.features <- dat.norm[,2:16]
+dat.features <- merge(dat.features, calendar.df[,c('Date','YearWeek')], by='Date')
+dat.trim <- do.call(rbind, lapply(1:length(site.starts$CustomerSiteId), function(x) filter(dat.features, (CustomerSiteId == site.starts[x,'CustomerSiteId'] & as.character(dat.features$YearWeek) > as.character(site.starts[x,'YearWeek'])))))
 
-# check to see if any of the variables have very strong correlation (cut off of 0.8)
-keep.vars <- cor(cp.clean[,c(4:7)])[,-findCorrelation(cor(cp.clean[,c(4:7)]), cutoff=0.8)]
-cp.clean <- cp.clean[,colnames(cp.clean) %in% c('RunDataId','Date','YearWeek','CustomerSiteId',row.names(keep.vars))]
+# Apply a clustering algorithm TO EACH SITE that loops through each test with positive HRV/EV target 
+# with a defined train & test size
+# ============================================================================================
+initial.window <- 100
+test.horizon <- 10
+
+scored.df <- c()
+# sites[c(2,5,6,10,11)]
+for (i in 1:length(sites)) { # c(2, 5, 6, 10, 11)) { #1:length(sites)) {
+  
+  # parition the data by site and then order by the test date
+  site.features <- filter(dat.trim, CustomerSiteId == sites[i])
+  site.features <- site.features[with(site.features, order(Date)), ]
+  if(nrow(site.features)==0) { next }
+  site.features$Obs <- seq(1, length(site.features$Date), 1)
+  
+  site.df <- c()
+  site.start.time <- Sys.time()
+  for(j in (initial.window+1):(length(site.features$Obs)-test.horizon)) {
+    
+    # split into train and test data
+    site.train <- site.features[site.features$Obs < j & site.features$Obs >= (j - initial.window), ]
+    site.test <- site.features[site.features$Obs < (j + test.horizon) & site.features$Obs >= j, ]
+    
+    # THIS IS NEW... I'M JUST TESTING STUFF!!!!
+    # get the near zero variance of the train set and then the aggregate train + test set... the logic is that if the near zero variance
+    # changes when the data are aggregated, that *could* indicate a change, but this may just be too hair trigger tuned to EV
+    # train.nzv <- nearZeroVar(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], saveMetrics = TRUE)
+    # train.remove.vars <- row.names(train.nzv[train.nzv$nzv==TRUE,])
+    # agg.nzv <- nearZeroVar(rbind(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))]), saveMetrics = TRUE)
+    # agg.remove.vars <- row.names(agg.nzv[agg.nzv$nzv==TRUE,])
+    # nzv_score <- ifelse(length(agg.remove.vars) > length(train.remove.vars), 1, 0)
+    # site.train <- site.train[,!(colnames(site.train) %in% train.remove.vars)]
+    # site.test <- site.test[,!(colnames(site.test) %in% train.remove.vars)]
+    
+    # pca.tranform <- preProcess(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], method = 'pca')
+    # site.train.pca <- predict(pca.tranform, site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))])
+    # site.test.pca <- predict(pca.tranform, site.test[,(colnames(site.test) %in% as.character(unique(cp.df$AssayName)))])
+    
+    # transform the data... center, scale, and use Box-Cox to transform the data
+    bc.trans <- preProcess(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], method=c('center','scale','BoxCox'))
+    site.train.trans <- predict(bc.trans, site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))])
+    site.test.trans <- predict(bc.trans, site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))])
+    
+    # apply dbscan to the train data set... determine eps based on the point where there are 2 clusters (1 cluster + noise)
+    guess.eps <- 0.01
+    guess.mpt <- 90
+    eps.interval <- 0.01
+    guess.res <- dbscan(site.train.trans, eps = guess.eps, minPts = guess.mpt)
+    cluster.int <- max(guess.res$cluster)
+    
+    iter.start.time <- Sys.time()
+    while(cluster.int < 1) {
+      
+      guess.eps <- guess.eps + eps.interval
+      guess.res <- dbscan(site.train.trans, eps = guess.eps, minPts = guess.mpt)
+      noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
+      cluster.int <- max(guess.res$cluster)
+    }
+    print(Sys.time() - iter.start.time)
+    
+    # with the "correct" dbscan clustering, predict the clusters for the test data
+    site.train.trans$Cluster <- as.factor(guess.res$cluster)
+    site.test.trans$Cluster <- unname(predict(guess.res, site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], site.test.trans))
+    
+    # count the number of clusters in the test set that are considered noise
+    train.noise <- nrow(site.train.trans[site.train.trans$Cluster==0, ])
+    test.noise <- nrow(site.test.trans[site.test.trans$Cluster==0, ])
+    
+    # figure out the number of Principle Components needed to explain at least 95% of the variance for the train set and then the
+    # train + test set...
+    pca.train <- princomp(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))])
+    pca.train.var <- 1-sapply(1:12, function(x) pca.train$sdev[x]^2/sum(pca.train$sdev^2))[min(which(sapply(1:12, function(x) pca.train$sdev[x]^2/sum(pca.train$sdev^2)) <= 0.05))]
+    pca.train.count <- min(which(sapply(1:12, function(x) pca.train$sdev[x]^2/sum(pca.train$sdev^2)) <= 0.05))
+    pca.test <- princomp(rbind(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))]))
+    pca.test.var <- 1-sapply(1:12, function(x) pca.test$sdev[x]^2/sum(pca.test$sdev^2))[min(which(sapply(1:12, function(x) pca.test$sdev[x]^2/sum(pca.test$sdev^2)) <= 0.05))]
+    pca.test.count <- min(which(sapply(1:12, function(x) pca.test$sdev[x]^2/sum(pca.test$sdev^2)) <= 0.05))
+    
+    # what other things would be good to measure differences? Perhaps frequency of tests? Like the test days??? How do we normalize for
+    # sites of different sizes??? How do we know if the frequency is abnormal??
+    
+    #### FILL IN SOMETHING HERE IF I NEED TO...
+    
+    # create some data frame that contains information about the timeslice
+    temp <- data.frame(CustomerSiteId = sites[i], Seq = j, TestStartDate = site.test[site.test$Obs==min(site.test$Obs), 'Date'],
+                       TrainNoise = train.noise, TestNoise = test.noise, RatioNoise = test.horizon*test.noise/train.noise, 
+                       TrainPCA = pca.train.count, TrainVar = pca.train.var, TestPCA = pca.test.count, TestVar = pca.test.var, RatioPCA = pca.test.count/pca.train.count)
+    site.df <- rbind(site.df, temp)
+  }
+  
+  print(Sys.time() - site.start.time)
+  scored.df <- rbind(scored.df, site.df)
+}
+
+
+
+
+# Remove variable that have very little variance in the data set or that are highly correlated
+# ============================================================================================
+# nzv <- nearZeroVar(dat.norm[,c(5:16)], saveMetrics = TRUE)
+# remove.vars <- row.names(nzv[nzv$nzv==TRUE,])
+# dat.norm <- dat.norm[,!(colnames(dat.norm) %in% remove.vars)]
+# keep.vars <- cor(dat.norm[,c(5:16)])[,-findCorrelation(cor(dat.norm[,c(5:16)]), cutoff=0.8)]
+# dat.clean <- dat.norm[,colnames(dat.norm) %in% c('RunDataId','Date','YearWeek','CustomerSiteId',row.names(keep.vars))]
+
+
+if(FALSE) {
+  # start a loop to gather Cp data for all sites running RP
+  cp.df <- c()
+  choose.sites <- as.character(sites.df[,'CustomerSiteId'])
+  for(j in 1:length(choose.sites)) {
+    
+    FADWcxn <- odbcConnect('FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD') 
+    queryVector <- scan('../DataSources/SQL/EnteroD68/rhinoCpDataBySite.sql', what=character(), quote="")
+    query <- paste(gsub('SITE_INDEX', choose.sites[j], queryVector), collapse=" ")
+    cp.site.df <- sqlQuery(FADWcxn, query)
+    odbcClose(FADWcxn)
+    
+    cp.df <- rbind(cp.df, cp.site.df)
+  }
+  
+  rm(cp.site.df)
+  
+  # Clean the data
+  # ============================================================================================
+  # with the cp data, determine the median Cp of each assay in the HRV/EV target
+  cp.median <- aggregate(Cp~RunDataId+CustomerSiteId+Date+AssayName, FUN=median, data=cp.df)
+  cp.spread <- spread(data = cp.median, key = AssayName, value = Cp)
+  sparse.handler <- 40
+  cp.spread[,c(4:9)][is.na(cp.spread[,c(4:9)])] <- sparse.handler
+  
+  # determine the sequence associated with each HRV/EV positive
+  run.ids <- unique(cp.median$RunDataId)
+  cp.ordered <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(cp.median[cp.median$RunDataId==run.ids[x], ][order(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), ], Index = seq(1, length(cp.median[cp.median$RunDataId==run.ids[x], 'Cp']), 1))))
+  cp.sequence <- do.call(rbind, lapply(1:length(run.ids), function(x) data.frame(RunDataId = run.ids[x], Sequence = paste(as.character(cp.ordered[cp.ordered$RunDataId==run.ids[x], 'AssayName']), collapse=', '))))
+
+  # since the final algorithm should be run on a site-by-site basis, determine which data by site are "eligible"
+  site.rhino.count <- with(merge(data.frame(cp.spread, Positive=1), calendar.df, by='Date'), aggregate(Positive~YearWeek+CustomerSiteId, FUN=sum))
+  sites <- as.character(unique(site.rhino.count$CustomerSiteId))[order(as.character(unique(site.rhino.count$CustomerSiteId)))]
+  site.rhino.count <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(merge(data.frame(YearWeek = unique(calendar.df[,c('YearWeek')]), CustomerSiteId = sites[x]), site.rhino.count[site.rhino.count$CustomerSiteId==sites[x], c('YearWeek','Positive')], by='YearWeek', all.x=TRUE))))
+  site.rhino.count[is.na(site.rhino.count$Positive), 'Gap'] <- 1
+  site.rhino.count[is.na(site.rhino.count$Gap), 'Gap'] <- 0
+  periods <- unique(as.character(site.rhino.count$YearWeek))
+  site.gaps <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(5:length(periods), function(y) data.frame(YearWeek = periods[y], CustomerSiteId = sites[x], MissingPeriods = sum(site.rhino.count[site.rhino.count$CustomerSiteId==sites[x], 'Gap'][(y-4):y]))))))
+  site.starts <- do.call(rbind, lapply(1:length(sites), function(x) site.gaps[site.gaps$CustomerSiteId==sites[x],][max(which(site.gaps[site.gaps$CustomerSiteId==sites[x], 'MissingPeriods']==5)), c('CustomerSiteId','YearWeek')]))
+
+  # check to see if any of the features have near-zero variance (i.e. variables with very few unique values, which can skew results when data are split for train/test)
+  nzv <- nearZeroVar(cp.spread[,c(4:9)], saveMetrics = TRUE)
+  remove.vars <- row.names(nzv[nzv$nzv==TRUE,])
+  cp.clean <- cp.spread[,!(colnames(cp.spread) %in% remove.vars)]
+
+  # check to see if any of the variables have very strong correlation (cut off of 0.8)
+  keep.vars <- cor(cp.clean[,c(4:7)])[,-findCorrelation(cor(cp.clean[,c(4:7)]), cutoff=0.8)]
+  cp.clean <- cp.clean[,colnames(cp.clean) %in% c('RunDataId','Date','YearWeek','CustomerSiteId',row.names(keep.vars))]
+}
 
 # Apply machine learning
 # ===========================================================================================

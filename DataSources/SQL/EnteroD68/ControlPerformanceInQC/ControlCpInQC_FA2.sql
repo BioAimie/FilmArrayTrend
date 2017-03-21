@@ -1,3 +1,11 @@
+USE [PMS1]
+GO
+IF OBJECT_ID('dbo.tMedianCpsOfControlsInQC_RP','U') IS NOT NULL
+DROP TABLE [dbo].[tMedianCpsOfControlsInQC_RP]
+
+USE [PMS1]
+GO
+
 SELECT *
 INTO #controlCps
 FROM

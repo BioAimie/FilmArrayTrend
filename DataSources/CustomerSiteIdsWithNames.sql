@@ -1,4 +1,4 @@
-SELECT 
+SELECT
 	S.[CustomerSiteId],
 	C.[Name],
 	S.[Note],
