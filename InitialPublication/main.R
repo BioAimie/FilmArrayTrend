@@ -534,6 +534,10 @@ if(TRUE) {
   cdc.bfdx.flu.nat <- merge(cdc.bfdx.flu.nat, unique(prevalence.nat.individual.wrap[,c('YearWeek','Rate')]), by='YearWeek')
   cdc.bfdx.flu.nat <- merge(cdc.bfdx.flu.nat, ili.burn.nat[,c('YearWeek','NormalizedBurn')], by='YearWeek')
   
+  # cross-correlation
+  ccf.chart <- ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)
+  ccf.frame <- data.frame(Lag = ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)$lag, CCF = ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)$acf)
+  
   dateBreaksAlt2 <- c('2015-41','2016-01','2016-14','2016-27','2016-40','2016-52')
   dateLabelsAlt2 <- c('-','Jan-2016','-','Jul-2016','-','Jan-2017')
   
@@ -1158,70 +1162,70 @@ if(TRUE) {
     dev.off()
   }
   # # - Negative-------------------------------------------------------------------------------------------------------
-  # # negatives.nat <- data.frame(Bug='Negatives', YearWeek = with(prevalence.nat.individual.wrap, aggregate(Prevalence~YearWeek, FUN=sum))$YearWeek, Prevalence = 1-with(prevalence.nat.individual.wrap, aggregate(Prevalence~YearWeek, FUN=sum))$Prevalence, Rate=with(prevalence.nat.individual.wrap, aggregate(Rate~YearWeek, FUN=mean))$Rate, ShortName='Negative')
-  # if(FALSE) {
-  # 
-  #   p1 <- ggplot(negatives.nat, aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values='grey', name='') + scale_x_discrete(breaks = as.character(unique(negatives.nat$YearWeek))[order(as.character(unique(negatives.nat$YearWeek)))][seq(1, length(as.character(unique(negatives.nat$YearWeek))), 8)]) + scale_y_continuous(label=percent, breaks=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank())  + labs(title='Percent Detection of Human Metapneumovirus in Trend Population with ILI Overlay', y='Percent Detection of Organism', x='Date')
-  #   p2 <- ggplot(negatives.nat, aes(x=YearWeek, y=10*Rate, group=1)) + geom_line(color='black', lwd=2) + geom_line(aes(x=YearWeek, y=10*NormalizedBurn/100, group=2), subset(ili.burn.nat, as.character(ili.burn.nat$YearWeek) >='2014-01'), color='red', lwd=2) + scale_x_discrete(breaks = as.character(unique(negatives.nat$YearWeek))[order(as.character(unique(negatives.nat$YearWeek)))][seq(1, length(as.character(unique(negatives.nat$YearWeek))), 8)]) + scale_y_continuous(limits=c(0,10*max(negatives.nat$Rate)), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5), labels=c('0%','1%','2%','3%','4%','5%')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI (black), FilmArray Test Utilization (red)')
-  # 
-  #   # Get the ggplot grobs
-  #   g1 <- ggplotGrob(p1)
-  #   g2 <- ggplotGrob(p2)
-  # 
-  #   # Get the location of the plot panel in g1.
-  #   # These are used later when transformed elements of g2 are put back into g1
-  #   pp <- c(subset(g1$layout, name == "panel", se = t:r))
-  # 
-  #   # Overlap panel for second plot on that of the first plot
-  #   g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
-  # 
-  #   # Get the y axis title from g2
-  #   index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
-  #   ylab <- g2$grobs[[index]]                # Extract that grob
-  #   ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
-  # 
-  #   # Put the transformed label on the right side of g1
-  #   g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
-  #   g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
-  # 
-  #   # Get the y axis from g2 (axis line, tick marks, and tick mark labels)
-  #   index <- which(g2$layout$name == "axis-l")  # Which grob
-  #   yaxis <- g2$grobs[[index]]                  # Extract the grob
-  # 
-  #   # yaxis is a complex of grobs containing the axis line, the tick marks, and the tick mark labels.
-  #   # The relevant grobs are contained in axis$children:
-  #   #   axis$children[[1]] contains the axis line;
-  #   #   axis$children[[2]] contains the tick marks and tick mark labels.
-  # 
-  #   # First, move the axis line to the left
-  #   yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
-  # 
-  #   # Second, swap tick marks and tick mark labels
-  #   ticks <- yaxis$children[[2]]
-  #   ticks$widths <- rev(ticks$widths)
-  #   ticks$grobs <- rev(ticks$grobs)
-  # 
-  #   # Third, move the tick marks
-  #   ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
-  # 
-  #   # Fourth, swap margins and fix justifications for the tick mark labels
-  #   ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
-  # 
-  #   # Fifth, put ticks back into yaxis
-  #   yaxis$children[[2]] <- ticks
-  # 
-  #   # Put the transformed yaxis on the right side of g1
-  #   g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
-  #   overlay.negatives <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
-  # 
-  #   # Draw it
-  #   grid.newpage()
-  #   png('Figures/NegativePercentDetectionWithOverlayTrend.png', height=800, width=1400)
-  #   grid.draw(overlay.negatives)
-  #   dev.off()
-  # }
-  
-  
+  if(FALSE) {
+    # # negatives.nat <- data.frame(Bug='Negatives', YearWeek = with(prevalence.nat.individual.wrap, aggregate(Prevalence~YearWeek, FUN=sum))$YearWeek, Prevalence = 1-with(prevalence.nat.individual.wrap, aggregate(Prevalence~YearWeek, FUN=sum))$Prevalence, Rate=with(prevalence.nat.individual.wrap, aggregate(Rate~YearWeek, FUN=mean))$Rate, ShortName='Negative')
+    # if(FALSE) {
+    # 
+    #   p1 <- ggplot(negatives.nat, aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values='grey', name='') + scale_x_discrete(breaks = as.character(unique(negatives.nat$YearWeek))[order(as.character(unique(negatives.nat$YearWeek)))][seq(1, length(as.character(unique(negatives.nat$YearWeek))), 8)]) + scale_y_continuous(label=percent, breaks=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank())  + labs(title='Percent Detection of Human Metapneumovirus in Trend Population with ILI Overlay', y='Percent Detection of Organism', x='Date')
+    #   p2 <- ggplot(negatives.nat, aes(x=YearWeek, y=10*Rate, group=1)) + geom_line(color='black', lwd=2) + geom_line(aes(x=YearWeek, y=10*NormalizedBurn/100, group=2), subset(ili.burn.nat, as.character(ili.burn.nat$YearWeek) >='2014-01'), color='red', lwd=2) + scale_x_discrete(breaks = as.character(unique(negatives.nat$YearWeek))[order(as.character(unique(negatives.nat$YearWeek)))][seq(1, length(as.character(unique(negatives.nat$YearWeek))), 8)]) + scale_y_continuous(limits=c(0,10*max(negatives.nat$Rate)), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5), labels=c('0%','1%','2%','3%','4%','5%')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI (black), FilmArray Test Utilization (red)')
+    # 
+    #   # Get the ggplot grobs
+    #   g1 <- ggplotGrob(p1)
+    #   g2 <- ggplotGrob(p2)
+    # 
+    #   # Get the location of the plot panel in g1.
+    #   # These are used later when transformed elements of g2 are put back into g1
+    #   pp <- c(subset(g1$layout, name == "panel", se = t:r))
+    # 
+    #   # Overlap panel for second plot on that of the first plot
+    #   g1 <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, pp$l, pp$b, pp$l)
+    # 
+    #   # Get the y axis title from g2
+    #   index <- which(g2$layout$name == "ylab-l") # Which grob contains the y axis title?
+    #   ylab <- g2$grobs[[index]]                # Extract that grob
+    #   ylab <- hinvert_title_grob(ylab)         # Swap margins and fix justifications
+    # 
+    #   # Put the transformed label on the right side of g1
+    #   g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+    #   g1 <- gtable_add_grob(g1, ylab, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "ylab-r")
+    # 
+    #   # Get the y axis from g2 (axis line, tick marks, and tick mark labels)
+    #   index <- which(g2$layout$name == "axis-l")  # Which grob
+    #   yaxis <- g2$grobs[[index]]                  # Extract the grob
+    # 
+    #   # yaxis is a complex of grobs containing the axis line, the tick marks, and the tick mark labels.
+    #   # The relevant grobs are contained in axis$children:
+    #   #   axis$children[[1]] contains the axis line;
+    #   #   axis$children[[2]] contains the tick marks and tick mark labels.
+    # 
+    #   # First, move the axis line to the left
+    #   yaxis$children[[1]]$x <- unit.c(unit(0, "npc"), unit(0, "npc"))
+    # 
+    #   # Second, swap tick marks and tick mark labels
+    #   ticks <- yaxis$children[[2]]
+    #   ticks$widths <- rev(ticks$widths)
+    #   ticks$grobs <- rev(ticks$grobs)
+    # 
+    #   # Third, move the tick marks
+    #   ticks$grobs[[1]]$x <- ticks$grobs[[1]]$x - unit(1, "npc") + unit(3, "pt")
+    # 
+    #   # Fourth, swap margins and fix justifications for the tick mark labels
+    #   ticks$grobs[[2]] <- hinvert_title_grob(ticks$grobs[[2]])
+    # 
+    #   # Fifth, put ticks back into yaxis
+    #   yaxis$children[[2]] <- ticks
+    # 
+    #   # Put the transformed yaxis on the right side of g1
+    #   g1 <- gtable_add_cols(g1, g2$widths[g2$layout[index, ]$l], pp$r)
+    #   overlay.negatives <- gtable_add_grob(g1, yaxis, pp$t, pp$r + 1, pp$b, pp$r + 1, clip = "off", name = "axis-r")
+    # 
+    #   # Draw it
+    #   grid.newpage()
+    #   png('Figures/NegativePercentDetectionWithOverlayTrend.png', height=800, width=1400)
+    #   grid.draw(overlay.negatives)
+    #   dev.off()
+    # }
+  }  
   
   # Mark and Lindsay would like to see charts that show prevalence of Flu A by subtypes vs. FilmArray percent detection as well as FluB
   public.health.flu <- read.csv('../DataSources/RegionalInfluenzaBySubType_PublicHealthLabs.csv', header=TRUE, sep=',')
