@@ -534,10 +534,6 @@ if(TRUE) {
   cdc.bfdx.flu.nat <- merge(cdc.bfdx.flu.nat, unique(prevalence.nat.individual.wrap[,c('YearWeek','Rate')]), by='YearWeek')
   cdc.bfdx.flu.nat <- merge(cdc.bfdx.flu.nat, ili.burn.nat[,c('YearWeek','NormalizedBurn')], by='YearWeek')
   
-  # cross-correlation
-  ccf.chart <- ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)
-  ccf.frame <- data.frame(Lag = ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)$lag, CCF = ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)$acf)
-  
   dateBreaksAlt2 <- c('2015-41','2016-01','2016-14','2016-27','2016-40','2016-52')
   dateLabelsAlt2 <- c('-','Jan-2016','-','Jul-2016','-','Jan-2017')
   
@@ -603,6 +599,19 @@ if(TRUE) {
   dev.off()
   
   p.InfluezaPrevalencePercentDetectionNoILI <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
+  
+  # lindsay also wants to see this by summing the detections and runs by region and then getting the percent detection & comparing to CDC reported regional data
+  bfdx.flu.reg.agg <- with(bfdx.flu.reg, aggregate(cbind(Runs, FluDetections)~YearWeek+Region, FUN=sum))
+  cdc.bfdx.flu.agg <- merge(cdc.flu.reg, bfdx.flu.reg.agg, by=c('YearWeek','Region'))
+  cdc.bfdx.flu.agg$FluPrevalence <- with(cdc.bfdx.flu.agg, TotalFluObservations/TotalPatients)
+  cdc.bfdx.flu.agg$FluPercentDetection <- with(cdc.bfdx.flu.agg, FluDetections/Runs)
+  cdc.bfdx.flu.agg <- with(cdc.bfdx.flu.agg, aggregate(cbind(FluPrevalence, FluPercentDetection)~YearWeek, FUN=mean))
+  
+  # cross-correlation
+  ccf.chart <- ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)
+  ccf.frame <- data.frame(Lag = ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)$lag, CCF = ccf(cdc.bfdx.flu.nat$FluPrevalence, cdc.bfdx.flu.nat$FluPercentDetection)$acf)
+  fluAll.cor <- with(cdc.bfdx.flu.nat, cor(FluPrevalence, FluPercentDetection))
+  ccf.frame[ccf.frame$CCF==max(ccf.frame$CCF), ]
   
   # make time series percent detection by organism family with ILI and Normalized Utilization Overlays
   prevalence.nat.individual.wrap <- prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, YearWeek)), ]
@@ -1243,6 +1252,20 @@ if(TRUE) {
   prev.reg.ph.flu$FluB <- with(prev.reg.ph.flu, FluB/TotalPatients)
   prev.nat.ph.flu <- with(prev.reg.ph.flu, aggregate(cbind(Prevalence, Rate, FluAH109, FlAH3, FluANoSubtype, FluB)~YearWeek+ShortName, FUN=mean))
   
+  # correlation and cross-correlation
+  fluAH3.cor <- with(subset(prev.nat.ph.flu, ShortName=='FluA H3'), cor(FlAH3, Prevalence))
+  fluAH3.ccf <- with(subset(prev.nat.ph.flu, ShortName=='FluA H3'), ccf(FlAH3, Prevalence))
+  fluAH3.ccf.df <- data.frame(Lag = fluAH3.ccf$lag, CCF = fluAH3.ccf$acf)
+  fluAH3.ccf.df[fluAH3.ccf.df$CCF==max(fluAH3.ccf.df$CCF), ]
+  FluAH109.cor <- with(subset(prev.nat.ph.flu, ShortName=='FluA H1-09'), cor(FluAH109, Prevalence))
+  FluAH109.ccf <- with(subset(prev.nat.ph.flu, ShortName=='FluA H1-09'), ccf(FluAH109, Prevalence))
+  FluAH109.ccf.df <- data.frame(Lag = FluAH109.ccf$lag, CCF = FluAH109.ccf$acf)
+  FluAH109.ccf.df[FluAH109.ccf.df$CCF==max(FluAH109.ccf.df$CCF), ]
+  FluB.cor <- with(subset(prev.nat.ph.flu, ShortName=='FluB'), cor(FluB, Prevalence))
+  FluB.ccf <- with(subset(prev.nat.ph.flu, ShortName=='FluB'), ccf(FluB, Prevalence))
+  FluB.ccf.df <- data.frame(Lag = FluB.ccf$lag, CCF = FluB.ccf$acf)
+  FluB.ccf.df[FluB.ccf.df$CCF==max(FluB.ccf.df$CCF), ]
+  
   # FLU A H1-2009
   p1 <- ggplot(subset(prev.nat.ph.flu, ShortName=='FluA H1-09'), aes(x=YearWeek, y=4*Prevalence, group='FilmArray Percent Detection of FluA H1-09', color='FilmArray Percent Detection of FluA H1-09')) + geom_line(lwd=2) + geom_line(aes(x=YearWeek, y=FluAH109, group='CDC Reported Rate of FluA H1-09', color='CDC Reported Rate of FluA H1-09'), data=prev.nat.ph.flu, lwd=2) + scale_color_manual(values=c('black','blue','red','darkgreen'), name='') + scale_y_continuous(limits=c(0,0.6), breaks=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c('10','20','30','40','50','60')) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='CDC Reported Detection (%)', x='Date')
   p2 <- ggplot(subset(prev.nat.ph.flu, ShortName=='FluA H1-09'), aes(x=YearWeek, y=4*Prevalence, group=1), color='transparent') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.6), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c('0','2.5','5.0','7.5','10.0','12.5','15.0')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%)')
@@ -1354,6 +1377,24 @@ if(TRUE) {
   coParticipation.DetectionCount$PercentOfDetectionsWithACo <- with(coParticipation.DetectionCount, CoDetections/Positives)
   prev.pareto.all.duals <- merge(prev.pareto.all.duals, coParticipation.DetectionCount, by='BugPositive')
   
+  # histogram of % of detection that are co-detections (colored by bug, needs text labels)
+  elementary.block.pal <- bug.individual.Pal
+  # reassign colors based on bug family
+    # make Adeno, HRV/EV, hMPV, and RSV distinct
+  elementary.block.pal[names(elementary.block.pal) %in% c('Adeno','hMPV','HRV/EV','RSV')] <- c('#F9F516','#1616F9','#F92016','#16F9F9') 
+    # make corons purple
+  elementary.block.pal[names(elementary.block.pal) %in% c('CoV NL63','CoV HKU1','CoV OC43','CoV 229E')] <- c('#E5CBEB','#DB90EB','#A83CC1','#4D015D')
+    # make flus blue
+  elementary.block.pal[names(elementary.block.pal) %in% c('FluA H3','FluA H1-09','Flu A','FluB')] <- c('#ABCEF0','#6794C1','#1469BD','#037FFA')
+    # make bacteria green
+  elementary.block.pal[names(elementary.block.pal) %in% c('B. per','C. pne', 'M. pne')] <- c('#ADE6B2','#4DB556','#1ABB28')
+    # make PIVs pink
+  elementary.block.pal[names(elementary.block.pal) %in% c('PIV1','PIV2','PIV3','PIV4')] <- c('#F6BBDA','#EA84BA','#C44287','#F9168E')
+
+  block.labels <- as.character(subset(prev.pareto.all.duals, PercentOfDetectionsWithACo < 0.7)$Name)[order(as.character(subset(prev.pareto.all.duals, PercentOfDetectionsWithACo < 0.7)$PercentOfDetectionsWithACo))]
+  block.labels <- block.labels[c(1, 3, 2, 5, 4, 7, 8, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)]
+  p.PercentOfDetectionsWithACoDetectionFrequency <- ggplot(subset(prev.pareto.all.duals, PercentOfDetectionsWithACo < 0.7), aes(x=PercentOfDetectionsWithACo, fill=ShortName)) + geom_histogram(binwidth=0.05) + scale_fill_manual(values=elementary.block.pal, guide=FALSE) + annotate('text',x=c(0.1, 0.15, 0.15, 0.2, 0.2, 0.25, 0.25, 0.25, 0.3, 0.3, 0.35, 0.35, 0.35, 0.4, 0.4, 0.4, 0.45, 0.5, 0.55), y=c(0.5, 0.5, 1.5, 0.5, 1.5, 0.5, 1.5, 2.5, 0.5, 1.5, 0.5, 1.5, 2.5, 0.5, 1.5, 2.5, 0.5, 0.5, 0.5), label=block.labels, size=6) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(hjust=0.5, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(x='Percent of Detections with a Co-Detection (%)', y='Frequency') + scale_x_continuous(breaks=c(0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55), labels=c('10','15','20','25','30','35','40','45','50','55'))
+  
   # make a nifty dual-axis chart
   # p1 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=Prevalence)) + geom_bar(stat='identity') + scale_fill_manual(values='grey', guide=FALSE) + scale_y_continuous(limits=c(0,0.3), breaks=c(0,0.05,0.10,0.15,0.20,0.25,0.30), labels=c('0','5','10','15','20','25','30')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Detection (%)', x='')
   # p2 <- ggplot(prev.pareto.all.duals, aes(x=Name, y=5*PercentOfDuals, color='Percent of Dual Detections')) + geom_point(size=4) + scale_color_manual(values='black', guide=FALSE) + scale_y_continuous(limits=c(0,5*max(prev.pareto.all.duals$PercentOfDuals)), breaks=c(0, 0.05, 0.1, 0.15,0.2,0.25), labels=c('0','1','2','3','4','5')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank()) + labs(y='Co-Detection Occurrence (%)')
@@ -1426,6 +1467,7 @@ if(TRUE) {
   coParticipation.DetectionCount.fillByCount$Percentage <- coParticipation.DetectionCount.fillByCount$Detections/total.runs
   p.SingleAndCoDetectionPercentOfRuns <- ggplot(coParticipation.DetectionCount.fillByCount, aes(x=Name, y=Percentage, fill=Key)) + geom_bar(stat='identity') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(coParticipation.DetectionCount.fillByCount, 'Key'), name='') + scale_y_continuous(limits=c(0,0.25), breaks=c(0,0.05,0.1,0.15,0.2,0.25,0.3), labels=c('0','5','10','15','20','25','30')) + labs(x='', y='Detection (%)')
   p.SingleAndCoDetectionPercentOfRuns_NoHRV <- ggplot(subset(coParticipation.DetectionCount.fillByCount, ShortName!='HRV/EV'), aes(x=Name, y=Percentage, fill=Key)) + geom_bar(stat='identity') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(coParticipation.DetectionCount.fillByCount, 'Key'), name='') + scale_y_continuous(limits=c(0,0.10), breaks=c(0,0.025,0.05,0.075,0.10), labels=c('0.0','2.5','5.0','7.5','10.0')) + labs(x='', y='Detection (%)')
+  p.SingleAndCoDetectionPercentOfRuns_NoHRVorRSV <- ggplot(subset(coParticipation.DetectionCount.fillByCount, !(ShortName %in% c('HRV/EV','RSV'))), aes(x=Name, y=Percentage, fill=Key)) + geom_bar(stat='identity') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(coParticipation.DetectionCount.fillByCount, 'Key'), name='') + scale_y_continuous(limits=c(0,0.05), breaks=c(0,0.01,0.02,0.03,0.04,0.05), labels=c('0.0','1.0','2.0','3.0','4.0','5.0')) + labs(x='', y='Detection (%)')
 }
 
 # CORRELATION OF SUMMED PERCENT DETECTION WITH ILI AND TURN
@@ -1603,6 +1645,16 @@ if(TRUE) {
   
   # Same thing, but with TUR... So which summed prevalence has best correlation with TUR
   p.BestCorrelatedSummedPrevalenceWithTUR <- ggplot(cor.count.agg[cor.count.agg$ShortName %in% strsplit(as.character(multiple.var.cor.count[multiple.var.cor.count$BestCor==max(multiple.var.cor.count$BestCor), 'BestCorCombo']), split = ', ')[[1]], ], aes(x=YearWeek)) + geom_area(aes(y=Positives, fill=ShortName, group=ShortName), stat='identity', position='stack') + scale_fill_manual(values=createPaletteOfVariableLength(cor.count.agg, 'ShortName'), name='') + geom_line(aes(x=YearWeek, y=Runs, group='TUR', color='TUR'), data=cor.count.agg, size=1.5, color='black') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank(), axis.ticks.y=element_blank(), axis.text.y=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', x='Date', y='')
+  p.AllSummedPrevalenceWithTUR <- ggplot(cor.count.agg, aes(x=YearWeek)) + geom_area(aes(y=Positives, fill=ShortName, group=ShortName), stat='identity', position='stack') + scale_fill_manual(values=createPaletteOfVariableLength(cor.count.agg, 'ShortName'), name='') + geom_line(aes(x=YearWeek, y=Runs, group='TUR', color='TUR'), data=cor.count.agg, size=1.5, color='black') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank(), axis.ticks.y=element_blank(), axis.text.y=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', x='Date', y='')
+  
+  # Cross-correlation
+  pos.count <- with(cor.count.agg[cor.count.agg$ShortName %in% strsplit(as.character(multiple.var.cor.count[multiple.var.cor.count$BestCor==max(multiple.var.cor.count$BestCor), 'BestCorCombo']), split = ', ')[[1]], ], aggregate(Positives~YearWeek, FUN=sum))
+  run.count <- with(cor.count.agg[cor.count.agg$ShortName %in% strsplit(as.character(multiple.var.cor.count[multiple.var.cor.count$BestCor==max(multiple.var.cor.count$BestCor), 'BestCorCombo']), split = ', ')[[1]], ], aggregate(Runs~YearWeek, FUN=mean))
+  run.pos.count <- merge(run.count, pos.count, by='YearWeek')
+  tur.summed.cor <- with(run.pos.count, cor(Runs, Positives))
+  tur.summed.ccf <- with(run.pos.count, ccf(Runs, Positives))
+  tur.summed.ccf.df <- data.frame(Lag = tur.summed.ccf$lag, CCF = tur.summed.ccf$acf)
+  tur.summed.ccf.df[tur.summed.ccf.df$CCF==max(tur.summed.ccf.df$CCF), ]
 }
 
 # REGRESSION ANALYSIS - ILI AND TURN vs. PERCENT DETECTION OF ORGANISMS
