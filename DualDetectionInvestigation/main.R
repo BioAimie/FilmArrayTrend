@@ -205,13 +205,19 @@ risk.count.cos.ci.agg <- merge(risk.count.cos.ci.agg, with(risk.count.cos.ci.tri
 risk.count.cos.ci.agg$LL <- risk.count.cos.ci.agg$RiskRatio - qnorm(0.975)*risk.count.cos.ci.agg$sdev
 risk.count.cos.ci.agg$UL <- risk.count.cos.ci.agg$RiskRatio + qnorm(0.975)*risk.count.cos.ci.agg$sdev
 
+#####
+# change this code to make everything on one axis and remove the confidence interval (grey bars, red line) - TCPM
+p.CosAndRiskOnSingleAxisFinalFormat <- ggplot(risk.count.cos.ci.agg, aes(x=DateGroup, y=100*CoDetectionRate, group='Co-Detection Rate', fill='Co-Detection Rate')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=100*RiskRatio, group='TCPM', color='TCPM'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection Rate (%), TCPM (%)', x='Date')
+p.CoDetVsTCPM <- ggplot(risk.count.cos.ci.agg, aes(x=CoDetectionRate, y=RiskRatio)) + geom_point() + geom_abline(intercept=lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg)$coefficients[[1]], slope = lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg)$coefficients[[2]], size=2, color='black', alpha=0.2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_continuous(limits=c(0, 0.15), breaks=c(0, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15), labels=c('0.0','2.5','5.0','7.5','10.0','12.5','15.0')) + scale_y_continuous(limits=c(0, 0.7), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7), labels=c('0.0','10.0','20.0','30.0','40.0','50.0','60.0','70.0')) + labs(y='TCPM (%)', x='Co-Detection Rate (%)') + annotate('text', x=0.12, y=0.6, label=paste('R2 =', round(summary(lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg))$r.squared, 3), sep=' '), size=10)
+#####
+
 with(risk.count.cos.ci.agg, cor(RiskRatio, CoDetectionRate))
 cos.risk.ccf <- ccf(risk.count.cos.ci.agg$RiskRatio, risk.count.cos.ci.agg$CoDetectionRate)
 cos.risk.ccf.df <- data.frame(Lag = cos.risk.ccf$lag, CCF = cos.risk.ccf$acf)
 cos.risk.ccf.df[cos.risk.ccf.df$CCF==max(cos.risk.ccf.df$CCF), ]
 
 # dual axes for ILI overlay plots
-hinvert_title_grob <- function(grob){
+hinvert_title_grob <- function(grob) {
   
   # Swap the widths
   widths <- grob$widths
@@ -221,8 +227,8 @@ hinvert_title_grob <- function(grob){
   grob$vp[[1]]$layout$widths[3] <- widths[1]
   
   # Fix the justification
-  grob$children[[1]]$hjust <- 1 - grob$children[[1]]$hjust 
-  grob$children[[1]]$vjust <- 1 - grob$children[[1]]$vjust 
+  grob$children[[1]]$hjust <- 1 - grob$children[[1]]$hjust
+  grob$children[[1]]$vjust <- 1 - grob$children[[1]]$vjust
   grob$children[[1]]$x <- unit(1, "npc") - grob$children[[1]]$x
   grob
 }
@@ -355,7 +361,7 @@ rand.sample <- c()
 for(i in 3:(length(periods.rand)-2)) {
     
   # for a given five week period, keep the runs in that period with the associated site
-  runs.rand.period <- runs.rand[runs.rand$YearWeek %in% periods[(i-2):(i+2)], ]
+  runs.rand.period <- runs.rand[runs.rand$YearWeek %in% periods.rand[(i-2):(i+2)], ]
   
   # loop through all sites in the period and bin runs into group of threshold or less
   period.threshold <- 100
@@ -365,7 +371,7 @@ for(i in 3:(length(periods.rand)-2)) {
     
     runs.rand.period.site <- runs.rand.period[runs.rand.period$CustomerSiteId==period.sites[j], ]
     
-    # if there are less than threshold runs in the period (centered 5 weeks, so < 10 runs/week) for a given site, skip it
+    # if there are less than threshold runs in the period (centered 5 weeks, so < threshold/5 runs/week) for a given site, skip it
     if(nrow(runs.rand.period.site) < period.threshold) { next() }
     
     # if there are more than threshold runs in the period for a given site, split them out into multiple segements
@@ -383,21 +389,20 @@ for(i in 3:(length(periods.rand)-2)) {
       if(k == 1) {
         
         sample.ids <- sample.ids.init
+        size.sample.period.site <- length(sample.ids)
         runs.sample.period.site <- runs.rand.period.site[runs.rand.period.site$RunDataId %in% sample.ids, ]
         bugs.sample.period.site <- bugs.df[bugs.df$RunDataId %in% runs.sample.period.site$RunDataId, ]
         unique.bugs.in.sample <- length(unique(bugs.sample.period.site$BugPositive))
-        co.detections.in.sample <- sum(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))$Positives > 1)/length(unique(bugs.sample.period.site$RunDataId))
+        co.detections.in.sample <- sum(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))$Positives > 1)/size.sample.period.site
 
         bugs.sample <- as.character(unique(bugs.sample.period.site$ShortName)) 
         percent.det.sample <- data.frame(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~ShortName, FUN=sum)), Runs = nrow(runs.sample.period.site))
         percent.det.sample$PercentDetection <- with(percent.det.sample, Positives/Runs)
-        # risk.metric.in.sample <- do.call(rbind, lapply(1:length(bugs.sample), function(x) data.frame(YearWeek = periods.rand[i], 
-        #                                                      CustomerSiteId = period.sites[j], 
-        #                                                      ShortName = bugs.sample[x], 
-        #                                                      RiskRatio = percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']*sum(percent.det.sample[percent.det.sample$ShortName!=bugs.sample[x],'PercentDetection']
-        #                                               ))))
         risk.metric.in.sample <- sum(sapply(1:length(bugs.sample), function(x) RiskRatio = percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']*sum(percent.det.sample[percent.det.sample$ShortName!=bugs.sample[x],'PercentDetection'])))
-        temp <- data.frame(YearWeek = periods.rand[i], UniquePositives = unique.bugs.in.sample, RiskRatio = risk.metric.in.sample, CoDetectionRate = co.detections.in.sample)
+        metric.var.in.sample <- 4*sum(sapply(1:length(bugs.sample), function(x) mVariance = (((percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']*(1-percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']))/percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'Runs'])*sum(percent.det.sample[percent.det.sample$ShortName!=bugs.sample[x],'PercentDetection'])^2)))
+        
+        temp <- data.frame(YearWeek = periods.rand[i], CustomerSiteId = period.sites[j], SampleSize = size.sample.period.site, UniquePositives = unique.bugs.in.sample, CoDetectionRate = co.detections.in.sample, RiskRatio = risk.metric.in.sample, RiskVariance = metric.var.in.sample)
+
         site.samples <- rbind(site.samples, temp)
       } else if (k < divisor) {
         
@@ -405,29 +410,35 @@ for(i in 3:(length(periods.rand)-2)) {
         runs.sample.period.site <- runs.rand.period.site[runs.rand.period.site$RunDataId %in% sample.ids, ]
         bugs.sample.period.site <- bugs.df[bugs.df$RunDataId %in% runs.sample.period.site$RunDataId, ]
         unique.bugs.in.sample <- length(unique(bugs.sample.period.site$BugPositive))
-        co.detections.in.sample <- sum(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))$Positives > 1)/length(unique(bugs.sample.period.site$RunDataId))
+        co.detections.in.sample <- sum(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))$Positives > 1)/size.sample.period.site
         
         bugs.sample <- as.character(unique(bugs.sample.period.site$ShortName)) 
         percent.det.sample <- data.frame(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~ShortName, FUN=sum)), Runs = nrow(runs.sample.period.site))
         percent.det.sample$PercentDetection <- with(percent.det.sample, Positives/Runs)
         risk.metric.in.sample <- sum(sapply(1:length(bugs.sample), function(x) RiskRatio = percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']*sum(percent.det.sample[percent.det.sample$ShortName!=bugs.sample[x],'PercentDetection'])))
-        temp <- data.frame(YearWeek = periods.rand[i], UniquePositives = unique.bugs.in.sample, RiskRatio = risk.metric.in.sample, CoDetectionRate = co.detections.in.sample)
+        metric.var.in.sample <- 4*sum(sapply(1:length(bugs.sample), function(x) mVariance = (((percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']*(1-percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']))/percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'Runs'])*sum(percent.det.sample[percent.det.sample$ShortName!=bugs.sample[x],'PercentDetection'])^2)))
+        
+        temp <- data.frame(YearWeek = periods.rand[i], CustomerSiteId = period.sites[j], SampleSize = size.sample.period.site, UniquePositives = unique.bugs.in.sample, CoDetectionRate = co.detections.in.sample, RiskRatio = risk.metric.in.sample, RiskVariance = metric.var.in.sample)
+    
         sample.ids.init <- c(sample.ids.init, sample.ids)
         sample.ids.free <- sample.ids.free[!(sample.ids.free %in% sample.ids.init)]
         site.samples <- rbind(site.samples, temp)
       } else {
         
         sample.ids <- sample.ids.free
+        size.sample.period.site <- length(sample.ids)
         runs.sample.period.site <- runs.rand.period.site[runs.rand.period.site$RunDataId %in% sample.ids, ]
         bugs.sample.period.site <- bugs.df[bugs.df$RunDataId %in% runs.sample.period.site$RunDataId, ]
         unique.bugs.in.sample <- length(unique(bugs.sample.period.site$BugPositive))
-        co.detections.in.sample <- sum(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))$Positives > 1)/length(unique(bugs.sample.period.site$RunDataId))
+        co.detections.in.sample <- sum(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~RunDataId, FUN=sum))$Positives > 1)/size.sample.period.site
         
         bugs.sample <- as.character(unique(bugs.sample.period.site$ShortName)) 
         percent.det.sample <- data.frame(with(data.frame(bugs.sample.period.site, Positives = 1), aggregate(Positives~ShortName, FUN=sum)), Runs = nrow(runs.sample.period.site))
         percent.det.sample$PercentDetection <- with(percent.det.sample, Positives/Runs)
         risk.metric.in.sample <- sum(sapply(1:length(bugs.sample), function(x) RiskRatio = percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']*sum(percent.det.sample[percent.det.sample$ShortName!=bugs.sample[x],'PercentDetection'])))
-        temp <- data.frame(YearWeek = periods.rand[i], UniquePositives = unique.bugs.in.sample, RiskRatio = risk.metric.in.sample, CoDetectionRate = co.detections.in.sample)
+        metric.var.in.sample <- 4*sum(sapply(1:length(bugs.sample), function(x) mVariance = (((percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']*(1-percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'PercentDetection']))/percent.det.sample[percent.det.sample$ShortName==bugs.sample[x],'Runs'])*sum(percent.det.sample[percent.det.sample$ShortName!=bugs.sample[x],'PercentDetection'])^2)))
+        
+        temp <- data.frame(YearWeek = periods.rand[i], CustomerSiteId = period.sites[j], SampleSize = size.sample.period.site, UniquePositives = unique.bugs.in.sample, CoDetectionRate = co.detections.in.sample, RiskRatio = risk.metric.in.sample, RiskVariance = metric.var.in.sample)
         site.samples <- rbind(site.samples, temp)
       }
     }
@@ -437,8 +448,18 @@ for(i in 3:(length(periods.rand)-2)) {
   rand.sample <- rbind(rand.sample, period.samples)
 }
 
-rand.agg <- with(rand.sample, aggregate(cbind(UniquePositives, CoDetectionRate, RiskRatio)~YearWeek, FUN=mean))
-ggplot(rand.agg, aes(x=YearWeek, y=UniquePositives)) + geom_point(color='black') + geom_point(aes(x=YearWeek, y=CoDetectionRate*100), data=rand.agg, color='blue') + geom_point(aes(x=YearWeek, y=RiskRatio*25), data=rand.agg, color='red')  
+rand.agg <- with(rand.sample, aggregate(cbind(UniquePositives, CoDetectionRate, RiskRatio, RiskVariance)~YearWeek, FUN=mean))
+rand.unique.sdev <- with(rand.sample, aggregate(UniquePositives~YearWeek, FUN=sd))
+colnames(rand.unique.sdev)[2] <- 'SdevUniquePositives'
+rand.agg <- merge(rand.agg, rand.unique.sdev, by='YearWeek')
+rand.agg$LowerCI <- rand.agg$RiskRatio + qnorm(0.025)*sqrt(rand.agg$RiskVariance)
+rand.agg$UpperCI <- rand.agg$RiskRatio + qnorm(0.975)*sqrt(rand.agg$RiskVariance)
+# create a plot of the co-detection rate with the risk metric overlaid
+p.CoDetectionsAndRiskMetricSingleAxis <- ggplot(rand.agg, aes(x=YearWeek, y=CoDetectionRate, fill='Co-Detection Rate')) + geom_bar(stat='identity') + geom_line(aes(x=YearWeek, y=RiskRatio, group='Risk Metric', color='Risk Metric', fill='Risk Metric'), lwd=1.5, color='black', data=rand.agg) + scale_fill_manual(values=c('grey','black'), name='') + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=12, color='black'), axis.title.y=element_text(size=12), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='white', fill='white'), legend.position='bottom') + scale_x_discrete(breaks = dateBreaks, labels=dateLabels) + labs(y='Co-Detections/Tests, Risk Metric', x='Date') + scale_y_continuous(limits=c(0, 0.6), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0))
+p.UniqueCirculatingOrganismsSampled <- ggplot(aes(x=YearWeek, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=rand.agg) + geom_line(size=2) + geom_ribbon(aes(x=YearWeek, ymin=(UniquePositives-SdevUniquePositives), ymax=(UniquePositives+SdevUniquePositives)), data=rand.agg, color='transparent', fill='grey', alpha=0.5) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,16), breaks=c(0, 2, 4, 6, 8, 10, 12, 14,16)) + scale_color_manual(values=c('black'), name='', guide=FALSE) + labs(y='Unique Organisms +/- 1 Standard Deviation', x='Date')
+
+ggplot(rand.agg, aes(x=CoDetectionRate, y=RiskRatio)) + geom_point() + geom_ribbon(aes(ymin=LowerCI, ymax=UpperCI), alpha=0.2, data=rand.agg)
+
 
 if(FALSE) {
   runs.rand <- merge(calendar.df[,c('Date','YearWeek')], data.frame(runs.df[,c('Date','RunDataId','CustomerSiteId')], Runs = 1), by='Date')
