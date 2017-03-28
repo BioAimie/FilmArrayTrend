@@ -46,6 +46,9 @@ PMScxn <- odbcConnect('PMS_PROD')
 queryVector <- readLines('../DataSources/SQL/EnteroD68/qcMedianCpRP.sql')
 query <- paste(queryVector, collapse = '\n')
 qc.lot.cps <- sqlQuery(PMScxn, query)
+queryVector <- readLines('../DataSources/SQL/EnteroD68/rhinoDataAtCHLA.sql')
+query <- paste(queryVector, collapse = '\n')
+chla.df <- sqlQuery(PMScxn, query)
 odbcClose(PMScxn)
 
 # start a loop to gather Cp, Tm, and MaxFluor data for all HRV/Entero Assays by site
@@ -68,17 +71,18 @@ rm(dat.site.df)
 # ============================================================================================
 # with the data, determine the median value of Tm, Cp, and Max Fluor for each assay in the HRV/EV target
 cp.median <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
+cp.median.chla <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=chla.df)
+cp.median.chla$RunDataId <- seq((max(dat.df$RunDataId)+1), (max(dat.df$RunDataId) + length(cp.median.chla$Cp)), 1)
+cp.median <- rbind(cp.median, cp.median.chla)
 cp.spread <- spread(data = cp.median, key = AssayName, value = Cp)
 cp.sparse.handler <- 40
-# cp.spread[,c(5:12)][is.na(cp.spread[,c(5:12)])] <- cp.sparse.handler
+
 tm.median <- aggregate(Tm~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
+tm.median.chla <- aggregate(Tm~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=chla.df)
+tm.median.chla$RunDataId <- seq((max(dat.df$RunDataId)+1), (max(dat.df$RunDataId) + length(tm.median.chla$Tm)), 1)
+tm.median <- rbind(tm.median, tm.median.chla)
 tm.spread <- spread(data = tm.median, key = AssayName, value = Tm)
-tm.sparse.handler <- 100
-# tm.spread[,c(5:12)][is.na(tm.spread[,c(5:12)])] <- tm.sparse.handler
-# fluor.median <- aggregate(MaxFluor~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
-# fluor.spread <- spread(data = fluor.median, key = AssayName, value = MaxFluor)
-# fluor.sparse.handler <- 170
-# fluor.spread[,c(5:12)][is.na(fluor.spread[,c(5:12)])] <- fluor.sparse.handler
+tm.sparse.handler <- 5
 
 # Scale assay median Cp and Tm data using the yeast control as well as QC data where applicable
 # ============================================================================================
@@ -113,8 +117,7 @@ initial.window <- 100
 test.horizon <- 10
 
 scored.df <- c()
-# sites[c(2,5,6,10,11)]
-for (i in 1:length(sites)) { # c(2, 5, 6, 10, 11)) { #1:length(sites)) {
+for (i in 1:length(sites)) {
   
   # parition the data by site and then order by the test date
   site.features <- filter(dat.trim, CustomerSiteId == sites[i])
@@ -123,21 +126,20 @@ for (i in 1:length(sites)) { # c(2, 5, 6, 10, 11)) { #1:length(sites)) {
   site.features$Obs <- seq(1, length(site.features$Date), 1)
   
   site.df <- c()
-  site.start.time <- Sys.time()
+  # site.start.time <- Sys.time()
   for(j in (initial.window+1):(length(site.features$Obs)-test.horizon)) {
     
     # split into train and test data
     site.train <- site.features[site.features$Obs < j & site.features$Obs >= (j - initial.window), ]
     site.test <- site.features[site.features$Obs < (j + test.horizon) & site.features$Obs >= j, ]
     
-    # THIS IS NEW... I'M JUST TESTING STUFF!!!!
-    # get the near zero variance of the train set and then the aggregate train + test set... the logic is that if the near zero variance
-    # changes when the data are aggregated, that *could* indicate a change, but this may just be too hair trigger tuned to EV
+    # get the near zero variance of the train set so that these variables can be removed from the analysis???
+    # NOT SURE IF I WANT TO KEEP THIS BECAUSE WHAT IF THE VARIABLE DOES HAVE VARIANCE IN THE TEST SET... AM I GETTING RID OF THAT???
     # train.nzv <- nearZeroVar(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], saveMetrics = TRUE)
     # train.remove.vars <- row.names(train.nzv[train.nzv$nzv==TRUE,])
-    # agg.nzv <- nearZeroVar(rbind(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))]), saveMetrics = TRUE)
-    # agg.remove.vars <- row.names(agg.nzv[agg.nzv$nzv==TRUE,])
-    # nzv_score <- ifelse(length(agg.remove.vars) > length(train.remove.vars), 1, 0)
+    # # agg.nzv <- nearZeroVar(rbind(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))]), saveMetrics = TRUE)
+    # # agg.remove.vars <- row.names(agg.nzv[agg.nzv$nzv==TRUE,])
+    # # nzv_score <- ifelse(length(agg.remove.vars) > length(train.remove.vars), 1, 0)
     # site.train <- site.train[,!(colnames(site.train) %in% train.remove.vars)]
     # site.test <- site.test[,!(colnames(site.test) %in% train.remove.vars)]
     
@@ -151,13 +153,13 @@ for (i in 1:length(sites)) { # c(2, 5, 6, 10, 11)) { #1:length(sites)) {
     site.test.trans <- predict(bc.trans, site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))])
     
     # apply dbscan to the train data set... determine eps based on the point where there are 2 clusters (1 cluster + noise)
-    guess.eps <- 0.01
+    guess.eps <- 0.1
     guess.mpt <- 90
-    eps.interval <- 0.01
+    eps.interval <- 0.1
     guess.res <- dbscan(site.train.trans, eps = guess.eps, minPts = guess.mpt)
     cluster.int <- max(guess.res$cluster)
     
-    iter.start.time <- Sys.time()
+    # iter.start.time <- Sys.time()
     while(cluster.int < 1) {
       
       guess.eps <- guess.eps + eps.interval
@@ -165,7 +167,7 @@ for (i in 1:length(sites)) { # c(2, 5, 6, 10, 11)) { #1:length(sites)) {
       noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
       cluster.int <- max(guess.res$cluster)
     }
-    print(Sys.time() - iter.start.time)
+    # print(Sys.time() - iter.start.time)
     
     # with the "correct" dbscan clustering, predict the clusters for the test data
     site.train.trans$Cluster <- as.factor(guess.res$cluster)
@@ -183,33 +185,105 @@ for (i in 1:length(sites)) { # c(2, 5, 6, 10, 11)) { #1:length(sites)) {
     pca.test <- princomp(rbind(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))]))
     pca.test.var <- 1-sapply(1:12, function(x) pca.test$sdev[x]^2/sum(pca.test$sdev^2))[min(which(sapply(1:12, function(x) pca.test$sdev[x]^2/sum(pca.test$sdev^2)) <= 0.05))]
     pca.test.count <- min(which(sapply(1:12, function(x) pca.test$sdev[x]^2/sum(pca.test$sdev^2)) <= 0.05))
-    
-    # what other things would be good to measure differences? Perhaps frequency of tests? Like the test days??? How do we normalize for
-    # sites of different sizes??? How do we know if the frequency is abnormal??
-    
-    #### FILL IN SOMETHING HERE IF I NEED TO...
+    pca.test.var.at.train.pca <- 1 - pca.test$sdev[pca.train.count]^2/sum(pca.test$sdev^2)
     
     # create some data frame that contains information about the timeslice
     temp <- data.frame(CustomerSiteId = sites[i], Seq = j, TestStartDate = site.test[site.test$Obs==min(site.test$Obs), 'Date'],
-                       TrainNoise = train.noise, TestNoise = test.noise, RatioNoise = test.horizon*test.noise/train.noise, 
-                       TrainPCA = pca.train.count, TrainVar = pca.train.var, TestPCA = pca.test.count, TestVar = pca.test.var, RatioPCA = pca.test.count/pca.train.count)
+                       TrainNoise = train.noise, TestNoise = test.noise, # RatioNoise = test.horizon*test.noise/train.noise, 
+                       TrainPCA = pca.train.count, TrainVar = pca.train.var, TestPCA = pca.test.count, TestVar = pca.test.var, 
+                       TestVarWithTrainPCA = pca.test.var.at.train.pca) #,
+                       # RatioPCA = pca.test.count/pca.train.count)
     site.df <- rbind(site.df, temp)
   }
   
-  print(Sys.time() - site.start.time)
+  # print(Sys.time() - site.start.time)
   scored.df <- rbind(scored.df, site.df)
 }
 
+# TWITTER ALGORITHM ... AUTOMATION OF ALGORITHM 1
+# For each test, determine the sequence pattern and then test for anomalies
+# a good source is http://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm for Generalized Extreme Studentized Deviate method
+cp.assay.median <- cp.median[!(cp.median$AssayName %in% c('yeastRNA','PCR2')), ]
+cp.yeast.median <- cp.median[cp.median$AssayName == 'yeastRNA', c('RunDataId','Cp')]
+colnames(cp.yeast.median) <- c('RunDataId','YeastCp')
+cp.assay.norm <- merge(cp.assay.median, cp.yeast.median, by='RunDataId')
+cp.assay.norm <- merge(cp.assay.norm, qc.lot.cps[qc.lot.cps$Name=='yeastRNA', c('MedianCp','PouchLotNumber')], by.x='LotNo', by.y='PouchLotNumber')
+cp.assay.norm$NormCp <- cp.assay.norm$Cp/cp.assay.norm$YeastCp*cp.assay.norm$MedianCp
+cp.assay.norm <- cp.assay.norm[with(cp.assay.norm, order(RunDataId, NormCp, AssayName)), ]
+cp.assay.norm.seq <- do.call(rbind, lapply(1:length(unique(cp.assay.norm$RunDataId)), function(x) data.frame(RunDataId = unique(cp.assay.norm$RunDataId)[x], Sequence = paste(cp.assay.norm[cp.assay.norm$RunDataId==unique(cp.assay.norm$RunDataId)[x], 'AssayName'], collapse=', '))))
+cp.assay.norm.seq <- merge(unique(cp.assay.norm[,c('RunDataId','CustomerSiteId','Date')]), cp.assay.norm.seq, by='RunDataId')
+sequences <- as.character(unique(cp.assay.norm.seq$Sequence))
 
+seq.anoms <- c()
+for(i in 1:length(sites)) {
 
+  site.date <- min(cp.assay.norm.seq[cp.assay.norm.seq$CustomerSiteId==sites[i], 'Date'])
+  site.sequences <- as.character(unique(cp.assay.norm.seq[cp.assay.norm.seq$CustomerSiteId==sites[i], 'Sequence']))
+  site.anoms <- c()
+  for(j in 1:length(site.sequences)) {
+    
+    sequence.freq <- cp.assay.norm.seq[cp.assay.norm.seq$CustomerSiteId==sites[i] & cp.assay.norm.seq$Sequence==site.sequences[j], ]
+    sequence.freq.fill <- merge(data.frame(Date = calendar.df[calendar.df$Date > site.date, 'Date']), data.frame(Date = sequence.freq[,c('Date')], Freq = 1), by='Date', all.x=TRUE)
+    sequence.freq.fill[is.na(sequence.freq.fill$Freq), 'Freq'] <- 0
+    sequence.freq.fill <- with(sequence.freq.fill, aggregate(Freq~Date, FUN=sum))
+    # I don't think it's appropriate to use a count, because that is skewed over time by changes in utlization... it should be a rate of positive HRV/EV tests or something
+    run.freq.fill <- merge(data.frame(Date = calendar.df[calendar.df$Date > site.date, 'Date']), runs.df[runs.df$CustomerSiteId==sites[i], c('Date','Run')], by='Date', all.x=TRUE)
+    run.freq.fill[is.na(run.freq.fill$Run), 'Run'] <- 0
+    run.freq.fill <- with(run.freq.fill, aggregate(Run~Date, FUN=sum))
+    sequence.freq.fill <- merge(run.freq.fill, sequence.freq.fill, by='Date')
+    sequence.freq.fill$Rate <- with(sequence.freq.fill, Freq/Run)
+    sequence.freq.fill[is.nan(sequence.freq.fill$Rate), 'Rate'] <- 0
+    # update
+    sequence.freq.fill$Date <- as.POSIXct(sequence.freq.fill$Date)
+    site.seq.anoms <- AnomalyDetectionTs(sequence.freq.fill[,c('Date','Rate')], max_anoms=0.01, direction='both', plot=FALSE)
+    if(nrow(site.seq.anoms$anoms)==0) { next() }
+    site.seq.anoms <- data.frame(CustomerSiteId = sites[i], Sequence = site.sequences[j], site.seq.anoms$anoms)
+    site.seq.anoms$Date <- as.Date(site.seq.anoms$timestamp)
+    
+    site.anoms <- rbind(site.anoms, site.seq.anoms)
+  }
+  
+  # site.anoms$Date <- as.Date(site.anoms$timestamp)
+  # site.anom.agg.date <- with(site.anoms, aggregate(anoms~Date, FUN=sum))
+  # site.anom.agg.seq <- with(site.anoms, aggregate(anoms~Sequence, FUN=sum))
+  # site.anom.agg.date[site.anom.agg.date$anoms > (mean(site.anom.agg.date$anoms) + 3*sd(site.anom.agg.date$anoms)), ]
+  # site.anom.agg.seq[site.anom.agg.seq$anoms > (mean(site.anom.agg.seq$anoms) + 3*sd(site.anom.agg.seq$anoms)), ]
+  
+  seq.anoms <- rbind(seq.anoms, site.anoms)
+}
 
-# Remove variable that have very little variance in the data set or that are highly correlated
-# ============================================================================================
-# nzv <- nearZeroVar(dat.norm[,c(5:16)], saveMetrics = TRUE)
-# remove.vars <- row.names(nzv[nzv$nzv==TRUE,])
-# dat.norm <- dat.norm[,!(colnames(dat.norm) %in% remove.vars)]
-# keep.vars <- cor(dat.norm[,c(5:16)])[,-findCorrelation(cor(dat.norm[,c(5:16)]), cutoff=0.8)]
-# dat.clean <- dat.norm[,colnames(dat.norm) %in% c('RunDataId','Date','YearWeek','CustomerSiteId',row.names(keep.vars))]
+# Make some plots to explore what has been made:
+# for site 13 (Nationwide Childrens)
+
+movie.sites <- as.character(unique(scored.df$CustomerSiteId))
+for(h in 1:length(movie.sites)) {
+  
+  site.to.gif <- movie.sites[h]
+  site.date.breaks <- unique(scored.df[scored.df$CustomerSiteId==site.to.gif,'TestStartDate'])[seq(30, length(unique(scored.df[scored.df$CustomerSiteId==site.to.gif,'TestStartDate'])), 30)]
+  
+  for(i in 1:length(site.date.breaks)) {
+    
+    if(length(site.date.breaks) >= 100) {
+      
+      i.extension <- ifelse(i < 10, paste('00',i, sep=''), ifelse(i < 100, paste('0',i, sep=''), paste(i, sep='')))
+    } else if (length(site.date.breaks) >= 10) {
+      
+      i.extension <- ifelse(i < 10, paste('0',i, sep=''), paste(i, sep=''))
+    } else {
+      
+      i.extension <- paste(i, sep='')
+    }
+    
+    site.date.temp <- subset(scored.df, CustomerSiteId==site.to.gif & TestStartDate <= site.date.breaks[i])
+    # print(nrow(site.date.temp))
+    png(paste('Movie/Scored/',site.to.gif,'/','CustomerSite',site.to.gif,'_',i.extension,'.png', sep=''))
+    print(ggplot(site.date.temp, aes(x=TestStartDate, y=test.horizon*TestNoise/TrainNoise, color=TestVarWithTrainPCA)) + geom_point() + labs(title=paste('Customer Site', site.to.gif, 'at date <=', site.date.breaks[i], sep=' '), y='Score', x='Date')) # + geom_line(aes(x=TestStartDate, y=mean(10*TestNoise/TrainNoise)+5*sd(10*TestNoise/TrainNoise)), data=site.date.temp, color='red', lty='dashed'))
+    dev.off()
+  }
+  # create a gif by using command prompt, cd into the dir with the pngs then run magick convert *.png -delay x -loop y name.gif
+}
+
+ggplot(subset(seq.anoms, CustomerSiteId=='13'), aes(x=Date, y=anoms, fill=Sequence)) + geom_bar(stat='identity') + theme(legend.position='bottom')
 
 
 if(FALSE) {
@@ -260,103 +334,93 @@ if(FALSE) {
   # check to see if any of the variables have very strong correlation (cut off of 0.8)
   keep.vars <- cor(cp.clean[,c(4:7)])[,-findCorrelation(cor(cp.clean[,c(4:7)]), cutoff=0.8)]
   cp.clean <- cp.clean[,colnames(cp.clean) %in% c('RunDataId','Date','YearWeek','CustomerSiteId',row.names(keep.vars))]
-}
 
-# Apply machine learning
-# ===========================================================================================
-# data should be analyzed on a site-by-site basis
-# cp.features <- merge(cp.clean, calendar.df[,c('Date','YearWeek')], by='Date') 
-cp.features <- merge(cp.spread, calendar.df[,c('Date','YearWeek')], by='Date') 
-cp.features <- cp.features[with(cp.features, order(CustomerSiteId, Date)), ]
-sites <- unique(cp.features$CustomerSiteId)[order(unique(cp.features$CustomerSiteId))]
-
-# set up the intial window and horizon for time slices
-initial.window <- 100
-test.horizon <- 10
-
-# sites <- c(13, 25, 26) # , 33, 36, 38)
-scored.df <- c()
-for (i in 1:length(sites)) {
+  # Apply machine learning
+  # ===========================================================================================
+  # data should be analyzed on a site-by-site basis
+  # cp.features <- merge(cp.clean, calendar.df[,c('Date','YearWeek')], by='Date') 
+  cp.features <- merge(cp.spread, calendar.df[,c('Date','YearWeek')], by='Date') 
+  cp.features <- cp.features[with(cp.features, order(CustomerSiteId, Date)), ]
+  sites <- unique(cp.features$CustomerSiteId)[order(unique(cp.features$CustomerSiteId))]
   
-  # parition the data by site and set up a timeframe
-  site.start <- as.character(site.starts[site.starts$CustomerSiteId==sites[i], 'YearWeek'])
-  site.features <- cp.features[cp.features$CustomerSiteId==sites[i] & as.character(cp.features$YearWeek) > site.start, ]
-  site.features <- site.features[with(site.features, order(Date)), ]
-  if(nrow(site.features)==0) { next }
-  site.features$Obs <- seq(1, length(site.features$Date), 1)
-  site.features$DaysBetween <- c(0, as.numeric(sapply(2:length(site.features$Date), function(x) site.features[x,'Date']-site.features[(x-1),'Date'])))
+  # set up the intial window and horizon for time slices
+  initial.window <- 100
+  test.horizon <- 10
   
-  site.df <- c()
-  site.start.time <- Sys.time()
-  for(j in (initial.window+1):(length(site.features$Obs)-test.horizon)) {
-  
-    site.train <- site.features[site.features$Obs < j & site.features$Obs >= (j - initial.window), ]
-    site.test <- site.features[site.features$Obs < (j + test.horizon) & site.features$Obs >= j, ]
+  # sites <- c(13, 25, 26) # , 33, 36, 38)
+  scored.df <- c()
+  for (i in 1:length(sites)) {
     
-    train.nzv <- nearZeroVar(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], saveMetrics = TRUE)
-    train.remove.vars <- row.names(train.nzv[train.nzv$nzv==TRUE,])
-    site.train <- site.train[,!(colnames(site.train) %in% train.remove.vars)]
-    site.test <- site.test[,!(colnames(site.test) %in% train.remove.vars)]
+    # parition the data by site and set up a timeframe
+    site.start <- as.character(site.starts[site.starts$CustomerSiteId==sites[i], 'YearWeek'])
+    site.features <- cp.features[cp.features$CustomerSiteId==sites[i] & as.character(cp.features$YearWeek) > site.start, ]
+    site.features <- site.features[with(site.features, order(Date)), ]
+    if(nrow(site.features)==0) { next }
+    site.features$Obs <- seq(1, length(site.features$Date), 1)
+    site.features$DaysBetween <- c(0, as.numeric(sapply(2:length(site.features$Date), function(x) site.features[x,'Date']-site.features[(x-1),'Date'])))
     
-    pca.tranform <- preProcess(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], method = 'pca')
-    site.train.pca <- predict(pca.tranform, site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))])
-    site.test.pca <- predict(pca.tranform, site.test[,(colnames(site.test) %in% as.character(unique(cp.df$AssayName)))])
+    site.df <- c()
+    site.start.time <- Sys.time()
+    for(j in (initial.window+1):(length(site.features$Obs)-test.horizon)) {
     
-    # apply dbscan to the train data set... determine eps based on the point where there are 2 clusters (1 cluster + noise)
-    guess.eps <- 0.01
-    guess.mpt <- 90
-    eps.interval <- 0.01
-    guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
-    cluster.int <- max(guess.res$cluster)
-    
-    iter.start.time <- Sys.time()
-    while(cluster.int < 1) {
+      site.train <- site.features[site.features$Obs < j & site.features$Obs >= (j - initial.window), ]
+      site.test <- site.features[site.features$Obs < (j + test.horizon) & site.features$Obs >= j, ]
       
-      guess.eps <- guess.eps + eps.interval
+      train.nzv <- nearZeroVar(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], saveMetrics = TRUE)
+      train.remove.vars <- row.names(train.nzv[train.nzv$nzv==TRUE,])
+      site.train <- site.train[,!(colnames(site.train) %in% train.remove.vars)]
+      site.test <- site.test[,!(colnames(site.test) %in% train.remove.vars)]
+      
+      pca.tranform <- preProcess(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], method = 'pca')
+      site.train.pca <- predict(pca.tranform, site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))])
+      site.test.pca <- predict(pca.tranform, site.test[,(colnames(site.test) %in% as.character(unique(cp.df$AssayName)))])
+      
+      # apply dbscan to the train data set... determine eps based on the point where there are 2 clusters (1 cluster + noise)
+      guess.eps <- 0.01
+      guess.mpt <- 90
+      eps.interval <- 0.01
       guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
-      noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
       cluster.int <- max(guess.res$cluster)
+      
+      iter.start.time <- Sys.time()
+      while(cluster.int < 1) {
+        
+        guess.eps <- guess.eps + eps.interval
+        guess.res <- dbscan(site.train.pca, eps = guess.eps, minPts = guess.mpt)
+        noise.ratio <- sum(guess.res$cluster==0)/length(guess.res$cluster)
+        cluster.int <- max(guess.res$cluster)
+      }
+      print(Sys.time() - iter.start.time)
+      
+      # with the "correct" dbscan clustering, predict the clusters for the test data
+      site.train.pca$Cluster <- as.factor(guess.res$cluster)
+      site.test.pca$Cluster <- unname(predict(guess.res, site.train.pca[,grep('^PC', colnames(site.train.pca))], site.test.pca))
+      
+      # count the number of clusters in the test set that are considered noise
+      pca.count <- max(grep('^PC', colnames(site.train.pca)))
+      train.noise <- nrow(site.train.pca[site.train.pca$Cluster==0, ])
+      test.noise <- nrow(site.test.pca[site.test.pca$Cluster==0, ])
+      train.days.mean <- mean(site.train$DaysBetween)
+      test.days.mean <- mean(site.test$DaysBetween)
+      train.days.median <- median(site.train$DaysBetween)
+      test.days.median <- median(site.test$DaysBetween)
+      temp <- data.frame(CustomerSiteId = sites[i], Seq = j, TestStartDate = site.test[site.test$Obs==min(site.test$Obs), 'Date'],
+                         TrainNoise = train.noise, TestNoise = test.noise, PCAs = pca.count, TrainDaysMean = train.days.mean,
+                         TrainDaysMedian = train.days.median, TestDaysMean = test.days.mean, TestDaysMedian = test.days.median)
+      temp$Score <- with(temp, ifelse(TrainNoise > 0, TestNoise/TrainNoise*pca.count, TestNoise*pca.count))
+      site.df <- rbind(site.df, temp)
     }
-    print(Sys.time() - iter.start.time)
-    
-    # with the "correct" dbscan clustering, predict the clusters for the test data
-    site.train.pca$Cluster <- as.factor(guess.res$cluster)
-    site.test.pca$Cluster <- unname(predict(guess.res, site.train.pca[,grep('^PC', colnames(site.train.pca))], site.test.pca))
-    
-    # count the number of clusters in the test set that are considered noise
-    pca.count <- max(grep('^PC', colnames(site.train.pca)))
-    train.noise <- nrow(site.train.pca[site.train.pca$Cluster==0, ])
-    test.noise <- nrow(site.test.pca[site.test.pca$Cluster==0, ])
-    train.days.mean <- mean(site.train$DaysBetween)
-    test.days.mean <- mean(site.test$DaysBetween)
-    train.days.median <- median(site.train$DaysBetween)
-    test.days.median <- median(site.test$DaysBetween)
-    temp <- data.frame(CustomerSiteId = sites[i], Seq = j, TestStartDate = site.test[site.test$Obs==min(site.test$Obs), 'Date'],
-                       TrainNoise = train.noise, TestNoise = test.noise, PCAs = pca.count, TrainDaysMean = train.days.mean,
-                       TrainDaysMedian = train.days.median, TestDaysMean = test.days.mean, TestDaysMedian = test.days.median)
-    temp$Score <- with(temp, ifelse(TrainNoise > 0, TestNoise/TrainNoise*pca.count, TestNoise*pca.count))
-    site.df <- rbind(site.df, temp)
-  }
-
-  print(Sys.time() - site.start.time)
-  scored.df <- rbind(scored.df, site.df)
-}
-
-# ATTEMPT TO DO SOME SORT OF ROLLING SUM OF THE SCORE AT A SITE... THIS SHOULD HELP IDENTIFY PERIODS WHERE SCORES ARE
-# SUSTAINED AT A HIGHER LEVEL
-scored.df[is.na(scored.df$Score), 'Score']  <- scored.df[is.na(scored.df$Score), 'TestNoise']*scored.df[is.na(scored.df$Score), 'PCAs']
-a <- scored.df[scored.df$CustomerSiteId==13 &  scored.df$TestStartDate < as.Date('2017-03-01'), ]
-ggplot(a, aes(x=TestStartDate, y=Score)) + geom_point() + geom_line(aes(x=TestStartDate, y=mean(Score)+3*sd(Score)), data=a, color='red', lwd=1.25)
-
-
-# TWITTER ALGORITHM ... AUTOMATION OF ALGORITHM 1
-sequence.freq <- merge(sequence.freq, with(sequence.freq, aggregate(Count~Date, FUN=sum)), by='Date')
-sequence.freq$Rate <- sequence.freq$Count.x/sequence.freq$Count.y
-sequence.freq <- sequence.freq[,c('Date','Sequence','Rate')]
-sequence.freq$Date <- as.POSIXct(sequence.freq$Date)
-AnomalyDetectionTs(sequence.freq[sequence.freq$Sequence=='HRV4, HRV1', c('Date','Rate')], max_anoms=0.01, direction='both', plot=TRUE)
-
   
+    print(Sys.time() - site.start.time)
+    scored.df <- rbind(scored.df, site.df)
+  }
+  
+  # ATTEMPT TO DO SOME SORT OF ROLLING SUM OF THE SCORE AT A SITE... THIS SHOULD HELP IDENTIFY PERIODS WHERE SCORES ARE
+  # SUSTAINED AT A HIGHER LEVEL
+  scored.df[is.na(scored.df$Score), 'Score']  <- scored.df[is.na(scored.df$Score), 'TestNoise']*scored.df[is.na(scored.df$Score), 'PCAs']
+  a <- scored.df[scored.df$CustomerSiteId==13 &  scored.df$TestStartDate < as.Date('2017-03-01'), ]
+  ggplot(a, aes(x=TestStartDate, y=Score)) + geom_point() + geom_line(aes(x=TestStartDate, y=mean(Score)+3*sd(Score)), data=a, color='red', lwd=1.25)
+}
 if(FALSE) {
   # parition the data by site and set up a timeframe
   site.start <- as.character(site.starts[site.starts$CustomerSiteId==sites[i], 'YearWeek'])
@@ -414,7 +478,7 @@ if(FALSE) {
       # site.df <- rbind(site.df, site.period.df)
       # ggplot(site.period.df, aes(x=as.factor(Obs), fill=Cluster)) + geom_bar() + labs(title = paste('Cluster Prediction at j =', j, sep=' '), x='Observation')
   }
-  } 
+  }
 if(FALSE) {
   # # every "train.weeks" consecutive period will be used as the train set and then the forward "test.weeks" period will be predicted
   # site.train.periods <- unique(cp.features[cp.features$YearWeek > site.start, 'YearWeek'])
@@ -478,7 +542,7 @@ if(FALSE) {
   #     break()
   #   }
   # }
-  }  
+  }
 if(FALSE) {
   #   determine labels
   run.ids <- unique(cp.median$RunDataId)
