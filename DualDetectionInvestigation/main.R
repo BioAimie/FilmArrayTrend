@@ -11,7 +11,6 @@ library(grid)
 library(gridExtra)
 library(gtable)
 library(devtools)
-install_github('BioAimie/dateManip')
 library(dateManip)
 
 # load user-defined functions
@@ -205,17 +204,31 @@ risk.count.cos.ci.agg <- merge(risk.count.cos.ci.agg, with(risk.count.cos.ci.tri
 risk.count.cos.ci.agg$LL <- risk.count.cos.ci.agg$RiskRatio - qnorm(0.975)*risk.count.cos.ci.agg$sdev
 risk.count.cos.ci.agg$UL <- risk.count.cos.ci.agg$RiskRatio + qnorm(0.975)*risk.count.cos.ci.agg$sdev
 
+# # get the Euclidean distance between the vectors of Risk and CoDetection
+# ed <- dist(with(risk.count.cos.ci.agg, rbind(RiskRatio, CoDetectionRate)))
+# a <- risk.count.cos.ci.agg
+# a$RiskFactoredByED <- risk.count.cos.ci.agg$RiskRatio/ed
+
+# a <- matrix(0, nrow=length(risk.count.cos.ci.agg$CoDetectionRate), ncol=length(risk.count.cos.ci.agg$CoDetectionRate))
+# for(i in 1:nrow(a)) { a[i, i] <- risk.count.cos.ci.agg$CoDetectionRate[i]}
+# e <- eigen(a)
+
 #####
 # change this code to make everything on one axis and remove the confidence interval (grey bars, red line) - TCPM
-p.CosAndRiskOnSingleAxisFinalFormat <- ggplot(risk.count.cos.ci.agg, aes(x=DateGroup, y=100*CoDetectionRate, group='Co-Detection Rate', fill='Co-Detection Rate')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=100*RiskRatio, group='TCPM', color='TCPM'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection Rate (%), TCPM (%)', x='Date')
-p.CoDetVsTCPM <- ggplot(risk.count.cos.ci.agg, aes(x=CoDetectionRate, y=RiskRatio)) + geom_point() + geom_abline(intercept=lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg)$coefficients[[1]], slope = lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg)$coefficients[[2]], size=2, color='black', alpha=0.2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_continuous(limits=c(0, 0.15), breaks=c(0, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15), labels=c('0.0','2.5','5.0','7.5','10.0','12.5','15.0')) + scale_y_continuous(limits=c(0, 0.7), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7), labels=c('0.0','10.0','20.0','30.0','40.0','50.0','60.0','70.0')) + labs(y='TCPM (%)', x='Co-Detection Rate (%)') + annotate('text', x=0.12, y=0.6, label=paste('R2 =', round(summary(lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg))$r.squared, 3), sep=' '), size=10)
+risk.fit <- lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg)
+m <- round(risk.fit$coefficients[[2]], 2)
+r <- round(summary(risk.fit)$r.squared, 3)
+p.CosAndRiskOnSingleAxisFinalFormat <- ggplot(risk.count.cos.ci.agg, aes(x=DateGroup, y=100*CoDetectionRate, group='Co-Detection Rate', fill='Co-Detection Rate')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=100*RiskRatio/m, group='TCPM', color='TCPM'), data=risk.count.cos.agg, size=2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection Rate (%), TCPM', x='Date')
+p.CoDetVsTCPM <- ggplot(risk.count.cos.ci.agg, aes(x=CoDetectionRate, y=RiskRatio)) + geom_point() + geom_abline(intercept=lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg)$coefficients[[1]], slope = lm(RiskRatio~CoDetectionRate, data=risk.count.cos.ci.agg)$coefficients[[2]], size=2, color='black', alpha=0.2) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_continuous(limits=c(0, 0.15), breaks=c(0, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15), labels=c('0.0','2.5','5.0','7.5','10.0','12.5','15.0')) + scale_y_continuous(limits=c(0, 0.7), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7), labels=c('0.0','10.0','20.0','30.0','40.0','50.0','60.0','70.0')) + labs(y='TCPM', x='Co-Detection Rate (%)') + annotate('text', x=0.125, y=0.625, label=paste(paste('R2 =', r, sep=' '), paste('Slope =', m, sep=' '), sep='\n'), size=5)
 #####
+p.CosAndRiskOnSingleAxisWithCIs <- ggplot(risk.count.cos.ci.agg, aes(x=DateGroup, y=100*CoDetectionRate, group='Co-Detection Rate', fill='Co-Detection Rate')) + geom_bar(stat='identity') + geom_line(aes(x=DateGroup, y=100*RiskRatio/m, group='TCPM', color='TCPM'), data=risk.count.cos.agg, size=2) + geom_ribbon(aes(x=DateGroup, ymin=100*LL/4, ymax=100*UL/4), data=risk.count.cos.ci.agg, alpha=0.2, fill='red') + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_color_manual(values=c('red','blue','black'), name='') + scale_fill_manual(values='grey', name='') + labs(y='Co-Detection Rate (%), TCPM', x='Date')
+
 
 with(risk.count.cos.ci.agg, cor(RiskRatio, CoDetectionRate))
 cos.risk.ccf <- ccf(risk.count.cos.ci.agg$RiskRatio, risk.count.cos.ci.agg$CoDetectionRate)
 cos.risk.ccf.df <- data.frame(Lag = cos.risk.ccf$lag, CCF = cos.risk.ccf$acf)
 cos.risk.ccf.df[cos.risk.ccf.df$CCF==max(cos.risk.ccf.df$CCF), ]
-
+ 
 # dual axes for ILI overlay plots
 hinvert_title_grob <- function(grob) {
   
@@ -350,7 +363,7 @@ dev.off()
 #  Make a chart showing the count of unique organisms circulating
 risk.count.cos.agg <- merge(risk.count.cos.agg, with(sites.bugs.roll, aggregate(UniquePositives~DateGroup, FUN=sd)), by='DateGroup')
 colnames(risk.count.cos.agg)[grep('Unique', colnames(risk.count.cos.agg))] <- c('UniquePositives','Sdev')
-p.UniquePositives <- ggplot(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg) + geom_line(size=2) + geom_ribbon(aes(x=DateGroup, ymin=(UniquePositives-Sdev), ymax=(UniquePositives+Sdev)), data=risk.count.cos.agg, color='transparent', fill='grey', alpha=0.5) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,16), breaks=c(0, 2, 4, 6, 8, 10, 12, 14,16)) + scale_color_manual(values=c('black'), name='', guide=FALSE) + labs(y='Count of Unique Organisms Circulating', x='Date')
+p.UniquePositives <- ggplot(aes(x=DateGroup, y=UniquePositives, group='Unique Positive Organisms', color='Unique Positive Organisms'), data=risk.count.cos.agg) + geom_line(size=2) + geom_ribbon(aes(x=DateGroup, ymin=(UniquePositives-Sdev), ymax=(UniquePositives+Sdev)), data=risk.count.cos.agg, color='transparent', fill='grey', alpha=0.5) + theme(text=element_text(size=20, face='bold'), axis.text=element_text(size=16, color='black'), axis.title.y=element_text(size=16), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), panel.background=element_rect(color='transparent', fill='white'), legend.position='bottom', panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,16), breaks=c(0, 2, 4, 6, 8, 10, 12, 14,16)) + scale_color_manual(values=c('black'), name='', guide=FALSE) + labs(y='Circulating Pathogen Number', x='Date')
 
 # Lindsay would like this to be rerun with batch sizes of ~100 if a site has a lot of tests in the period... b/c 1000 people probably won't come into contact with each other
 runs.rand <- merge(calendar.df[,c('Date','YearWeek')], data.frame(runs.df[,c('Date','RunDataId','CustomerSiteId')], Runs = 1), by='Date')
