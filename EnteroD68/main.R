@@ -35,6 +35,9 @@ dateBreaks <- unique(calendar.df[calendar.df$Year >= startYear, 'YearWeek'])[ord
 # ===========================================================================================
 # set some query variables, like the customer site... also, get the number of RP runs by site
 FADWcxn <- odbcConnect('FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD')
+queryVector <- readLines('../DataSources/CustomerSiteIdsWithNames.sql')
+query <- paste(queryVector ,collapse="\n")
+custnames.df <- sqlQuery(FADWcxn,query)
 queryVector <- scan('../DataSources/SQL/EnteroD68/sitesRunningRP.txt',what=character(),quote="")
 query <- paste(queryVector,collapse=" ")
 sites.df <- sqlQuery(FADWcxn,query)
@@ -46,6 +49,9 @@ PMScxn <- odbcConnect('PMS_PROD')
 queryVector <- readLines('../DataSources/SQL/EnteroD68/qcMedianCpRP.sql')
 query <- paste(queryVector, collapse = '\n')
 qc.lot.cps <- sqlQuery(PMScxn, query)
+queryVector <- readLines('../DataSources/SQL/EnteroD68/qcMedianTmRP.sql')
+query <- paste(queryVector, collapse = '\n')
+qc.lot.tms <- sqlQuery(PMScxn, query)
 queryVector <- readLines('../DataSources/SQL/EnteroD68/rhinoDataAtCHLA.sql')
 query <- paste(queryVector, collapse = '\n')
 chla.df <- sqlQuery(PMScxn, query)
@@ -71,27 +77,53 @@ rm(dat.site.df)
 # ============================================================================================
 # with the data, determine the median value of Tm, Cp, and Max Fluor for each assay in the HRV/EV target
 cp.median <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
-cp.median.chla <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=chla.df)
-cp.median.chla$RunDataId <- seq((max(dat.df$RunDataId)+1), (max(dat.df$RunDataId) + length(cp.median.chla$Cp)), 1)
-cp.median <- rbind(cp.median, cp.median.chla)
+# ###########################
+# CHLA data are already in the Trend database, so don't add them back, but the data can be used to ID runs that were flagged for testing
+# this would be the same for Tm
+# ###########################
+# cp.median.chla <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=chla.df)
+# cp.median.chla$RunDataId <- seq((max(dat.df$RunDataId)+1), (max(dat.df$RunDataId) + length(cp.median.chla$Cp)), 1)
+# cp.median <- rbind(cp.median, cp.median.chla)
 cp.spread <- spread(data = cp.median, key = AssayName, value = Cp)
-cp.sparse.handler <- 40
-
 tm.median <- aggregate(Tm~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
-tm.median.chla <- aggregate(Tm~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=chla.df)
-tm.median.chla$RunDataId <- seq((max(dat.df$RunDataId)+1), (max(dat.df$RunDataId) + length(tm.median.chla$Tm)), 1)
-tm.median <- rbind(tm.median, tm.median.chla)
 tm.spread <- spread(data = tm.median, key = AssayName, value = Tm)
-tm.sparse.handler <- 5
 
 # Scale assay median Cp and Tm data using the yeast control as well as QC data where applicable
 # ============================================================================================
+if(FALSE) {
+# cp.norm <- merge(data.frame(cp.spread[,1:4], cp.spread[,5:10]/cp.spread$yeastRNA), qc.lot.cps[qc.lot.cps$Name=='yeastRNA',c('PouchLotNumber','MedianCp')], by.x='LotNo', by.y='PouchLotNumber')
+# cp.norm <- data.frame(cp.norm[,1:4], cp.norm[,5:10]*cp.norm$MedianCp)
+# colnames(cp.norm)[5:10] <- paste(colnames(cp.norm[5:10]), 'Cp', sep='_')
+# cp.norm[,c(5:10)][is.na(cp.norm[,c(5:10)])] <- cp.sparse.handler
+# ### WHAT IS A BETTER NORMALIZATION TECHNIQUE FOR Cp AND Tm PROBABLY ALSO????
+# qc.yeast.cp.avg <- mean(subset(qc.lot.cps, Name=='yeastRNA')$MedianCp)
+# a <- merge(cp.spread, subset(qc.lot.cps, Name=='yeastRNA'), by.x='LotNo', by.y='PouchLotNumber')
+# a$TryOneHRV1 <- a$HRV1/a$yeastRNA*a$MedianCp/qc.yeast.cp.avg
+# ggplot(a, aes(x=Date, y=HRV1/yeastRNA, color='RunNorm (Cp/CpYeast)')) + geom_point() + geom_point(data=a, aes(x=Date, y=1.5*TryOneHRV1, color='YeastNormRunNorm (1.5*Cp/CpYeast*CpYeastQC/CpYeastQCAvg)'), alpha=0.1) + geom_point(data=a, aes(x=Date, y=yeastRNA/35, color='YeastRaw (CpYeast/35)'), alpha=0.1) + scale_color_manual(values=c('black','blue','red'))
+# ### YES I LIKE THIS NORMALIZATION BETTER
+} # old normalization method
+qc.yeast.cp.avg <- mean(subset(qc.lot.cps, Name=='yeastRNA')$MedianCp)
 cp.norm <- merge(data.frame(cp.spread[,1:4], cp.spread[,5:10]/cp.spread$yeastRNA), qc.lot.cps[qc.lot.cps$Name=='yeastRNA',c('PouchLotNumber','MedianCp')], by.x='LotNo', by.y='PouchLotNumber')
-cp.norm <- data.frame(cp.norm[,1:4], cp.norm[,5:10]*cp.norm$MedianCp)
+cp.norm <- data.frame(cp.norm[,1:4], cp.norm[,5:10]*cp.norm$MedianCp/qc.yeast.cp.avg)
 colnames(cp.norm)[5:10] <- paste(colnames(cp.norm[5:10]), 'Cp', sep='_')
+### WHAT IS THE APPROPRIATE SPARSE HANDLER.... CAN I PLAY WITH THIS??? MAY ONLY WANT TO DO FOR A FEW SITES....
+# which sites are the "right sites"
+# maybe the children's hospitals??? 13, 25, 26, 33... with 7 as a control or something like that???
+#############################
+cp.sparse.handler <- 5 # TRY TUNING THIS????
 cp.norm[,c(5:10)][is.na(cp.norm[,c(5:10)])] <- cp.sparse.handler
-tm.norm <- data.frame(RunDataId = tm.spread$RunDataId, tm.spread[,5:10]/tm.spread$yeastRNA)
+
+if(FALSE) {
+# tm.norm <- data.frame(RunDataId = tm.spread$RunDataId, tm.spread[,5:10]/tm.spread$yeastRNA)
+# colnames(tm.norm)[2:7] <- paste(colnames(tm.norm[2:7]), 'Tm', sep='_')
+# tm.norm[,c(2:7)][is.na(tm.norm[,c(2:7)])] <- tm.sparse.handler
+# dat.norm <- merge(cp.norm, tm.norm, by='RunDataId')
+} # old normalization method
+qc.yeast.tm.avg <- mean(subset(qc.lot.tms, Name=='yeastRNA')$MedianTm)
+tm.norm <- merge(data.frame(tm.spread[,1:4], tm.spread[,5:10]/tm.spread$yeastRNA), qc.lot.tms[qc.lot.tms$Name=='yeastRNA',c('PouchLotNumber','MedianTm')], by.x='LotNo', by.y='PouchLotNumber')
+tm.norm <- data.frame(RunDataId = tm.spread$RunDataId, tm.spread[,5:10]*tm.norm$MedianTm/qc.yeast.tm.avg)
 colnames(tm.norm)[2:7] <- paste(colnames(tm.norm[2:7]), 'Tm', sep='_')
+tm.sparse.handler <- 100 # TRY TUNING THIS????
 tm.norm[,c(2:7)][is.na(tm.norm[,c(2:7)])] <- tm.sparse.handler
 dat.norm <- merge(cp.norm, tm.norm, by='RunDataId')
 
@@ -116,8 +148,11 @@ dat.trim <- do.call(rbind, lapply(1:length(site.starts$CustomerSiteId), function
 initial.window <- 100
 test.horizon <- 10
 
+sites.all <- sites
+sites <- sites.all[c(2, 5, 6, 10, 18)]
+
 scored.df <- c()
-for (i in 1:length(sites)) {
+for (i in 2:length(sites)) {
   
   # parition the data by site and then order by the test date
   site.features <- filter(dat.trim, CustomerSiteId == sites[i])
@@ -133,24 +168,30 @@ for (i in 1:length(sites)) {
     site.train <- site.features[site.features$Obs < j & site.features$Obs >= (j - initial.window), ]
     site.test <- site.features[site.features$Obs < (j + test.horizon) & site.features$Obs >= j, ]
     
-    # get the near zero variance of the train set so that these variables can be removed from the analysis???
-    # NOT SURE IF I WANT TO KEEP THIS BECAUSE WHAT IF THE VARIABLE DOES HAVE VARIANCE IN THE TEST SET... AM I GETTING RID OF THAT???
-    # train.nzv <- nearZeroVar(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], saveMetrics = TRUE)
-    # train.remove.vars <- row.names(train.nzv[train.nzv$nzv==TRUE,])
-    # # agg.nzv <- nearZeroVar(rbind(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))]), saveMetrics = TRUE)
-    # # agg.remove.vars <- row.names(agg.nzv[agg.nzv$nzv==TRUE,])
-    # # nzv_score <- ifelse(length(agg.remove.vars) > length(train.remove.vars), 1, 0)
-    # site.train <- site.train[,!(colnames(site.train) %in% train.remove.vars)]
-    # site.test <- site.test[,!(colnames(site.test) %in% train.remove.vars)]
+    if(FALSE)  {
+      # get the near zero variance of the train set so that these variables can be removed from the analysis???
+      # NOT SURE IF I WANT TO KEEP THIS BECAUSE WHAT IF THE VARIABLE DOES HAVE VARIANCE IN THE TEST SET... AM I GETTING RID OF THAT???
+      # train.nzv <- nearZeroVar(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], saveMetrics = TRUE)
+      # train.remove.vars <- row.names(train.nzv[train.nzv$nzv==TRUE,])
+      # # agg.nzv <- nearZeroVar(rbind(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))]), saveMetrics = TRUE)
+      # # agg.remove.vars <- row.names(agg.nzv[agg.nzv$nzv==TRUE,])
+      # # nzv_score <- ifelse(length(agg.remove.vars) > length(train.remove.vars), 1, 0)
+      # site.train <- site.train[,!(colnames(site.train) %in% train.remove.vars)]
+      # site.test <- site.test[,!(colnames(site.test) %in% train.remove.vars)]
+    }
     
+    # transform the data... center, scale, and use Box-Cox to transform the data using PCA or Box-Cox
+    #### I DON'T KNOW IF THIS IS NECCESSARY AFTER NORMALIZING Cp AND Tm BECAUSE THE DISTRIBUTIONS ARE SUPER NORMAL
     # pca.tranform <- preProcess(site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))], method = 'pca')
     # site.train.pca <- predict(pca.tranform, site.train[,(colnames(site.train) %in% as.character(unique(cp.df$AssayName)))])
     # site.test.pca <- predict(pca.tranform, site.test[,(colnames(site.test) %in% as.character(unique(cp.df$AssayName)))])
-    
-    # transform the data... center, scale, and use Box-Cox to transform the data
+        
     bc.trans <- preProcess(site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))], method=c('center','scale','BoxCox'))
     site.train.trans <- predict(bc.trans, site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))])
     site.test.trans <- predict(bc.trans, site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))])
+    
+    # site.train.trans <- site.train[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.train))]
+    # site.test.trans <- site.test[, grep(paste(as.character(unique(cp.median$AssayName)), collapse='|'), colnames(site.test))]
     
     # apply dbscan to the train data set... determine eps based on the point where there are 2 clusters (1 cluster + noise)
     guess.eps <- 0.1
@@ -199,6 +240,7 @@ for (i in 1:length(sites)) {
   # print(Sys.time() - site.start.time)
   scored.df <- rbind(scored.df, site.df)
 }
+ggplot(merge(scored.df, custnames.df[,c('CustomerSiteId','Name')], by='CustomerSiteId'), aes(x=TestStartDate, y=test.horizon*TestNoise/TrainNoise, color=TestVarWithTrainPCA)) + geom_point() + facet_wrap(~Name)
 
 # TWITTER ALGORITHM ... AUTOMATION OF ALGORITHM 1
 # For each test, determine the sequence pattern and then test for anomalies
@@ -254,7 +296,6 @@ for(i in 1:length(sites)) {
 
 # Make some plots to explore what has been made:
 # for site 13 (Nationwide Childrens)
-
 movie.sites <- as.character(unique(scored.df$CustomerSiteId))
 for(h in 1:length(movie.sites)) {
   
@@ -280,7 +321,7 @@ for(h in 1:length(movie.sites)) {
     print(ggplot(site.date.temp, aes(x=TestStartDate, y=test.horizon*TestNoise/TrainNoise, color=TestVarWithTrainPCA)) + geom_point() + labs(title=paste('Customer Site', site.to.gif, 'at date <=', site.date.breaks[i], sep=' '), y='Score', x='Date')) # + geom_line(aes(x=TestStartDate, y=mean(10*TestNoise/TrainNoise)+5*sd(10*TestNoise/TrainNoise)), data=site.date.temp, color='red', lty='dashed'))
     dev.off()
   }
-  # create a gif by using command prompt, cd into the dir with the pngs then run magick convert *.png -delay x -loop y name.gif
+  # create a gif by using command prompt, cd into the dir with the pngs then run magick convert *.png -delay x -loop y name.gif (run with x=3, y=5)
 }
 
 ggplot(subset(seq.anoms, CustomerSiteId=='13'), aes(x=Date, y=anoms, fill=Sequence)) + geom_bar(stat='identity') + theme(legend.position='bottom')

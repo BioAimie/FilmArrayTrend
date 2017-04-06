@@ -1,0 +1,133 @@
+# Set up environment, get and format data
+if(TRUE) {
+
+  workDir <-'~/FilmArrayTrend/InitialPublication/'
+  setwd(workDir)
+  
+  # load libraries
+  library(RODBC)
+  library(lubridate)
+  library(EpiWeek)
+  library(ggplot2)
+  library(grid)
+  library(gridExtra)
+  library(scales)
+  library(devtools)
+  install_github('BioAimie/dateManip')
+  
+  # load custom functions
+  source('../Rfunctions/normalizeBurnRate.R')
+  source('../Rfunctions/generateCombosBetter.R')
+  source('~/WebHub/AnalyticsWebHub/Rfunctions/createPaletteOfVariableLength.R')
+  
+  # read in the data from FilmArray Data Warehouse DB (ODBC object in Windows "FA_DW" with Lindsay's credentials)
+  FADWcxn <- odbcConnect(dsn = 'FA_DW', uid = 'afaucett', pwd = 'ThisIsAPassword-BAD')
+  queryVector <- scan('../DataSources/AllSitesRespiratoryTrendableRuns.txt', what=character(), quote="")
+  query <- paste(queryVector,collapse=" ")
+  runs.df <- sqlQuery(FADWcxn,query)
+  queryVector <- scan('../DataSources/PositiveBugsRP.txt',what=character(),quote="")
+  query <- paste(queryVector,collapse=" ")
+  bugs.df <- sqlQuery(FADWcxn,query)
+  bugs.df <- bugs.df[bugs.df$BugPositive != 'Bocavirus',]
+  queryVector <- scan('../DataSources/ShortNames.txt',what=character(),quote="")
+  query <- paste(queryVector,collapse=" ")
+  shortnames.df <- sqlQuery(FADWcxn,query)
+  odbcClose(FADWcxn)
+  
+  # read in data from PMS PROD server
+  regions.df <- read.csv(#######################)
+  
+  # make an epi calendar
+  calendar.df <- transformToEpiWeeks(createCalendarLikeMicrosoft(2012, 'Week'))
+  calendar.df$YearWeek <- with(calendar.df, ifelse(Week < 10, paste(Year, Week, sep='-0'), paste(Year, Week, sep='-')))
+  calendar.df <- calendar.df[calendar.df$YearWeek > '2012-51', ]
+  calendar.df$Days <- 1
+  
+  # now rerun the code that is in the Publication_Update main.R file to see what the data looks like now
+  runs.reg <- merge(runs.df, data.frame(Province = regions.df$StateAbv, Region = regions.df$CensusRegionLocal), by='Province')
+  runs.reg$Record <- 1
+  runs.reg.date <- merge(runs.reg[,c('RunDataId','Instrument','Date','Name','CustomerSiteId','Region','Record')], calendar.df[,c('Date','Year','Week','YearWeek')], by='Date')
+  
+  # create a data frame that will show site name and id with its region and census region
+  sitesByCensusRegions.etc <- unique(merge(unique(runs.reg.date[,c('CustomerSiteId','Name','Region')]), regions.df, by.x='Region', by.y='CensusRegionLocal')[,c('CustomerSiteId','Name','Region','CensusRegionNational')])
+}
+
+# ------------------------------------------ MAKE FIGURES -----------------------------------------------------------------------------
+# TIME SERIES OF PREVALENCE
+if(TRUE) {
+  
+  # find out which sites should be used calling the normalizeBurnRate function (which looks for gaps in the site data) and then using the output
+  # to determine when the start date is of 'good' data contribution for each site
+  var <- 'CustomerSiteId'
+  sites <- unique(runs.reg.date$CustomerSiteId)
+  
+  runs.reg.norm <- c()
+  for(i in 1:length(sites)) {
+    
+    site.norm <- normalizeBurnRate(runs.reg.date, var, sites[i])
+    runs.reg.norm <- rbind(runs.reg.norm, site.norm)
+  }
+  
+  site.starts <- do.call(rbind, lapply(1:length(unique(runs.reg.norm$CustomerSiteId)), function(x) data.frame(CustomerSiteId = unique(runs.reg.norm$CustomerSiteId)[x], StartDate = min(runs.reg.norm[runs.reg.norm$CustomerSiteId==unique(runs.reg.norm$CustomerSiteId)[x],'YearWeek']))))
+  
+  # using only sites with enough data, find the prevalence of organisms  
+  # sites <- site.starts[!(is.na(site.starts$StartDate)) & substring(site.starts$StartDate, 1, 4) < 2016, 'CustomerSiteId']
+  sites <- as.character(unique(runs.reg.norm$CustomerSiteId))
+  sites <- sites[order(sites)]
+  bugs.reg <- c()
+  for(i in 1:length(sites)) {
+    
+    site <- sites[i]
+    temp <- runs.reg.date[runs.reg.date$CustomerSiteId == site, ]
+    bugs.site <- merge(temp, bugs.df, by='RunDataId')
+    bugs.reg <- rbind(bugs.reg, bugs.site)
+  }
+  
+  # make a combined category so that do.call can be used to fill in empty dates
+  colsToCat <- c('Region','Name','CustomerSiteId','BugPositive')
+  bugs.reg.trim <- bugs.reg[,c('YearWeek', colsToCat)]
+  bugs.reg.trim$Record <- 1
+  bugs <- as.character(unique(bugs.reg.trim$BugPositive))[order(as.character(unique(bugs.reg.trim$BugPositive)))]
+  site.missing.bugs <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(CustomerSiteId = sites[x], BugPositive = ifelse(length(bugs[!(bugs %in% unique(as.character(bugs.reg.trim[bugs.reg.trim$CustomerSiteId==sites[x], 'BugPositive'])))]) > 0, bugs[!(bugs %in% unique(as.character(bugs.reg.trim[bugs.reg.trim$CustomerSiteId==sites[x], 'BugPositive'])))], NA))))
+  site.missing.bugs <- site.missing.bugs[!(is.na(site.missing.bugs$BugPositive)), ]
+  bugs.reg.trim <- rbind(bugs.reg.trim, data.frame(YearWeek = min(bugs.reg.trim$YearWeek), merge(site.missing.bugs, unique(bugs.reg.trim[,c('CustomerSiteId','Region','Name')]), by='CustomerSiteId')[,c('Region','Name','CustomerSiteId','BugPositive')], Record = 0))
+  bugs.reg.trim$combocat <- do.call(paste, c(bugs.reg.trim[,colsToCat], sep=','))
+  bugs.reg.combo <- do.call(rbind, lapply(1:length(unique(bugs.reg.trim$combocat)), function(x) cbind(merge(unique(calendar.df[,c('YearWeek','Year')]), bugs.reg.trim[bugs.reg.trim$combocat == unique(bugs.reg.trim$combocat)[x], c('YearWeek','Record')], by='YearWeek', all.x=TRUE), ComboCat = unique(bugs.reg.trim$combocat)[x])))
+  deCombo <- as.data.frame(sapply(1:length(colsToCat), function(x) do.call(rbind, strsplit(as.character(bugs.reg.combo$ComboCat), split=','))[,x]))
+  colnames(deCombo) <- colsToCat
+  bugs.reg.fill <- cbind(bugs.reg.combo[,c('YearWeek','Record')], deCombo)
+  bugs.reg.fill[is.na(bugs.reg.fill$Record),'Record'] <- 0
+  bugs.reg.agg <- with(bugs.reg.fill, aggregate(Record~YearWeek+Region+Name+CustomerSiteId+BugPositive, FUN=sum))
+  bugs.reg.roll <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(1:length(bugs), function(y) data.frame(YearWeek = bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'][2:(length(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'])-1)], CustomerSiteId = sites[x], Region = unique(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x],'Region']), Name = unique(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x],'Name']), Bug = bugs[y], Code = letters[y], Positives = sapply(2:(length(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'])-1), function(z) sum(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y],'Record'][(z-1):(z+1)])))))))
+  runs.reg.roll <- runs.reg.norm[,c('YearWeek','CustomerSiteId','RollRuns')]
+  colnames(runs.reg.roll) <- c('YearWeek','CustomerSiteId','Runs')
+  
+  # get the 3-week centered moving sum of bug positives and runs
+  positives.count.all <- merge(runs.reg.roll, bugs.reg.roll, by=c('YearWeek','CustomerSiteId'))
+  decoder <- data.frame(Bug = bugs, Code = letters[1:length(bugs)])
+  prevalence.reg.agg <- merge(subset(positives.count.all, as.character(YearWeek) >= '2013-25'), cdc.reg.count.df, by=c('YearWeek','Region'), all.x=TRUE)
+  prevalence.reg.agg$Rate <- with(prevalence.reg.agg, ILITotal/TotalPatients)
+  prevalence.reg.agg$Prevalence <- with(prevalence.reg.agg, Positives/Runs)
+  prevalence.reg.agg[prevalence.reg.agg$Runs < 30, 'Prevalence'] <- NA
+  prevalence.reg.wrap <- merge(prevalence.reg.agg[,c('Bug','Code','YearWeek','CustomerSiteId','Rate','Prevalence')], shortnames.df, by.x='Bug', by.y='Organism')
+  prevalence.nat.individual.wrap <- with(prevalence.reg.wrap, aggregate(cbind(Rate, Prevalence)~YearWeek+Bug+Code+ShortName, FUN=mean, na.action=na.omit))
+  
+  # now make the figures and break out by organisms and type
+  bacterias <- as.character(decoder[decoder$Code %in% c('b','c','p'), 'Bug'])
+  rhino <- 'Human Rhinovirus/Enterovirus'
+  fluAs <- as.character(decoder[grep('Influenza A', decoder$Bug),'Bug'])
+  fluBs <- as.character(decoder[grep('Influenza B', decoder$Bug),'Bug'])
+  rsv <- 'Respiratory Syncytial Virus'
+  flus <- as.character(decoder[grep('Influenza', decoder$Bug),'Bug'])
+  pivs <- as.character(decoder[grep('Parainfluenza', decoder$Bug),'Bug'])
+  corona <- as.character(decoder[grep('Corona', decoder$Bug),'Bug'])
+  adeno <- 'Adenovirus'
+  hmp <- 'Human Metapneumovirus'
+  
+  # create beautiful time-series prevalence chart
+  bug.individual.Pal <- createPaletteOfVariableLength(prevalence.nat.individual.wrap, 'ShortName')
+  # dateBreaks <- as.character(unique(prevalence.nat.individual.wrap$YearWeek))[order(as.character(unique(prevalence.nat.individual.wrap$YearWeek)))][seq(1, length(as.character(unique(prevalence.nat.individual.wrap$YearWeek))), 8)]
+  dateBreaks <- c('2013-27','2013-40','2014-01', '2014-14','2014-27','2014-40','2015-01', '2015-14','2015-27','2015-40','2016-01','2016-14','2016-27','2016-40','2017-01')
+  dateLabels <- c('Jul-2013','-','Jan-2014','-','Jul-2014','-','Jan-2015','-','Jul-2015','-','Jan-2016','-','Jul-2016','-','Jan-2017')
+  
+  p.PercentDetectionTrend <- ggplot(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)),], aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_y_continuous(limits=c(0,0.8), labels=c(0, 10, 20, 30, 40, 50, 60, 70, 80), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='white', fill='white'), axis.ticks.x=element_blank()) + guides(fill=guide_legend(ncol=7, bycol=TRUE)) + labs(title='', y='Detection (%)', x='Date')

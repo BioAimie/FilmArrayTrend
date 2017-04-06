@@ -1,0 +1,51 @@
+State,StateAbv,CDCRegion,CensusRegion,CensusRegionLocal,CensusRegionNational
+Alabama,AL,4,6,East South Central,South
+Alaska,AK,10,9,Pacific,West
+Arizona,AZ,9,8,Mountain,West
+Arkansas,AR,6,7,West South Central,South
+California,CA,9,9,Pacific,West
+Colorado,CO,8,8,Mountain,West
+Connecticut,CT,1,1,New England,Northeast
+Delaware,DE,3,5,South Atlantic,South
+Florida,FL,4,5,South Atlantic,South
+Georgia,GA,4,5,South Atlantic,South
+Hawaii,HI,9,9,Pacific,West
+Idaho,ID,10,8,Mountain,West
+Illinois,IL,5,3,East North Central,Midwest
+Indiana,IN,5,3,East North Central,Midwest
+Iowa,IA,7,4,West North Central,Midwest
+Kansas,KS,7,4,West North Central,Midwest
+Kentucky,KY,4,6,East South Central,South
+Louisiana,LA,6,7,West South Central,South
+Maine,ME,1,1,New England,Northeast
+Maryland,MD,3,5,South Atlantic,South
+Massachusetts,MA,1,1,New England,Northeast
+Michigan,MI,5,3,East North Central,Midwest
+Minnesota,MN,5,4,West North Central,Midwest
+Mississippi,MS,4,6,East South Central,South
+Missouri,MO,7,4,West North Central,Midwest
+Montana,MT,8,8,Mountain,West
+Nebraska,NE,7,4,West North Central,Midwest
+Nevada,NV,9,8,Mountain,West
+New Hampshire,NH,1,1,New England,Northeast
+New Jersey,NJ,2,2,Mid-Atlantic,Northeast
+New Mexico,NM,6,8,Mountain,West
+New York,NY,2,2,Mid-Atlantic,Northeast
+North Carolina,NC,4,5,South Atlantic,South
+North Dakota,ND,8,4,West North Central,Midwest
+Ohio,OH,5,3,East North Central,Midwest
+Oklahoma,OK,6,7,West South Central,South
+Oregon,OR,10,9,Pacific,West
+Pennsylvania,PA,3,2,Mid-Atlantic,Northeast
+Rhode Island,RI,1,1,New England,Northeast
+South Carolina,SC,4,5,South Atlantic,South
+South Dakota,SD,8,4,West North Central,Midwest
+Tennessee,TN,4,6,East South Central,South
+Texas,TX,6,7,West South Central,South
+Utah,UT,8,8,Mountain,West
+Vermont,VT,1,1,New England,Northeast
+Virginia,VA,3,5,South Atlantic,South
+Washington,WA,10,9,Pacific,West
+West Virginia,WV,3,5,South Atlantic,South
+Wisconsin,WI,5,3,East North Central,Midwest
+Wyoming,WY,8,8,Mountain,West

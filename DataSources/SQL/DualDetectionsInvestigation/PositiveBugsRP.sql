@@ -1,7 +1,8 @@
 SET NOCOUNT ON
 
 SELECT
-	R.[RunDataId]
+	R.[RunDataId],
+	R.[PositiveAssays]
 INTO #rpRuns
 FROM [FADataWarehouse].[dbo].[RunData] R WITH(NOLOCK)
 WHERE R.[RunStatus] LIKE 'Completed' AND R.[PouchTitle] LIKE '%Resp%' AND R.[PositiveAssays] BETWEEN 0 AND 4
