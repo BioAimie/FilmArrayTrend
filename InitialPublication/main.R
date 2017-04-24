@@ -63,6 +63,8 @@ if(TRUE) {
   queryVector <- scan('../DataSources/NationalDataILI.txt',what=character(),quote="")
   query <- paste(queryVector,collapse=" ")
   cdc.nat.df <- sqlQuery(FADWcxn,query)
+  query <- paste(readLines('../DataSources/SQL/DataCleaningOfQcRuns/qcRunsFromFirstLotTest.sql'), collapse='\n')
+  clean.df <- sqlQuery(FADWcxn, query)
   odbcClose(FADWcxn)
   
   # read in data from PMS PROD server
@@ -606,7 +608,7 @@ if(TRUE) {
   grid.draw(fluTriple)
   dev.off()
   
-  p.InfluezaPrevalencePercentDetectionNoILI <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','purple','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.35), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
+  p.InfluezaPrevalencePercentDetectionNoILI <- ggplot(cdc.bfdx.flu.nat, aes(x=YearWeek, y=FluPercentDetection, group='FilmArrary Detection', color='FilmArray Detection')) + geom_line(size=2) + geom_line(aes(x=YearWeek, y=FluPrevalence, group='CDC Flu Prevalence', color='CDC Flu Prevalence'), cdc.bfdx.flu.nat, lwd=1.5) + scale_color_manual(values=c('black','blue','purple','darkgreen'), name='') + scale_y_continuous(breaks=c(0,.07,0.14,0.21,0.28,0.35), limits=c(0,0.28), labels=c(0, 7, 14, 21, 28, 35)) + scale_x_discrete(breaks = dateBreaksAlt2, labels = dateLabelsAlt2) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank(), axis.title.y=element_text(size=18)) + labs(y='FilmArray Detection (%), Flu Prevalence (%)', x='Date')
   
   # lindsay also wants to see this by summing the detections and runs by region and then getting the percent detection & comparing to CDC reported regional data
   bfdx.flu.reg.agg <- with(bfdx.flu.reg, aggregate(cbind(Runs, FluDetections)~YearWeek+Region, FUN=sum))
@@ -1479,14 +1481,22 @@ if(TRUE) {
   p.SingleAndCoDetectionPercentOfRuns_NoHRVorRSV <- ggplot(subset(coParticipation.DetectionCount.fillByCount, !(ShortName %in% c('HRV/EV','RSV'))), aes(x=Name, y=Percentage, fill=Key)) + geom_bar(stat='identity') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(coParticipation.DetectionCount.fillByCount, 'Key'), name='') + scale_y_continuous(limits=c(0,0.05), breaks=c(0,0.01,0.02,0.03,0.04,0.05), labels=c('0.0','1.0','2.0','3.0','4.0','5.0')) + labs(x='', y='Detection (%)')
   
   b <- prev.pareto.all.duals
+  # b$Name <- factor(b$ShortName, levels = levels(coParticipation.DetectionCount.fillByCount$Name))
+  # p.CosPerTotalDetections <- ggplot(subset(b, Name!='FluA H1'), aes(x=Name, y=PercentOfDetectionsWithACo)) + geom_bar(stat='identity', fill='#FF7F24') + scale_y_continuous(limits=c(0,0.6), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6), labels=c('0','10','20','30','40','50','60')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Co-Detections/Total Detections (%)', x='')
   b$Name <- factor(b$ShortName, levels = b[with(b, order(PercentOfDetectionsWithACo, decreasing = TRUE)), 'ShortName'])
-  p.CosPerTotalDetections <- ggplot(subset(b, Name!='FluA H1'), aes(x=Name, y=PercentOfDetectionsWithACo)) + geom_bar(stat='identity', fill='#FF7F24') + scale_y_continuous(limits=c(0,0.6), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6), labels=c('0','10','20','30','40','50','60')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Co-Detections/Total Detections (%)', x='')
+  p.CosPerTotalDetections_Colorized <- ggplot(subset(b, Name!='FluA H1'), aes(x=Name, y=PercentOfDetectionsWithACo, fill=Name)) + geom_bar(stat='identity') + scale_y_continuous(limits=c(0,0.6), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6), labels=c('0','10','20','30','40','50','60')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Co-Detections/Total Detections (%)', x='') + scale_fill_manual(values=bug.individual.Pal, guide=FALSE)
   
   checker <- merge(bugs.df, runs.reg.date, by='RunDataId')
   checker.detection.count <- with(subset(checker, YearWeek >= '2013-26'), aggregate(Record~BugPositive, FUN=sum))
   checker.agg <- merge(checker.detection.count, dual.detection.agg[,c('BugPositive','Record')], by='BugPositive')
   checker.agg$Rate <- checker.agg$Record.y/checker.agg$Record.x
   
+  # Cleaning of QC runs by Lindsay
+  clean.agg <- with(clean.df, aggregate(QCruns~RowNumber, FUN=sum))
+  clean.mrg <- merge(clean.df, clean.agg, by='RowNumber')
+  clean.mrg$Rate <- with(clean.mrg, QCruns.x/QCruns.y)
+  
+  p.cleanRuns <- ggplot(subset(clean.mrg, PositiveCount=='0-3'), aes(x=RowNumber, y=Rate, fill=PositiveCount)) + geom_bar(stat='identity') + scale_fill_manual(values=c('dodgerblue'), guide=FALSE) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Portion of Runs with 4 or More Positives', x='Runs since First Test of Lot')
 }
 
 # CORRELATION OF SUMMED PERCENT DETECTION WITH ILI AND TURN

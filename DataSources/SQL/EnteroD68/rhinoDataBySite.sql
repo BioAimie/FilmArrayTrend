@@ -2,6 +2,7 @@ SET NOCOUNT ON
 
 SELECT
 	R.[RunDataId],
+	R.[PouchSerialNumber],
 	P.[CustomerSiteId],
 	CAST(R.[StartTime] AS DATE) AS [Date],
 	R.[PouchLotNumber] AS [LotNo],
@@ -19,7 +20,7 @@ FROM [FADataWarehouse].[dbo].[RunData] R WITH(NOLOCK) INNER JOIN [FADataWarehous
 	ON R.[RunDataId] = P.[RunDataId] INNER JOIN [FADataWarehouse].[dbo].[WellData] W WITH(NOLOCK)
 		ON R.[RunDataId] = W.[RunDataId] AND P.[Interpretation] = W.[TargetName] AND P.[ResultType] = W.[ResultType]
 WHERE R.[PouchTitle] = 'Respiratory Panel v1.7' AND R.[RunStatus] = 'Completed' AND R.[PositiveAssays] BETWEEN 1 AND 4 AND W.[MeltDetectorCall] = 'Positive' AND W.[IsHidden] = 0 AND (W.[TargetName] = 'Human Rhinovirus/Enterovirus' OR P.[ResultType] = 'control') AND P.[CustomerSiteId] = SITE_INDEX
-	
+
 SELECT
 	M.*
 FROM #master M LEFT JOIN
