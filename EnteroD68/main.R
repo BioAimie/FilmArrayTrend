@@ -80,11 +80,6 @@ rm(dat.site.df)
 # ============================================================================================
 # with the data, determine the median value of Tm, Cp, and Max Fluor for each assay in the HRV/EV target
 cp.median <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
-# ###########################
-# CHLA data are already in the Trend database, so don't add them back, but the data can be used to ID runs that were flagged for testing
-# this would be the same for Tm
-# BUT... CHILDREN'S MERCY RUNS DON'T APPEAR TO BE IN TREND, SO ADD THEM BACK AND THEY CAN BE FLAGGED AS POS/NEG FOR EV/D68
-# ###########################
 cp.median.chla <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=chla.df)
 cp.median.cmh <- aggregate(Cp~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=cmh.df)
 cp.median <- rbind(rbind(cp.median, cp.median.chla), cp.median.cmh)
@@ -94,6 +89,11 @@ tm.median.chla <- aggregate(Tm~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FU
 tm.median.cmh <- aggregate(Tm~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=cmh.df)
 tm.median <- rbind(rbind(tm.median, tm.median.chla), tm.median.cmh)
 tm.spread <- spread(data = tm.median, key = AssayName, value = Tm)
+mf.median <- aggregate(MaxFluor~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=dat.df)
+mf.median.chla <- aggregate(MaxFluor~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=chla.df)
+mf.median.cmh <- aggregate(MaxFluor~RunDataId+LotNo+CustomerSiteId+Date+AssayName, FUN=median, data=cmh.df)
+mf.median <- rbind(rbind(mf.median, mf.median.chla), mf.median.cmh)
+mf.spread <- spread(data = mf.median, key = AssayName, value = MaxFluor)
 
 # Scale assay median Cp and Tm data using the yeast control as well as QC data where applicable
 # ============================================================================================

@@ -1481,10 +1481,20 @@ if(TRUE) {
   p.SingleAndCoDetectionPercentOfRuns_NoHRVorRSV <- ggplot(subset(coParticipation.DetectionCount.fillByCount, !(ShortName %in% c('HRV/EV','RSV'))), aes(x=Name, y=Percentage, fill=Key)) + geom_bar(stat='identity') + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.35), panel.background=element_rect(color='white', fill='white')) + scale_fill_manual(values=createPaletteOfVariableLength(coParticipation.DetectionCount.fillByCount, 'Key'), name='') + scale_y_continuous(limits=c(0,0.05), breaks=c(0,0.01,0.02,0.03,0.04,0.05), labels=c('0.0','1.0','2.0','3.0','4.0','5.0')) + labs(x='', y='Detection (%)')
   
   b <- prev.pareto.all.duals
+  b$Color <- NA
+  b[grep('Influenza B', b$BugPositive), 'Color'] <- 'Influenza B'
+  b[grep('Influenza A', b$BugPositive), 'Color'] <- 'Influenza A'
+  b[grep('Corona', b$BugPositive), 'Color'] <- 'Coronavirus'
+  b[grep('Respiratory', b$BugPositive), 'Color'] <- 'RSV'
+  b[grep('Para', b$BugPositive), 'Color'] <- 'Parainfluenza'
+  b[grep('Myco|Chlamy|Bord', b$BugPositive), 'Color'] <- 'Bacteria'
+  b[grep(adeno, b$BugPositive), 'Color'] <- 'Adeno'
+  b[grep(rhino, b$BugPositive), 'Color'] <- 'HRV/EV'
+  b[grep('Metapneu', b$BugPositive), 'Color'] <- 'hMPV'
   # b$Name <- factor(b$ShortName, levels = levels(coParticipation.DetectionCount.fillByCount$Name))
   # p.CosPerTotalDetections <- ggplot(subset(b, Name!='FluA H1'), aes(x=Name, y=PercentOfDetectionsWithACo)) + geom_bar(stat='identity', fill='#FF7F24') + scale_y_continuous(limits=c(0,0.6), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6), labels=c('0','10','20','30','40','50','60')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Co-Detections/Total Detections (%)', x='')
   b$Name <- factor(b$ShortName, levels = b[with(b, order(PercentOfDetectionsWithACo, decreasing = TRUE)), 'ShortName'])
-  p.CosPerTotalDetections_Colorized <- ggplot(subset(b, Name!='FluA H1'), aes(x=Name, y=PercentOfDetectionsWithACo, fill=Name)) + geom_bar(stat='identity') + scale_y_continuous(limits=c(0,0.6), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6), labels=c('0','10','20','30','40','50','60')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Co-Detections/Total Detections (%)', x='') + scale_fill_manual(values=bug.individual.Pal, guide=FALSE)
+  p.CosPerTotalDetections_Colorized <- ggplot(subset(b, Name!='FluA H1'), aes(x=Name, y=PercentOfDetectionsWithACo, fill=Color)) + geom_bar(stat='identity') + scale_y_continuous(limits=c(0,0.6), breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6), labels=c('0','10','20','30','40','50','60')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank()) + labs(y='Co-Detections/Total Detections (%)', x='') + scale_fill_manual(values=bug.family.Pal, guide=FALSE)
   
   checker <- merge(bugs.df, runs.reg.date, by='RunDataId')
   checker.detection.count <- with(subset(checker, YearWeek >= '2013-26'), aggregate(Record~BugPositive, FUN=sum))
