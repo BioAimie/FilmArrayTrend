@@ -1,0 +1,483 @@
+---
+title: NULL
+graphics: yes
+output: pdf_document
+geometry: top = .58in, bottom = 0.6in, right = .3in, left = .3in, headheight=65pt,includehead, voffset = -.8in
+header-includes:
+- \usepackage{fancyhdr}
+- \usepackage{graphicx}
+- \pagestyle{fancy}
+- \fancyhead[LO,LE]{\includegraphics[width=3cm,height=1.5cm]{C:/Users/andrew_wallin/Documents/FATrend Reports/specificReport/BFD_bMx_FullColor.png}}
+- \fancyfoot[LO,LE]{\scriptsize To view additional trends visit \textcolor{blue}{https://trends.filmarray.com/}}
+- \fancyfoot[RO,RE]{\scriptsize *Percentages are 3 week centered moving averages using Epi-weeks}
+- \fancypagestyle{plain}{\pagestyle{fancy}}
+- \usepackage[dvipsnames]{xcolor}
+- \usepackage{booktabs}
+- \usepackage{caption}
+- \renewcommand{\headrulewidth}{0pt}
+- \usepackage[T1]{fontenc}
+- \usepackage{tabularx}
+- \usepackage{longtable}
+- \usepackage{rotating}
+- \usepackage{makecell}
+- \usepackage{adjustbox}
+- \usepackage{array}
+- \usepackage{xparse}
+- \usepackage{color}
+- \usepackage{textcomp}
+- \pagenumbering{gobble}
+- \usepackage{xspace}
+- \usepackage{sectsty}
+- \subsectionfont{\normalfont\large\itshape\underline}
+- \headsep = 35pt
+- \footskip = 70pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\let\OldTextregistered\textregistered
+\renewcommand{\textregistered}{\OldTextregistered\xspace}
+
+
+```{r Title, echo=FALSE, message=FALSE,results='asis'}
+
+
+year = inputYear
+week = inputWeek
+startDate = as.Date(paste(year, week,"1", sep = "-"), format = "%Y-%W-%w")
+startDate = format(startDate, format= "%B %d %Y")
+
+cat(" 
+
+\\chead{Weekly  BioFire Respiratory Panel Regional Report\\\\ 
+FilmArray \\textsuperscript{\\scriptsize \\textregistered} \\normalsize Trend Beta System }
+\\rhead{\\scriptsize  Report Generated:",startDate,"\\\\
+Region:",region,"}
+
+"
+)
+
+``` 
+\captionsetup[table]{labelformat=empty}
+
+```{r dataGet,include=FALSE,message=FALSE, echo=FALSE}
+
+trendConnect <- odbcConnect(dsnName,serverUser, serverPW)
+
+customerData <- sqlQuery(trendConnect, paste(scan(paste(scriptDir,"Regions.sql",sep = ""),what=character(),quote="" ), collapse = " "), as.is = TRUE)
+
+close(trendConnect)
+customerData$Province[customerData$Province == "PA "] <- "PA"
+states <- map_data("state")
+
+customerData <- customerData[!is.na(customerData$Province),]
+
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1,1)), substring(s, 2),
+        sep="", collapse=" ")
+}
+
+states$region <-  unlist(lapply(states$region, simpleCap))
+
+
+stateFrame <- data.frame(Province = state.abb,region =state.name)
+stateFrame$Province <- unlist(lapply(stateFrame$Province, as.character))
+
+
+
+stateRegion <- data.frame(Province =  c('CT', 'MA', 'RI', 'NH', 'VT', 'ME') , Region = 'Northeast' )
+stateRegion <- rbind(stateRegion ,data.frame(Province =  c('PA', 'NJ', 'NY')  , Region =  'Northeast'))
+stateRegion <- rbind(stateRegion ,data.frame(Province =  c('OH', 'IN', 'IL', 'MI', 'WI')  , Region =  'Midwest'))
+stateRegion <- rbind(stateRegion ,data.frame(Province =  c('IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD')  , Region =  'Midwest'))
+stateRegion <- rbind(stateRegion ,data.frame(Province =  c('DE', 'DC', 'FL', 'GA', 'MD', 'NC', 'SC', 'VA', 'WV')  , Region =  'South'))
+stateRegion <- rbind(stateRegion ,data.frame(Province =  c('AL', 'KY', 'MS', 'TN')  , Region =  'South'))
+stateRegion <- rbind(stateRegion ,data.frame(Province =  c('AR', 'LA', 'OK', 'TX')  , Region =  'South'))
+stateRegion <- rbind(stateRegion ,data.frame(Province =  c('AZ', 'CO', 'ID', 'NM', 'MT', 'UT', 'NV', 'WY')  , Region =  'West'))
+stateRegion <- rbind(stateRegion ,data.frame(Province =  c('AK', 'CA', 'HI', 'OR', 'WA')  , Region =  'West'))
+
+
+states1 <- inner_join(states, stateFrame, by = "region")
+
+stateRegionCoord <- inner_join(states1, stateRegion, by = "Province")
+
+trendConnect <- odbcConnect(dsnName,serverUser, serverPW)
+
+movingAverageData <- sqlQuery(trendConnect, "
+                              SELECT CS.CustomerSiteId,
+
+SD.Year,
+SD.Week,
+SD.AssayName,
+SD.CenteredRate,
+SD.CenteredRuns,
+SD.CenteredPositives,
+CS.Note,
+C.Province,
+
+[Activity] = 
+CASE 
+WHEN [CenteredRate] >= .03 THEN 'High Activity'
+ WHEN [CenteredRate] BETWEEN .01 AND .03 THEN 'Moderate Activity'
+ELSE  'Low Activity'
+END ,
+[CenteredRate] - (LAG ([CenteredRate] ,1,0 )  
+OVER ( partition By SD.[CustomerSiteId], SD.[AssayName] Order By SD.CustomerSiteId, SD.AssayName, SD.Year, SD.Week ))
+As PercentChange
+FROM [FADataWarehouse].[dbo].[SitePercentDetectionRP] SD WITH (NOLOCK)  INNER JOIN [FADataWarehouse].[dbo].[CustomerSites] CS WITH (NOLOCK)
+ON SD.CustomerSiteId = CS.CustomerSiteId INNER JOIN [FADataWarehouse].[dbo].[Customers] C WITH (NOLOCK)
+ON CS.CustomerId = C.CustomerId
+")
+
+close(trendConnect)
+
+
+movingAverageData <- movingAverageData[,c("CustomerSiteId","Year","Week", "AssayName", "CenteredRate","CenteredRuns","CenteredPositives","Note","Province","Activity", "PercentChange")]
+
+movingAverageData<- distinct(inner_join(movingAverageData, customerData, by = "Province"))
+movingAverageData$Week <- as.numeric(movingAverageData$Week)
+movingAverageData$Week <- sprintf("%02d",movingAverageData$Week)
+
+```
+
+```{r triplePrep, tab.cap = NULL ,message=FALSE ,echo=FALSE, results='asis'}
+yearWeekStore <- as.numeric(as.character(unique(interaction(as.numeric(movingAverageData$Year),as.numeric(movingAverageData$Week), sep =""))))
+yearWeekStore <- yearWeekStore[order(yearWeekStore)]
+yearWeekStore <- yearWeekStore[c(length(yearWeekStore)-1,length(yearWeekStore))]
+
+subsetData <- movingAverageData[movingAverageData$Reg == region & as.numeric(as.character(interaction(as.numeric(movingAverageData$Year),as.numeric(movingAverageData$Week), sep =""))) %in% yearWeekStore,]
+
+subsetData$DateNum <- as.numeric(as.character(interaction(as.numeric(subsetData$Year),as.numeric(subsetData$Week), sep ="")))
+subsetData <- subsetData[order(subsetData$DateNum),]
+
+tripAggPos <- aggregate(CenteredPositives ~ AssayName + DateNum, subsetData, sum)
+tripAggTot <- aggregate(CenteredRuns ~ AssayName + DateNum, subsetData, sum)
+tripAgg <- inner_join(tripAggPos, tripAggTot, by = c("AssayName", "DateNum"))
+tripAgg$PercentDetection <- tripAggPos$CenteredPositives/tripAggTot$CenteredRuns
+tripAgg <- tripAgg[,-c(3:4)]
+tripAgg <- spread(tripAgg[,], DateNum, PercentDetection) 
+namesInc <- names(tripAgg)[c(2:3)][order(as.numeric(names(tripAgg)[c(2:3)]))]
+tripAgg$PercentChange <- (tripAgg[,namesInc[2]] - tripAgg[,namesInc[1]]) / (tripAgg[,namesInc[2]] + tripAgg[,namesInc[1]])
+tripAgg$PercentChange[is.nan(tripAgg$PercentChange)] <- 0
+tripAgg <- tripAgg[,-2] 
+names(tripAgg) <- c("TargetName", "PercentDetection", "PercentChange")
+subsetData <- tripAgg
+
+if(nrow(subsetData) > 1){
+  subsetData$PercentDetection <- round(100*(subsetData$PercentDetection), 2)
+  subsetData$PercentChange <- round(100*(subsetData$PercentChange), 2)
+  subsetData$TargetName <- unlist(lapply(subsetData$TargetName, as.character))
+}else{
+  subsetData[1,] <- "N/A"
+  subsetData$PercentDetection<- "N/A"
+}
+subsetData$TargetName[subsetData$TargetName == "Adenovirus"] <- "Adeno"
+subsetData$TargetName[subsetData$TargetName == "Coronavirus 229E"] <- "CoV 229E"
+subsetData$TargetName[subsetData$TargetName == "Bordetella pertussis"] <- "B. per"
+subsetData$TargetName[subsetData$TargetName == "Chlamydophila pneumoniae"] <- "C. pne"
+subsetData$TargetName[subsetData$TargetName == "Coronavirus HKU1"] <- "CoV HKU1"
+subsetData$TargetName[subsetData$TargetName == "Coronavirus NL63"] <- "CoV NL63"
+subsetData$TargetName[subsetData$TargetName == "Coronavirus OC43"] <- "CoV OC43"
+subsetData$TargetName[subsetData$TargetName == "Human Metapneumovirus"] <- "hMPV"
+subsetData$TargetName[subsetData$TargetName == "Human Rhinovirus/Enterovirus"] <- "HRV/EV"
+subsetData$TargetName[subsetData$TargetName == "Influenza A"] <- "FluA"
+subsetData$TargetName[subsetData$TargetName == "Influenza A (no subtype detected)"] <- "FluA"
+subsetData$TargetName[subsetData$TargetName == "Influenza A H1"] <- "FluA H1"
+subsetData$TargetName[subsetData$TargetName == "Influenza A H1-2009"] <- "FluA H1-09"
+subsetData$TargetName[subsetData$TargetName == "Influenza A H3"] <- "FluA H3"
+subsetData$TargetName[subsetData$TargetName == "Influenza B"] <- "FluB"
+subsetData$TargetName[subsetData$TargetName == "Mycoplasma pneumoniae"] <- "M. pne"
+subsetData$TargetName[subsetData$TargetName == "Parainfluenza Virus 1"] <- "PIV1"
+subsetData$TargetName[subsetData$TargetName == "Parainfluenza Virus 2"] <- "PIV2"
+subsetData$TargetName[subsetData$TargetName == "Parainfluenza Virus 3"] <- "PIV3"
+subsetData$TargetName[subsetData$TargetName == "Parainfluenza Virus 4"] <- "PIV4"
+subsetData$TargetName[subsetData$TargetName == "Respiratory Syncytial Virus"] <- "RSV"
+
+subsetData$PercentDetection[subsetData$TargetName == "FluA"] <- mean(subsetData$PercentDetection[subsetData$TargetName == "FluA"])
+subsetData$PercentChange[subsetData$TargetName == "FluA"] <- mean(subsetData$PercentChange[subsetData$TargetName == "FluA"])
+subsetData <- distinct(subsetData)
+
+subsetData$Activity <- NA
+subsetData$Activity[subsetData$PercentDetection > 3] <- "High Activity"
+subsetData$Activity[subsetData$PercentDetection >= 1 & subsetData$PercentDetection <= 3] <- "Moderate Activity"
+subsetData$Activity[subsetData$PercentDetection < 1] <- "Low Activity"
+# gradGenerator <-  colorRampPalette(c('blue', 'red'))
+
+
+if(nrow(subsetData) < 1){
+  
+  highActivity <- subsetData[,c('TargetName', "PercentDetection", "PercentChange")]
+  
+  modActivity <- subsetData[,c('TargetName', "PercentDetection", "PercentChange")]
+  
+  lowActivity <- subsetData[,c('TargetName', "PercentDetection", "PercentChange")]
+  
+  
+}else{
+  
+  highActivity <- subsetData[subsetData$Activity == "High Activity", c('TargetName', "PercentDetection", "PercentChange")]
+  
+  if(nrow(highActivity) <1){
+    highActivity[1,] <- "N/A"
+  }else{
+    highActivity$PercentDetection <-  sprintf("%.2f",highActivity$PercentDetection)
+    # highActivity$PercentChange <- sprintf("%.2f",highActivity$PercentChange)
+    highActivity$PercentChange[grep("-",highActivity$PercentChange)] <- paste("(",sprintf("%.2f",highActivity$PercentChange[grepl("-",highActivity$PercentChange)]),")", sep = "")
+    highActivity$PercentChange[grep("0",highActivity$PercentChange)] <- "0.00" 
+  }
+  
+  
+  
+  modActivity <- subsetData[subsetData$Activity == "Moderate Activity", c('TargetName', "PercentDetection", "PercentChange")]
+  
+  if(nrow(modActivity) <1){
+    modActivity[1,] <- "N/A"
+  }else{
+    modActivity$PercentDetection <-  sprintf("%.2f",modActivity$PercentDetection)
+    # modActivity$PercentChange <- sprintf("%.2f",modActivity$PercentChange)
+    modActivity$PercentChange[grep("-",modActivity$PercentChange)] <- paste("(",sprintf("%.2f",modActivity$PercentChange[grepl("-",modActivity$PercentChange)]),")", sep = "")
+    modActivity$PercentChange[grep("0",modActivity$PercentChange)] <- "0.00" 
+  }
+  
+  
+  
+  
+  lowActivity <- subsetData[subsetData$Activity == "Low Activity",c('TargetName', "PercentDetection", "PercentChange")]
+  
+  if(nrow(lowActivity) <1){
+    lowActivity[1,] <- "N/A"
+  }else{
+    lowActivity$PercentDetection <-  sprintf("%.2f",lowActivity$PercentDetection)
+    # lowActivity$PercentChange <- sprintf("%.2f",lowActivity$PercentChange)
+    lowActivity$PercentChange[grep("-",lowActivity$PercentChange)] <- paste("(",sprintf("%.2f",lowActivity$PercentChange[grepl("-",lowActivity$PercentChange)]),")", sep = "")
+    lowActivity$PercentChange[grep("0",lowActivity$PercentChange)] <- "0.00" 
+  }
+  
+  
+  
+  
+}
+
+names(highActivity) <- c("Orgainism", "% Detection*", "% Change from Prior Period*")
+names(modActivity) <- c("Orgainism", "% Detection*", "% Change from Prior Period*")
+names(lowActivity) <- c("Orgainism", "% Detection*", "% Change from Prior Period*")
+
+t1 <- kable(highActivity,row.names = FALSE ,format = "latex", booktabs = TRUE)
+t2 <- kable(modActivity,row.names = FALSE ,format = "latex", booktabs = TRUE)
+t3 <- kable(lowActivity,row.names = FALSE ,format = "latex", booktabs = TRUE)
+
+# cat(
+#   "
+#    \\section*{",region,"}"
+# )
+
+```
+\vspace{15mm}
+\em{\LARGE Weekly Activity}
+\vspace{15mm}
+
+
+```{r tripleTable, tab.cap = NULL,message=FALSE,  echo=FALSE, results='asis'}
+
+t1 <- sub( "% Change from Prior Period","% Change from \\\\\\\\ & &  Prior Period" ,t1)
+t2 <- sub( "% Change from Prior Period","% Change from \\\\\\\\ & & Prior Period" ,t2)
+t3 <- sub( "% Change from Prior Period","% Change from \\\\\\\\ & & Prior Period" ,t3)
+t1 <- sub( "\\{lll\\}","\\{lrr\\}" ,t1)
+t2 <- sub( "\\{lll\\}","\\{lrr\\}" ,t2)
+t3 <- sub( "\\{lll\\}","\\{lrr\\}" ,t3)
+# t1 <- sub( "\\& 0","0.00" ,t1)
+# t2 <- sub( "\\& 0","0.00" ,t2)
+# t3 <- sub( "0","0.00" ,t3)
+
+cat("
+\\begin{table}[!htb]
+\\begin{center}
+\\scalebox{0.65}{
+    \\begin{minipage}[t]{.47\\linewidth}
+      \\caption{\\large High Activity (Detection > 3\\%)}
+      \\centering",
+t1,
+"\\end{minipage}}
+\\scalebox{0.65}{
+    \\begin{minipage}[t]{.47\\linewidth}
+      \\centering
+        \\caption{\\large Moderate Activity (Detection 1\\%-3\\% )}",
+t2,
+"\\end{minipage}}
+\\scalebox{0.65}{
+\\begin{minipage}[t]{.47\\linewidth}
+      \\centering
+        \\caption{\\large Low Activity (Detection < 1\\%)}",
+t3,
+"\\end{minipage}}
+\\end{center}
+\\end{table}
+"
+)
+
+
+```
+
+
+
+
+
+
+```{r heatPlotCalc, tab.cap = NULL,include=FALSE , message=FALSE, echo = FALSE}
+
+
+aggPos <- aggregate(CenteredPositives ~ Reg + AssayName + Year + Week, movingAverageData, sum)
+aggTot <- aggregate(CenteredRuns ~ Reg + AssayName + Year + Week, movingAverageData, sum)
+aggItUp <- inner_join(aggPos, aggTot, by = c("Reg","AssayName", "Year","Week"))
+aggItUp$AvergaeRate <- aggItUp$CenteredPositives/aggItUp$CenteredRuns
+aggItUp <- aggItUp[,-c(5,6)]
+aggItUp$AvergaeRate[is.nan(aggItUp$AvergaeRate)] <- 0
+
+names(aggItUp)[5] <- "AverageRate"
+names(aggItUp)[1] <- "Region"
+
+plotData <- distinct(inner_join(aggItUp[aggItUp$Year == year & aggItUp$Week == week,],stateRegionCoord , by = "Region"))
+
+plotData$Activity[plotData$AverageRate > .03] <- "High Activity"
+plotData$Activity[plotData$AverageRate <= .03 & plotData$AverageRate >= .01] <- "Moderate Activity"
+plotData$Activity[plotData$AverageRate < .01] <- "Low Activity"
+
+tableActivity <- as.data.frame(table(plotData$AssayName, plotData$Activity))
+tableActivity <- tableActivity[tableActivity$Freq != 0,]
+tableActivity <- as.data.frame(table(tableActivity$Var1, tableActivity$Var2))
+tableActivity <- tableActivity[tableActivity$Freq != 0,]
+
+colors <- readRDS(paste(scriptDir,"/organismColors.RData",sep = ""))
+plotData$AverageRate[is.na(plotData$AverageRate)] <- 0 
+
+highList <- unlist(lapply(tableActivity$Var1[tableActivity$Var2 == "High Activity"],as.character))
+modList <- unlist(lapply(tableActivity$Var1[tableActivity$Var2 == "Moderate Activity" & !tableActivity$Var1 %in% highList],as.character))
+lowList <- unlist(lapply(tableActivity$Var1[tableActivity$Var2 == "Low Activity" & !tableActivity$Var1 %in% c(highList, modList) ],as.character))
+
+```
+\vspace{15mm}
+\LARGE Percent Positivity
+\vspace{15mm}
+```{r laffyPlot,fig.align='center',fig.width=7.8, fig.height=3.2,tab.cap = NULL, message=FALSE, echo = FALSE}
+
+
+agg2 <- aggItUp[aggItUp$Region == region,]
+
+
+dateIndex = movingAverageData[,c("Year", "Week")]
+dateIndex = distinct(dateIndex)
+
+dateIndex <- dateIndex[order(dateIndex$Year, dateIndex$Week),]
+
+dateIndex$Date = paste(dateIndex$Year, dateIndex$Week,"01" ,sep ="-")
+dateIndex$Index <- seq(1, nrow(dateIndex), 1)
+dateIndex$Date <- as.Date(dateIndex$Date, format = "%Y-%W-%w")
+dateIndex$Date <- as.yearqtr(as.Date(dateIndex$Date, format = "%Y-%m-%d"))
+dateIndex$Date <- as.character(dateIndex$Date)
+dateIndex$Date <- sub("Q1", "Jan", dateIndex$Date)
+dateIndex$Date <- sub("Q2", "Apr", dateIndex$Date)
+dateIndex$Date <- sub("Q3", "Jul", dateIndex$Date)
+dateIndex$Date <- sub("Q4", "Oct", dateIndex$Date)
+
+for(i in 1:nrow(dateIndex)){
+  holdDate <- strsplit(dateIndex$Date[i], " ")
+  dateIndex$Date[i] <- paste(holdDate[[1]][2],holdDate[[1]][1], collapse = "" )
+} 
+dateIndex$Date <- as.yearmon(dateIndex$Date)
+dateIndex$Week <- dateIndex$Week
+plotDataLaffy <- left_join(agg2, dateIndex, by = c("Year", "Week"))
+
+minWeek <- aggregate(Week ~ Date,data = dateIndex, min)
+dateIndexPlot <-dateIndex[interaction(dateIndex$Date,dateIndex$Week) %in% interaction(minWeek),]
+
+plotDataLaffy <- plotDataLaffy[plotDataLaffy$Year %in% c(as.numeric(format(Sys.Date(), format = "%Y")) - 1, as.numeric(format(Sys.Date(), format = "%Y"))),]
+
+ggplot(plotDataLaffy, aes(x = Index, y = (AverageRate) * 100, group = AssayName, fill = AssayName)) + 
+  geom_area()  +
+  scale_fill_manual(name="Organism", values = c("#f44336","#ff5722","#d84315","#ffc107","#ffe082","#ffa000","#ff6f00","#cddc39","#4caf50","#00bcd4","#80deea","#18ffff","#0097a7","#006064","#2196f3","#ffab91","#9c27b0","#9575cd","#7b1fa2","#311b92","#673ab7")
+  ) + 
+  scale_x_continuous(breaks = dateIndexPlot$Index, labels =  dateIndexPlot$Date) +
+  theme_classic(base_size = 10) +
+  labs(x = "Date", y = "Detection (%)") +
+  guides(fill=guide_legend(ncol=1)) +
+  theme(legend.key.size = unit(.27, "cm"),
+        legend.text = element_text(size = 6.6),
+        axis.text.x = element_text( vjust =.3),
+        plot.margin = unit(c(0.1,0.1,0.1,0.1), "cm"),
+        legend.margin= margin(t = 15, r = 0, b = 15, l = 15, unit = "pt"))
+
+
+```
+
+\newpage
+\vspace{15mm}
+\LARGE High Activity (Detection > 3%)
+\vspace{15mm}
+
+
+
+```{r plotHigh,  message=FALSE,out.width='.45\\linewidth',fig.width=5, fig.height=3,echo=FALSE ,fig.show='hold',fig.align='center'}
+
+Hold <- plotData[plotData$AssayName %in% highList,]
+Hold$AverageRate[Hold$Region == "South"] <- NA
+
+for(i in seq_along(unique(Hold$AssayName))){
+  plotColor <- colors$Color[colors$Assay == unique(Hold$AssayName)[i]]
+ 
+  
+  print(ggplot() + geom_polygon(data =Hold[Hold$AssayName == unique(Hold$AssayName)[i],],
+                        aes(x=long, y = lat ,fill = 100*(AverageRate), group = group),color = "#696969", size = .15) + coord_fixed(1.3) +
+  scale_fill_gradientn(name ="Detection (%)", colors = c("#ffffff", plotColor),limits = c(100*min(plotData$AverageRate[plotData$AssayName %in% highList]), 100*max(plotData$AverageRate[plotData$AssayName %in% highList]))) + 
+  theme_void(base_size = 8) +
+    labs(title = unique(Hold$AssayName)[i],  caption = "*Southern Region has insufficient data"))
+  
+    
+}
+
+```
+\newpage
+\vspace{15mm}
+\LARGE Moderate Activity (Detection 1%-3%)
+\vspace{15mm}
+```{r plotMod,  message=FALSE,out.width='.45\\linewidth',fig.width=5, fig.height=3,echo=FALSE ,fig.show='hold',fig.align='center'}
+
+
+Hold <- plotData[plotData$AssayName %in% modList,]
+Hold$AverageRate[Hold$Region == "South"] <- NA
+
+for(i in seq_along(unique(Hold$AssayName))){
+  plotColor <- colors$Color[colors$Assay == unique(Hold$AssayName)[i]]
+ 
+  print(ggplot() + geom_polygon(data =Hold[Hold$AssayName == unique(Hold$AssayName)[i],],
+                        aes(x=long, y = lat ,fill = 100*(AverageRate), group = group),color = "#696969", size = .15) + coord_fixed(1.3) +
+          # scale_color_manual(values = rep("black", length(unique(Hold$Region))), alpha = .5) +
+  scale_fill_gradientn(name ="Detection (%)",colors = c("#ffffff", plotColor), limits = c(100*min(plotData$AverageRate[plotData$AssayName %in% modList]), 100*max(plotData$AverageRate[plotData$AssayName %in% modList]))) + 
+  theme_void(base_size = 8) +
+    labs(title = unique(Hold$AssayName)[i],  caption = "*Southern Region has insufficient data"))
+}
+
+```
+\newpage
+\vspace{15mm}
+\LARGE Low Activity (Detection < 1%)
+\vspace{15mm}
+```{r plotLow,  message=FALSE,out.width='.45\\linewidth',fig.width=5, fig.height=3,echo=FALSE ,fig.show='hold',fig.align='center'}
+
+Hold <- plotData[plotData$AssayName %in% lowList,]
+Hold$AverageRate[Hold$Region == "South"] <- NA
+
+for(i in seq_along(unique(Hold$AssayName))){
+  plotColor <- colors$Color[colors$Assay == unique(Hold$AssayName)[i]]
+ 
+  print(ggplot() + geom_polygon(data =Hold[Hold$AssayName == unique(Hold$AssayName)[i],],
+                        aes(x=long, y = lat ,fill = 100*(AverageRate), group = group),color = "#696969", size = .15) + coord_fixed(1.3) +
+          # scale_color_manual(values = rep("black", length(unique(Hold$Region))), alpha = .5) +
+  scale_fill_gradientn(name ="Detection (%)",colors = c("#ffffff", plotColor), limits = c(100*min(plotData$AverageRate[plotData$AssayName %in% lowList]), 100*max(plotData$AverageRate[plotData$AssayName %in% lowList]))) + 
+  theme_void(base_size = 8) +
+    labs(title = unique(Hold$AssayName)[i],  caption = "*Southern Region has insufficient data"))
+}
+
+```
+
