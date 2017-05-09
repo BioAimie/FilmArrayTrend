@@ -8,8 +8,8 @@ SELECT
 	R.[PouchLotNumber] AS [LotNo],
 	R.[InstrumentSerialNumber] AS [SerialNo]
 INTO #runs
-FROM [FILMARRAYDB].[FilmArray1].[FilmArray].[ExperimentRun] R WITH(NOLOCK)
-WHERE [PouchSerialNumber] IN 
+FROM [FILMARRAYDB].[FilmArray2].[dbo].[ExperimentRun] R WITH(NOLOCK)
+WHERE [PouchSerialNumber] IN
 (
 	'01500970', '01500971', '01500975', '01500976', '01500979', '01500992', '01501012', '01501036','01501041','01501931','01501935','01501971',	'01501972','01501973',
 	'01501974','01501976','01501977','01501979','01501981','01501985','01502003','01502407','01502414','01502416','01502417','01502418','01502419','01502420','01502435',
@@ -506,13 +506,14 @@ WHERE [PouchSerialNumber] IN
 	'01745804'
 )
 
-SELECT 
+SELECT
 	ER.[Id],
 	'Human Rhinovirus/Enterovirus' AS [TargetName],
 	AA.[Name] AS [AssayName],
-	IIF([Cp] IS NULL OR [Cp] = 0, 30, [Cp]) AS [Cp],
-	[Tm1] AS [Tm],
-	[MaxFluor]
+	IIF(RR.[MeltDetectorCall] = 'Positive' AND (RR.[Cp] IS NULL OR RR.[Cp] = 0), 30, 
+		IIF(RR.[MeltDetectorCall] = 'Positive', RR.[Cp], 40)) AS [Cp], -- if an assay is positive by Tm with no Cp, change to 30... if negative change to 40
+	ISNULL(RR.[Tm1], 0) AS [Tm], -- if an assay is negative, then change the Tm to zero
+	RR.[MaxFluor] -- every well should have a fluor value
 INTO #assayData
 FROM [FILMARRAYDB].[FilmArray2].[dbo].[AssayResult] AR WITH(NOLOCK) INNER JOIN [FILMARRAYDB].[FilmArray2].[dbo].[Assay] AA WITH(NOLOCK) 
 	ON AR.[assay_id] = AA.[Id] INNER JOIN [FILMARRAYDB].[FilmArray2].[dbo].[Assay_Reaction] ARX WITH(NOLOCK) 
@@ -521,9 +522,10 @@ FROM [FILMARRAYDB].[FilmArray2].[dbo].[AssayResult] AR WITH(NOLOCK) INNER JOIN [
 				ON RX.[Id] = RR.[reaction_id] INNER JOIN [FILMARRAYDB].[FilmArray2].[dbo].[MetaAnalysis] MA WITH(NOLOCK) 
 					ON AR.[analysis_id] = MA.[Id] INNER JOIN [FILMARRAYDB].[FilmArray2].[dbo].[ExperimentRun] ER WITH(NOLOCK) 
 						ON MA.[experiment_id] = ER.[Id]
-WHERE ER.[Id] IN (SELECT [Id] FROM #runs) AND [MeltDetectorCall] = 'Positive'
-
-SELECT
+WHERE ER.[Id] IN (SELECT [Id] FROM #runs)
+ 
+SELECT 
+	R.[Id],
 	R.[PouchSerialNumber],
 	R.[CustomerSiteId],
 	R.[Date],
@@ -536,32 +538,11 @@ SELECT
 	T.[Cp],
 	T.[Tm],
 	T.[MaxFluor],
-	T.[AssayType]
+	IIF(T.[AssayName] = 'yeastRNA', 'Control', 'Organism') AS [AssayType]
 INTO #master
-FROM #runs R INNER JOIN 
-(
-	SELECT 
-		A.*
-	FROM 
-	(
-		SELECT *,
-			IIF(A.[AssayName] IN ('yeastRNA', 'PCR2'), 'Control', 'Organism') AS [AssayType]
-		FROM #assayData A
-		WHERE (A.[AssayName] LIKE 'Entero%' OR A.[AssayName] LIKE 'HRV%' OR A.[AssayName] = 'yeastRNA' OR A.[AssayName] = 'PCR2') 
-	) A INNER JOIN
-	(
-		SELECT 
-			[Id],
-			[AssayName],
-			COUNT([Cp]) AS [WellsPositive]
-		FROM #assayData A
-		WHERE (A.[AssayName] LIKE 'Entero%' OR A.[AssayName] LIKE 'HRV%' OR A.[AssayName] = 'yeastRNA')
-		GROUP BY [Id], [AssayName]
-	) P
-		ON A.[Id] = P.[Id] AND A.[AssayName] = P.[AssayName]
-	WHERE P.[WellsPositive] > 1
-) T
+FROM #runs R INNER JOIN #assayData T
 	ON R.[Id] = T.[Id]
+WHERE T.[AssayName] LIKE 'HRV%' OR T.[AssayName] LIKE 'Entero%' OR T.[AssayName] = 'yeastRNA'
 
 SELECT
 	[RunDataId] + 12348888888 AS [RunDataId],

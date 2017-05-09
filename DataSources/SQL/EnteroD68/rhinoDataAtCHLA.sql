@@ -1,7 +1,7 @@
 SET NOCOUNT ON
 
 SELECT 
-	ER.[Id] AS [RunDataId],
+	ER.[Id],
 	ER.[PouchSerialNumber],
 	25 AS [CustomerSiteId],
 	CAST(ER.[StartTime] AS DATE) AS [Date],
@@ -28,9 +28,10 @@ WHERE ER.[PouchSerialNumber] IN
 '07357638', '07357723', '07357726', '07357698', '07357716', '07357697', '07357644', '07357685', '07357703', '07357641', '07357674', '07357720', '07357713', '07357686', '07357700', '07357669', '07357706', 
 '07357689', '07357725', '07357670', '07357667', '07357647', '07357705', '07357704', '07357712', '07357630', '07357650', '07357691', '07357661', '07357690', '07357678', '07357715', '07357640', '07357648', 
 '07357711', '07357662', '07357694', '07357682','07357692', '07357718', '07357672', '07357696'
-) AND [MeltDetectorCall] = 'Positive' AND [IsHidden] = 0 AND ([Name] = 'yeastRNA' OR [Name] = 'PCR2' OR [Name] LIKE 'HRV%' OR [Name] LIKE 'Entero%')
+) AND [MeltDetectorCall] = 'Positive' AND [IsHidden] = 0 AND ([Name] = 'yeastRNA' OR [Name] LIKE 'HRV%' OR [Name] LIKE 'Entero%')
 
-SELECT 
+SELECT
+	[Id],
 	[NewRunDataId] + 111999999 AS [RunDataId],
 	[PouchSerialNumber],
 	[CustomerSiteId],
