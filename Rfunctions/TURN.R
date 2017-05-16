@@ -6,7 +6,7 @@
 # The function performs the following:
 # ..........
 # The function outputs....
-turn <- function(dataFrame, filterCol, filter, calFrame, smoothPeriods=3) {
+turn <- function(dataFrame, filterCol, filter, panel, calFrame, threshold=30) {
   
   # trim the data so it only includes what is desired (typically it would be filtered by CustomerSiteId or region)
   subFrame <- dataFrame[dataFrame[,filterCol] == filter, ]
@@ -19,139 +19,146 @@ turn <- function(dataFrame, filterCol, filter, calFrame, smoothPeriods=3) {
   colnames(inst.in.period)[2] <- 'Instruments'
   panels.in.period <- with(unique(subFrame[,c('Panel','YearWeek','Run')]), aggregate(Run~YearWeek, FUN=sum))
   colnames(panels.in.period)[2] <- 'Panels'
+  spec.in.period <- with(subFrame[subFrame$Panel==panel, ], aggregate(Run~YearWeek, FUN=sum))
+  colnames(spec.in.period)[2] <- 'SpecRuns'
+  pos.in.period <- with(subFrame[subFrame$Panel==panel, ], aggregate(Positive~YearWeek, FUN=sum))
+  colnames(pos.in.period)[2] <- 'SpecPositives'
   
   # create a place holder for every period, and if the period is missing data, fill it in with a zero
-  aggFrame <- merge(merge(merge(runs.in.period, days.in.period, by='YearWeek', all.x=TRUE), inst.in.period, by='YearWeek', all.x=TRUE), panels.in.period, by='YearWeek', all.x=TRUE)
-  fillFrame <- merge(days.in.period, aggFrame, by=c('YearWeek','Days'), all.x=TRUE)
-  fillFrame[,filterCol] <- filter
+  fillFrame <- merge(merge(merge(merge(merge(days.in.period, runs.in.period, by='YearWeek', all.x=TRUE), inst.in.period, by='YearWeek', all.x=TRUE), panels.in.period, by='YearWeek', all.x=TRUE), spec.in.period, by='YearWeek', all.x=TRUE), pos.in.period, by='YearWeek', all.x=TRUE)
   fillFrame[is.na(fillFrame)] <- 0
-  return(fillFrame)
-  # this information may be sufficient to determine how install base growth and adding new panels affects test rate; however, how to account for decreased
-  # utilization due to competition???
   
+  # # perform a smoothing cubic-spline fit with cross validation to determine the correct lambda paramter
+  # fillFrame <- fillFrame[with(fillFrame, order(YearWeek)), ]
+  # fillFrame$Spline <- smooth.spline(x=seq(1, length(fillFrame$YearWeek), 1), y=fillFrame$Runs, cv=FALSE)$y
+  # fillFrame[fillFrame$Spline < threshold, 'Spline'] <- NA
   
+  # perform a three-period centered sum of all the variables
+  fillFrame <- fillFrame[with(fillFrame, order(YearWeek)), ]
+  year.week <- fillFrame$YearWeek
+  col.vars <- colnames(fillFrame)[2:length(colnames(fillFrame))]
+  rollFrame <- data.frame(YearWeek = year.week[2:(length(year.week)-1)])
   
+  for(c in col.vars) {
+    
+    roll.sum <- sapply(2:(length(year.week)-1), function(x) sum(fillFrame[(x-1):(x+1), c]))
+    rollFrame <- cbind(rollFrame, roll.sum)
+    colnames(rollFrame)[length(colnames(rollFrame))] <- c
+  }
+  rollFrame$Instruments <- ifelse(rollFrame$Instruments/3 < 1, 1, rollFrame$Instruments/3)
+  rollFrame$Panels <- ifelse(rollFrame$Panels/3 < 1, 1, rollFrame$Panels/3)
+  rollFrame[,filterCol] <- filter
   
+  # determine periods where there are gaps (defined as 3 or more periods where the three-week centered sum is below the threshold)
+  gap.finder <- data.frame(Index = seq(1, length(rollFrame$YearWeek), 1))
+  holes <- which(rollFrame$SpecRuns < threshold)
   
-  aggFrame$Year <- as.integer(substring(aggFrame$YearWeek, 1, 4))
-  aggFrame$Week <- as.integer(substring(aggFrame$YearWeek, 6, 7))
-  
-  # join the aggregated data onto the days.in.period frame, because then there will be a place holder for times with zero runs
-  aggFrame.fill <- merge(days.in.period, aggFrame, by=c('YearWeek','Days'), all.x=TRUE)
-  start.group <- min(aggFrame[!(is.na(aggFrame$YearWeek)), 'YearWeek'])
-  aggFrame.fill <- aggFrame.fill[aggFrame.fill$YearWeek >= start.group, ]
-  aggFrame.fill[is.na(aggFrame.fill$Runs), 'Runs'] <- 0
-  aggFrame.fill[is.na(aggFrame.fill$Instruments), 'Instruments'] <- 1
-  aggFrame.fill[is.na(aggFrame.fill[,filterCol]), filterCol] <- filter
-  aggFrame.fill$Year <- as.integer(substring(aggFrame.fill$YearWeek, 1, 4))
-  aggFrame.fill$Week <- as.integer(substring(aggFrame.fill$YearWeek, 6, 7))
-  aggFrame.fill <- aggFrame.fill[with(aggFrame.fill, order(YearWeek)), ]
-  
-  # calculate the runs per day and the runs per day per instrument
-  aggFrame.fill$RunRate <- with(aggFrame.fill, Runs/Days)
-  aggFrame.fill$RunRateByInst <- with(aggFrame.fill, Runs/(Days*Instruments))
-  
-  # find gaps and then start the data set where there are not any big holes, then trim the aggregate data to only include data from the
-  # identified start date
-  gap.finder <- data.frame(Index = seq(1, length(aggFrame.fill$RunRateByInst), 1))
-  holes <- which(aggFrame.fill$RunRateByInst <= 1)
   if(length(holes) > 0) {
     
-    holes <- data.frame(Holes = which(aggFrame.fill$RunRateByInst <= 1), Count = 1)
+    holes <- data.frame(Holes = holes, Gap = 1)
     gap.finder <- merge(gap.finder, holes, by.x='Index', by.y='Holes', all.x=TRUE)
-    gap.finder[is.na(gap.finder$Count), 'Count'] <- 0
-    last.gap <- max(which(sapply(5:length(gap.finder$Index), function(x) sum(gap.finder[(x-4):x,'Count'])) == 5)) + 4  
-    
-    if(is.infinite(last.gap)) {
-      
-      aggFrame.good <- aggFrame.fill
-    } else {
-      
-      aggFrame.good <- aggFrame.fill[last.gap:length(aggFrame.fill$YearWeek), ]  
-    }
-    
+    gap.finder[is.na(gap.finder$Gap), 'Gap'] <- 0
+    rollFrame <- cbind(rollFrame, Gap = gap.finder$Gap)
   } else {
     
-    aggFrame.good <- aggFrame.fill
+    rollFrame$Gap <- 0
   }
   
-  if(length(aggFrame.good[,1]) < 26) { return() }
-  
-  # to determine whether or not the runs rate needs to factor in a change in the size of the instrument fleet, the data should be smoothed
-  # as a 3-week centered sum (mean for instruments) and then then the runs should be fitted as predicated by the instruments in the period
-  # smoothing helps improve the model, so that is why it is used
-  cols  <- c('Days','Runs')
-  roll.mat <- as.data.frame(sapply(1:length(cols), function(y) sapply(2:(length(aggFrame.good[,filterCol])-1), function(x) sum(aggFrame.good[(x-1):(x+1), cols[y]]))))
-  colnames(roll.mat) <- c('RollDays','RollRuns')
-  roll.mat$RollInst <- sapply(2:(length(aggFrame.good[,filterCol])-1), function(x) mean(aggFrame.good[(x-1):(x+1),'Instruments']))
-  rollFrame <- cbind(aggFrame.good[2:(length(aggFrame.good[,filterCol])-1), ], roll.mat)
-  rollFrame$RollRate <- with(rollFrame, RollRuns/RollDays)
-  rollFrame$RollRateByInst <- with(rollFrame, ifelse(RollInst >= 1, RollRuns/(RollDays*RollInst), RollRate))
-  
-  # determine the goodness of fit of runs with the install base by a rolling 53 week period (if there are 53 weeks)... 
-  l.dates <- length(rollFrame$YearWeek)
-  l.insts <- length(as.character(unique(rollFrame$Instruments)))
-  
-  # if there is no variation in the number of instruments, then the factor of instrument install base should not be included
-  if(l.insts == 1 | l.dates < 25) {
+  # with the smoothed data, take the median in the last 52 week period, excluding gaps
+  # rollFrame[rowFrame$Gap==1, 'SpecRuns'] <- NA
+  periods <- rollFrame$YearWeek
+  medFrame <- c()
+  for(p in 53:length(periods)) { # can change to 26
     
-    lmFrame <- data.frame(YearWeek = rollFrame$YearWeek,
-                          R = 0,
-                          b = 0,
-                          m = 0
-                          )
-  } 
-  
-  # if there is variation of the instrument install base, then this should be factored in by looking at the install base in a rolling 52 week period
-  else {
+    periodFrame <- rollFrame[(p-52):p, ] # can change to 25
     
-    if(l.dates >= 52) {
+    # find the medians
+    runs.med <- median(periodFrame[periodFrame$Gap==0, 'Runs'])
+    inst.med <- median(periodFrame[periodFrame$Gap==0, 'Instruments'])
+    pans.med <- median(periodFrame[periodFrame$Gap==0, 'Panels'])
+    spec.med <- median(periodFrame[periodFrame$Gap==0, 'SpecRuns'])
+    post.med <- median(periodFrame[periodFrame$Gap==0, 'SpecPositives'])
+    
+    # find the coefficient and R2 values
+    mod.runs <- lm(SpecRuns~Runs, data=periodFrame)
+    mod.inst <- lm(SpecRuns~Instruments, data=periodFrame)
+    mod.pans <- lm(SpecRuns~Panels, data=periodFrame)
+    # r.runs <- summary(mod.runs)$r.squared
+    # r.inst <- summary(mod.inst)$r.squared
+    # r.pans <- summary(mod.pans)$r.squared
+    r.runs <- ifelse(is.nan(summary(mod.runs)$r.squared), 0, summary(mod.runs)$r.squared)
+    r.inst <- ifelse(is.nan(summary(mod.inst)$r.squared), 0, summary(mod.inst)$r.squared)
+    r.pans <- ifelse(is.nan(summary(mod.pans)$r.squared), 0, summary(mod.pans)$r.squared)
+    # c.runs <- summary(mod.runs)$coefficients[[2]]
+    # c.inst <- summary(mod.inst)$coefficients[[2]]
+    # c.pans <- summary(mod.pans)$coefficients[[2]]
+    
+    # bind the data together
+    temp.dat <- data.frame(rollFrame[p, ], 
+                           RunsMed = runs.med, InstMed = inst.med, PansMed = pans.med, SpecMed = spec.med, PostMed = post.med,
+                           RunsR2 = r.runs, InstR2 = r.inst, PansR2 = r.pans)
+    
+    # utilize the median in the rolling period as well as a weighted average of panel runs
+    # per day (or per day per inst, or per day per panels etc.)
+    # temp.dat$TURN <- with(temp.dat, threshold*(RunsR2*SpecRuns/SpecMed/Days + InstR2*SpecRuns/SpecMed/Days/Instruments + PansR2*SpecRuns/SpecMed/Days/Panels)/(RunsR2+InstR2+PansR2)) 
+    if(temp.dat$RunsR2 == 1) {
       
-      lmFrame <- data.frame(YearWeek = rollFrame$YearWeek, 
-                            R = sapply(1:length(unique(rollFrame$YearWeek)), function(x) ifelse(x < 52, summary(lm(RollRuns~RollInst, rollFrame[1:52, ]))$adj.r.squared, summary(lm(RollRuns~RollInst, rollFrame[(x-51):x, ]))$adj.r.squared)), 
-                            b = sapply(1:length(unique(rollFrame$YearWeek)), function(x) ifelse(x < 52, summary(lm(RollRuns~RollInst, rollFrame[1:52, ]))$coeff[[1]], summary(lm(RollRuns~RollInst, rollFrame[(x-51):x, ]))$coeff[[1]])), 
-                            m = sapply(1:length(unique(rollFrame$YearWeek)), function(x) ifelse(x < 52, summary(lm(RollRuns~RollInst, rollFrame[1:52, ]))$coeff[[2]], summary(lm(RollRuns~RollInst, rollFrame[(x-51):x, ]))$coeff[[2]]))
-                            )
+      temp.dat$TURN <- with(temp.dat, threshold*((1-InstR2)*SpecRuns/SpecMed/Days + InstR2*SpecRuns/SpecMed/Days/Instruments)) 
+    } else if(is.na(temp.dat$RunsR2)) {
       
+      temp.dat$TURN <- NA
     } else {
       
-      lmFrame <- data.frame(YearWeek = rollFrame$YearWeek,
-                            R = summary(lm(RollRuns~RollInst, rollFrame))$adj.r.squared,
-                            b = summary(lm(RollRuns~RollInst, rollFrame))$coeff[[1]],
-                            m = summary(lm(RollRuns~RollInst, rollFrame))$coeff[[2]]
-                            )
-      
+      temp.dat$TURN <- with(temp.dat, threshold*(RunsR2*SpecRuns/SpecMed/Days + InstR2*SpecRuns/SpecMed/Days/Instruments + PansR2*SpecRuns/SpecMed/Days/Panels)/(RunsR2+InstR2+PansR2))   
     }
+    
+    medFrame <- rbind(medFrame, temp.dat)
   }
   
-  # based on a lagging 52 week minimum (if it can be calculated), normalize the data for both the RunRate and the RunRateByInst
-  if(l.dates >= 52) {
+  # what to do about the first 52 entries?? Since we start (above) at p = 53, we are discarding a lot of data
+  # let's try something to preserve at least some of the data (26 weeks instead of 52)
+  for(p in 26:52) { # can change to 26
     
-    # because the minimum rate can be small if only one is considered, in the rolling date frame, choose the 0.10 quantile as the normalizer
-    norm.rate <- do.call(c, lapply(52:length(rollFrame$YearWeek), function(x) unname(quantile(rollFrame[(x-51):x, 'RollRate'], probs=0.10))))
-    norm.rate <- c(rep.int(norm.rate[1], 51), norm.rate)
-    # norm.rate[norm.rate < 1] <- 1
+    periodFrame <- rollFrame[(p-25):p, ]
     
-    norm.rateByInst <- do.call(c, lapply(52:length(rollFrame$YearWeek), function(x) unname(quantile(rollFrame[(x-51):x, 'RollRateByInst'], probs=0.10))))
-    norm.rateByInst <- c(rep.int(norm.rateByInst[1], 51), norm.rateByInst)
-    # norm.rateByInst[norm.rateByInst < 1] <- 1
-  } else {
+    # find the medians
+    runs.med <- median(periodFrame[periodFrame$Gap==0, 'Runs'])
+    inst.med <- median(periodFrame[periodFrame$Gap==0, 'Instruments'])
+    pans.med <- median(periodFrame[periodFrame$Gap==0, 'Panels'])
+    spec.med <- median(periodFrame[periodFrame$Gap==0, 'SpecRuns'])
+    post.med <- median(periodFrame[periodFrame$Gap==0, 'SpecPositives'])
     
-    norm.rate <- unname(quantile(rollFrame$RollRate, probs=0.15))
-    norm.rate <- rep.int(norm.rate, length(rollFrame$YearWeek))
-    # norm.rate[norm.rate < 1] <- 1
+    # find the R2 values
+    mod.runs <- lm(SpecRuns~Runs, data=periodFrame)
+    mod.inst <- lm(SpecRuns~Instruments, data=periodFrame)
+    mod.pans <- lm(SpecRuns~Panels, data=periodFrame)
+    r.runs <- ifelse(is.nan(summary(mod.runs)$r.squared), 0, summary(mod.runs)$r.squared)
+    r.inst <- ifelse(is.nan(summary(mod.inst)$r.squared), 0, summary(mod.inst)$r.squared)
+    r.pans <- ifelse(is.nan(summary(mod.pans)$r.squared), 0, summary(mod.pans)$r.squared)
+    # return(c(r.runs, r.inst, r.pans))
     
-    norm.rateByInst <- unname(quantile(rollFrame$RollRateByInst, probs=0.15))
-    norm.rateByInst <- rep.int(norm.rateByInst, length(rollFrame$YearWeek))
-    # norm.rateByInst[norm.rateByInst < 1] <- 1
+    # bind the data together
+    temp.dat <- data.frame(rollFrame[p, ], 
+                           RunsMed = runs.med, InstMed = inst.med, PansMed = pans.med, SpecMed = spec.med, PostMed = post.med,
+                           RunsR2 = r.runs, InstR2 = r.inst, PansR2 = r.pans)
+    
+    # utilize the median in the rolling period as well as a weighted average of panel runs
+    # per day (or per day per inst, or per day per panels etc.)
+    if(temp.dat$RunsR2 == 1) {
+      
+      temp.dat$TURN <- with(temp.dat, threshold*((1-InstR2)*SpecRuns/SpecMed/Days + InstR2*SpecRuns/SpecMed/Days/Instruments)) 
+    } else if(is.na(temp.dat$RunsR2)) {
+      
+      temp.dat$TURN <- NA
+    } else {
+      
+      temp.dat$TURN <- with(temp.dat, threshold*(RunsR2*SpecRuns/SpecMed/Days + InstR2*SpecRuns/SpecMed/Days/Instruments + PansR2*SpecRuns/SpecMed/Days/Panels)/(RunsR2+InstR2+PansR2))   
+    }
+    
+    medFrame <- rbind(medFrame, temp.dat)
   }
   
-  rollFrame <- cbind(rollFrame, norm.rate, norm.rateByInst)
-  rollFrame <- merge(rollFrame, lmFrame, by='YearWeek')
-  
-  rollFrame$NormRollRate <- with(rollFrame, RollRate/norm.rate)
-  rollFrame$NormRollRateByInst <- with(rollFrame, RollRateByInst/norm.rateByInst)
-  rollFrame$NormalizedBurn <- rollFrame$R*rollFrame$NormRollRateByInst + (1 - rollFrame$R)*rollFrame$NormRollRate
-  
-  return(rollFrame)
+  medFrame <- medFrame[with(medFrame, order(YearWeek)), ]
+  medFrame[!(is.na(medFrame$TURN)) & medFrame$TURN==0.0, 'TURN'] <- NA
+  return(medFrame)
 }
