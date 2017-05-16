@@ -53,8 +53,8 @@ query <- paste(queryVector,collapse=" ")
 regions.df <- sqlQuery(PMScxn,query)
 odbcClose(PMScxn)
 
-# # read in data from Excel files
-# cdc.reg.df <- read.csv('../DataSources/RegionalILI.csv', header=TRUE, sep=',')
+# read in data from Excel files
+cdc.reg.df <- read.csv('../DataSources/RegionalILI.csv', header=TRUE, sep=',')
 
 # make an epi calendar
 calendar.df <- transformToEpiWeeks(createCalendarLikeMicrosoft(2012, 'Week'))
@@ -66,69 +66,49 @@ calendar.df$Days <- 1
 runs.reg <- merge(merge(runs.df, names.df[,c('CustomerSiteId','State')], by='CustomerSiteId'), data.frame(Province = regions.df$StateAbv, Region = regions.df$CensusRegionLocal), by.x='State', by.y='Province')
 runs.reg.date <- merge(runs.reg, calendar.df[,c('Date','Year','Week','YearWeek')], by='Date')
 
-# # clean up the data frame that holds the cdc regional data
-# cdc.reg.df <- data.frame(Year = cdc.reg.df$YEAR, Week = cdc.reg.df$WEEK, Region = cdc.reg.df$REGION, ILITotal = cdc.reg.df$ILITOTAL, TotalPatients = cdc.reg.df$TOTAL.PATIENTS)
-# cdc.reg.df$YearWeek <- with(cdc.reg.df, ifelse(Week < 10, paste(Year, Week, sep='-0'), paste(Year, Week, sep='-')))
-# # roll the total patient count and the total ILI count such that it is a centered 3-week rolling sum
-# cdc.reg.count.df <- do.call(rbind, lapply(1:length(unique(cdc.reg.df$Region)), function(x)  data.frame(YearWeek =  cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x], 'YearWeek'][2:(length(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x], 'YearWeek'])-1)], Region = unique(cdc.reg.df$Region)[x], TotalPatients = sapply(2:(length(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x],'YearWeek'])-1), function(y) sum(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x],][(y-1):(y+1), 'TotalPatients'])), ILITotal = sapply(2:(length(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x],'YearWeek'])-1), function(y) sum(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x],][(y-1):(y+1), 'ILITotal'])))))
+# clean up the data frame that holds the cdc regional data
+cdc.reg.df <- data.frame(Year = cdc.reg.df$YEAR, Week = cdc.reg.df$WEEK, Region = cdc.reg.df$REGION, ILITotal = cdc.reg.df$ILITOTAL, TotalPatients = cdc.reg.df$TOTAL.PATIENTS)
+cdc.reg.df$YearWeek <- with(cdc.reg.df, ifelse(Week < 10, paste(Year, Week, sep='-0'), paste(Year, Week, sep='-')))
+cdc.reg.count.df <- do.call(rbind, lapply(1:length(unique(cdc.reg.df$Region)), function(x)  data.frame(YearWeek =  cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x], 'YearWeek'][2:(length(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x], 'YearWeek'])-1)], Region = unique(cdc.reg.df$Region)[x], TotalPatients = sapply(2:(length(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x],'YearWeek'])-1), function(y) sum(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x],][(y-1):(y+1), 'TotalPatients'])), ILITotal = sapply(2:(length(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x],'YearWeek'])-1), function(y) sum(cdc.reg.df[cdc.reg.df$Region == unique(cdc.reg.df$Region)[x],][(y-1):(y+1), 'ILITotal'])))))
+cdc.reg.count.df$Rate <- with(cdc.reg.count.df, ILITotal/TotalPatients)
+cdc.trend.rate <- merge(unique(runs.reg.date[,c('CustomerSiteId','Region')]), cdc.reg.count.df, by='Region')
+cdc.trend.rate.nat <- with(cdc.trend.rate, aggregate(Rate~YearWeek, FUN=mean))
 
 # ------------------------------------------ ANALYSIS -----------------------------------------------------------------------------
-b <- c()
-for(i in 1:length(unique(runs.reg.date$CustomerSiteId))) {
-  
-  a <- turn(runs.reg.date, 'CustomerSiteId', as.character(unique(runs.reg.date$CustomerSiteId)[i]), calendar.df)
-  a$Spline <- smooth.spline(x=seq(1, length(a$YearWeek), 1), y=a$Runs, cv = FALSE)$y
-  a[a$Spline<0, 'Spline'] <- 0
-  b <- rbind(b, a)
-}
+ggplot(runs.reg.date, aes(x=YearWeek, y=Run, fill=Panel)) + geom_bar(stat='identity') + facet_wrap(~CustomerSiteId, scale='free_y')
 
+sites <- as.character(unique(runs.reg.date$CustomerSiteId))
 
+# these vars were created using the 52-week version of the function without if clauses to handle RunsR2 = 1 or replacing NaNs in the fits
+site.turn <- do.call(rbind, lapply(1:length(sites), function(x) turn(runs.reg.date, 'CustomerSiteId', sites[x], 'RP', calendar.df, 30)))
+site.turn.adj <- site.turn
+site.turn.adj[!(is.na(site.turn.adj$TURN)) & site.turn.adj$TURN==0.0, 'TURN'] <- NA
+natn.turn <- with(site.turn, aggregate(TURN~YearWeek, FUN=mean))
+natn.turn.adj <- with(site.turn.adj, aggregate(TURN~YearWeek, FUN=mean))
+ggplot(site.turn.adj, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=natn.turn.adj, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId)
+ggplot(natn.turn, aes(x=YearWeek, y=TURN, group='NationalTURN')) + geom_line() + scale_x_discrete(breaks=natn.turn[seq(1, length(natn.turn$YearWeek), 12), 'YearWeek'])
 
+# a is with the TURN.R above altered to be 26 weeks rather than 52 (by site) and b is the average
+# try the overlay with TURN by site and the national average to figure out what's going on
+a[!(is.na(a$TURN)) & a$TURN == 0.0, 'TURN'] <- NA
+b <- with(a, aggregate(TURN~YearWeek, FUN=mean))
+ggplot(a, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=b, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId)
+ggplot(b, aes(x=YearWeek, y=TURN, group='abvNationalTURN', color='abvNationalTURN')) + geom_line(size=1.5) + geom_line(data=natn.turn, size=1.5, aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN')) + geom_line(data=cdc.trend.rate.nat[as.character(cdc.trend.rate.nat$YearWeek) > '2013-25', ], aes(x=YearWeek, y=70*Rate, group='ILI',color='ILI'), size=1.5) + scale_x_discrete(breaks=b[seq(1, length(b$YearWeek), 12), 'YearWeek']) + scale_color_manual(values=c('red','black','blue'))
 
+# d is the TURN.R altered to be 26 weeks for the first half year and then extended to 52 weeks later when possible
+# also, NaN values in the fits have been adjusted to NA and if RunsR2 = 1 that's handled separately
+# try the same as above
+d <- do.call(rbind, lapply(1:length(sites), function(x) turn(runs.reg.date, 'CustomerSiteId', sites[x], 'RP', calendar.df, 30)))
+f <- with(d, aggregate(TURN~YearWeek, FUN=mean))
+ggplot(d, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=f, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId)
+ggplot(d, aes(x=YearWeek, y=TURN, group='abvNationalTURN', color='abvNationalTURN')) + geom_line(size=1.5) + geom_line(data=f, size=1.5, aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN')) + geom_line(data=cdc.trend.rate.nat[as.character(cdc.trend.rate.nat$YearWeek) > '2013-25', ], aes(x=YearWeek, y=70*Rate, group='ILI',color='ILI'), size=1.5) + scale_x_discrete(breaks=d[seq(1, length(d$YearWeek), 12), 'YearWeek']) + scale_color_manual(values=c('red','black','blue'))
 
-var <- 'CustomerSiteId'
-sites <- unique(runs.reg.date$CustomerSiteId)
+# compare the models:
+ggplot(f, aes(x=YearWeek, y=TURN, group='v3', color='v3')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='v1', color='v1'), data=natn.turn.adj, size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='v2', color='v2'), data=b, size=1.5) + scale_color_manual(values = c('black','blue','red'))
+ # note - v3 is under v1 for the section where you can't see it at all
 
-runs.reg.norm <- c()
-for(i in 1:length(sites)) {
-  
-  site.norm <- normalizeBurnRate(runs.reg.date, var, sites[i])
-  runs.reg.norm <- rbind(runs.reg.norm, site.norm)
-}
-
-site.starts <- do.call(rbind, lapply(1:length(unique(runs.reg.norm$CustomerSiteId)), function(x) data.frame(CustomerSiteId = unique(runs.reg.norm$CustomerSiteId)[x], StartDate = min(runs.reg.norm[runs.reg.norm$CustomerSiteId==unique(runs.reg.norm$CustomerSiteId)[x],'YearWeek']))))
-
-# using only sites with enough data, find the prevalence of organisms  
-# sites <- site.starts[!(is.na(site.starts$StartDate)) & substring(site.starts$StartDate, 1, 4) < 2016, 'CustomerSiteId']
-sites <- as.character(unique(runs.reg.norm$CustomerSiteId))
-sites <- sites[order(sites)]
-bugs.reg <- c()
-for(i in 1:length(sites)) {
-  
-  site <- sites[i]
-  temp <- runs.reg.date[runs.reg.date$CustomerSiteId == site, ]
-  bugs.site <- merge(temp, bugs.df, by='RunDataId')
-  bugs.reg <- rbind(bugs.reg, bugs.site)
-}
-
-# make a combined category so that do.call can be used to fill in empty dates
-colsToCat <- c('Region','Name','CustomerSiteId','BugPositive')
-bugs.reg.trim <- bugs.reg[,c('YearWeek', colsToCat)]
-bugs.reg.trim$Record <- 1
-bugs <- as.character(unique(bugs.reg.trim$BugPositive))[order(as.character(unique(bugs.reg.trim$BugPositive)))]
-site.missing.bugs <- do.call(rbind, lapply(1:length(sites), function(x) data.frame(CustomerSiteId = sites[x], BugPositive = ifelse(length(bugs[!(bugs %in% unique(as.character(bugs.reg.trim[bugs.reg.trim$CustomerSiteId==sites[x], 'BugPositive'])))]) > 0, bugs[!(bugs %in% unique(as.character(bugs.reg.trim[bugs.reg.trim$CustomerSiteId==sites[x], 'BugPositive'])))], NA))))
-site.missing.bugs <- site.missing.bugs[!(is.na(site.missing.bugs$BugPositive)), ]
-bugs.reg.trim <- rbind(bugs.reg.trim, data.frame(YearWeek = min(bugs.reg.trim$YearWeek), merge(site.missing.bugs, unique(bugs.reg.trim[,c('CustomerSiteId','Region','Name')]), by='CustomerSiteId')[,c('Region','Name','CustomerSiteId','BugPositive')], Record = 0))
-bugs.reg.trim$combocat <- do.call(paste, c(bugs.reg.trim[,colsToCat], sep=','))
-bugs.reg.combo <- do.call(rbind, lapply(1:length(unique(bugs.reg.trim$combocat)), function(x) cbind(merge(unique(calendar.df[,c('YearWeek','Year')]), bugs.reg.trim[bugs.reg.trim$combocat == unique(bugs.reg.trim$combocat)[x], c('YearWeek','Record')], by='YearWeek', all.x=TRUE), ComboCat = unique(bugs.reg.trim$combocat)[x])))
-deCombo <- as.data.frame(sapply(1:length(colsToCat), function(x) do.call(rbind, strsplit(as.character(bugs.reg.combo$ComboCat), split=','))[,x]))
-colnames(deCombo) <- colsToCat
-bugs.reg.fill <- cbind(bugs.reg.combo[,c('YearWeek','Record')], deCombo)
-bugs.reg.fill[is.na(bugs.reg.fill$Record),'Record'] <- 0
-bugs.reg.agg <- with(bugs.reg.fill, aggregate(Record~YearWeek+Region+Name+CustomerSiteId+BugPositive, FUN=sum))
-bugs.reg.roll <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(1:length(bugs), function(y) data.frame(YearWeek = bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'][2:(length(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'])-1)], CustomerSiteId = sites[x], Region = unique(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x],'Region']), Name = unique(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x],'Name']), Bug = bugs[y], Code = letters[y], Positives = sapply(2:(length(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y], 'YearWeek'])-1), function(z) sum(bugs.reg.agg[bugs.reg.agg$CustomerSiteId==sites[x] & bugs.reg.agg$BugPositive==bugs[y],'Record'][(z-1):(z+1)])))))))
-runs.reg.roll <- runs.reg.norm[,c('YearWeek','CustomerSiteId','RollRuns')]
-colnames(runs.reg.roll) <- c('YearWeek','CustomerSiteId','Runs')
+f <- data.frame(f, Splined = smooth.spline(x=seq(1, length(f$YearWeek), 1), y=f$TURN, cv=FALSE)$y)
+ggplot(f, aes(x=YearWeek, y=Splined, group='v3', color='v3')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='v1', color='v1'), data=natn.turn.adj, size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='v2', color='v2'), data=b, size=1.5) + scale_color_manual(values = c('black','blue','red'))
 
 
 # PRINT OUT ALL THE FIGURES
