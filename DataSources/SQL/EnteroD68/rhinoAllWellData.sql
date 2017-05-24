@@ -6,7 +6,7 @@ INTO #positives
 FROM [FADataWarehouse].[dbo].[SummarizedPositiveAssayResults] P WITH(NOLOCK)
 WHERE P.[Interpretation] = 'Human Rhinovirus/Enterovirus'
 
-SELECT
+SELECT 
 	R.[RunDataId],
 	R.[ExperimentRunId] AS [Id],
 	R.[PouchSerialNumber],
@@ -32,7 +32,7 @@ WHERE R.[RunDataId] IN (SELECT [RunDataId] FROM #positives) AND
 	  R.[PouchResult] <> 'Fail' AND 
 	  (R.[PositiveAssays] BETWEEN 1 AND 4) AND
 	  P.[CustomerSiteId] = SITE_INDEX
-
+	 
 SELECT 
 	M.*
 FROM #master M INNER JOIN 

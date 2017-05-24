@@ -160,6 +160,10 @@ if(TRUE) {
   prevalence.reg.wrap <- merge(prevalence.reg.agg[,c('Bug','Code','YearWeek','CustomerSiteId','Rate','Prevalence')], shortnames.df, by.x='Bug', by.y='Organism')
   prevalence.nat.individual.wrap <- with(prevalence.reg.wrap, aggregate(cbind(Rate, Prevalence)~YearWeek+Bug+Code+ShortName, FUN=mean, na.action=na.omit))
   
+  # for EV-D68, make a data frame that has the HRV/EV percent detection by region
+  prev.evd68.reg <- merge(prevalence.reg.agg[prevalence.reg.agg$Code=='i', c('YearWeek','Region','CustomerSiteId','Prevalence')], unique(regions.df[,c('CensusRegionLocal','CensusRegionNational')]), by.x='Region', by.y='CensusRegionLocal')
+  prev.evd68.reg.agg <- with(prev.evd68.reg, aggregate(Prevalence~YearWeek+CensusRegionNational, FUN=mean))
+  
   # now make the figures and break out by organisms and type
   bacterias <- as.character(decoder[decoder$Code %in% c('b','c','p'), 'Bug'])
   rhino <- 'Human Rhinovirus/Enterovirus'
@@ -452,6 +456,51 @@ if(TRUE) {
   # dateBreaksAlt <- c('2013-26','2013-39','2013-52',dateBreaks)
   # dateLabelsAlt <- c('--','','',dateLabels)
 
+  # here, make some aggregate regionally
+  runs.reg.avg <- merge(runs.reg.norm.trim, unique(regions.df[,c('CensusRegionLocal','CensusRegionNational')]), by.x='Region', by.y='CensusRegionLocal')
+  runs.reg.avg <- with(runs.reg.avg, aggregate(NormalizedBurn~YearWeek+CensusRegionNational, FUN=mean))
+  # p.TURN.ByRegion <- ggplot(runs.reg.avg, aes(x=YearWeek, y=NormalizedBurn, group=CensusRegionNational)) + geom_line(size=1.5) + facet_wrap(~CensusRegionNational) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, face='bold', color='black'), axis.text.x=element_text(angle=90, hjust=1), axis.ticks.x=element_blank(), panel.background=element_rect(fill='white', color='white'), legend.position = 'bottom') + labs(x='Date', y='TURN') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels)
+  # p.TURN.ByRegion <- ggplot(runs.reg.avg[runs.reg.avg$YearWeek >= '2014-25', ], aes(x=YearWeek, y=NormalizedBurn, group=CensusRegionNational)) + geom_line(size=1.5) + facet_wrap(~CensusRegionNational) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, face='bold', color='black'), axis.text.x=element_text(angle=90, hjust=1), axis.ticks.x=element_blank(), panel.background=element_rect(fill='white', color='white'), legend.position = 'bottom') + labs(x='Date', y='TURN') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels)
+  # runs.reg.avg$Spline <- smooth.spline(seq(1, length(runs.reg.avg$YearWeek), 1), runs.reg.avg$NormalizedBurn)
+  p.TURN.ByRegion <- ggplot(runs.reg.avg[runs.reg.avg$YearWeek >= '2014-25', ], aes(x=YearWeek, y=NormalizedBurn, group=CensusRegionNational, color=CensusRegionNational)) + geom_line(size=1.5) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, face='bold', color='black'), axis.text.x=element_text(angle=90, hjust=1), axis.ticks.x=element_blank(), panel.background=element_rect(fill='white', color='white'), legend.position = 'bottom') + labs(x='Date', y='TURN') + scale_x_discrete(breaks=dateBreaks, labels=dateLabels) + scale_color_manual(name='', values=c('#5053C4','#BD0730','#109031','#F59A06'))
+  reg.turn.prev <- merge(runs.reg.avg[runs.reg.avg$YearWeek >= '2014-25', ], prev.evd68.reg.agg, by=c('YearWeek','CensusRegionNational'))
+  p.HRV.ByRegion <- ggplot(reg.turn.prev, aes(x=YearWeek, y=Prevalence, group=CensusRegionNational, color=CensusRegionNational)) + geom_line(size=1.5) + scale_x_discrete(breaks = dateBreaks[5:length(dateBreaks)], labels = dateBreaks[5:length(dateBreaks)]) + scale_y_continuous(limits=c(0, 0.7), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7), labels=c(0, 10, 20, 30, 40, 50, 60, 70)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='Detection (%)', x='Date') + scale_color_manual(values=c('#5053C4','#BD0730','#109031','#F59A06'), name='')
+  
+  p1 <- ggplot(reg.turn.prev, aes(x=YearWeek)) + geom_area(aes(y=Prevalence, group=CensusRegionNational, order=CensusRegionNational, fill='HRV/EV Detection'), stat='identity', position='stack') + scale_x_discrete(breaks = dateBreaks[5:length(dateBreaks)], labels = dateBreaks[5:length(dateBreaks)]) + scale_y_continuous(limits=c(0, 0.7), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7), labels=c(0, 10, 20, 30, 40, 50, 60, 70)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='Detection (%)', x='Date') + facet_wrap(~CensusRegionNational) + scale_fill_manual(values=c('grey'), name='')
+  p2 <- ggplot(reg.turn.prev, aes(x=YearWeek, y=NormalizedBurn, group='TURN', color='TURN')) + geom_line(lwd=2) + scale_y_continuous(limits=c(0, 5), breaks=c(0, 1, 2, 3, 4, 5), labels=c('0','1','2','3','4','5')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='TURN') + facet_wrap(~CensusRegionNational) + scale_x_discrete(breaks = dateBreaks[5:length(dateBreaks)], labels = dateBreaks[5:length(dateBreaks)]) + scale_color_manual(values=c('black','black','black','black'), name='')
+  ## Putting plots together ##################
+  # extract gtable
+  g1 <- ggplot_gtable(ggplot_build(p1))
+  g2 <- ggplot_gtable(ggplot_build(p2))
+  
+  # overlap the panel of 2nd plot on that of 1st plot
+  pp <- c(subset(g1$layout, grepl("panel",name) , se = t:r))
+  g <- gtable_add_grob(g1, g2$grobs[grep("panel",g2$layout$name)], pp$t, pp$l, pp$b, pp$l)
+  
+  # axis tweaks
+  ia <- which(grepl("axis_l",g2$layout$name) |  grepl("axis-l",g2$layout$name)     )
+  ga <- g2$grobs[ia]
+  
+  axis_idx <- as.numeric(which(sapply(ga,function(x) !is.null(x$children$axis))))
+  
+  for(i in 1:length(axis_idx)){
+    ax <- ga[[axis_idx[i]]]$children$axis
+    ax$widths <- rev(ax$widths)
+    ax$grobs <- rev(ax$grobs)
+    ax$grobs[[1]]$x <- ax$grobs[[1]]$x - unit(1, "npc") + unit(0.15, "cm")
+    g <- gtable_add_cols(g, g2$widths[g2$layout[ia[axis_idx[i]], ]$l], length(g$widths) - 1)
+    g <- gtable_add_grob(g, ax, pp$t[axis_idx[i]], length(g$widths) - i, pp$b[axis_idx[i]])
+  }
+  g$grobs[[which(g$layout$name =='ylab-r')]] <- g2$grobs[[which(g2$layout$name =='ylab-l')]] # add the axis label from p2 to the right side of the plot
+  g$layout$l[[which(g$layout$name =='ylab-r')]] <- g$layout$l[[which(g$layout$name =='ylab-r')]] + 2
+  
+  # Plot!
+  grid.newpage()
+  png('Figures/RegionalUtilizationWithHRV.png', height=800, width=1400)
+  grid.draw(g)
+  dev.off()
+  ############################
+  
   ccf.ili.turn <- data.frame(Lag = ccf(ili.burn.nat$Rate, ili.burn.nat$NormalizedBurn, na.action=na.pass)$lag, CCF = ccf(ili.burn.nat$Rate, ili.burn.nat$NormalizedBurn, na.action=na.pass)$acf)
   
   # # This is some code to check out the BURN rate vs. Run rates so that we can see if there are weird sites and how the algorithm may need to be adjusted  
@@ -935,7 +984,7 @@ if(TRUE) {
   # - Rhino-------------------------------------------------------------------------------------------------------
   if(TRUE) {
     
-    p1 <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)),], Bug %in% rhino), aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.6), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c(0, 10, 20, 30, 40, 50, 60)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank())  + labs(y='Detection (%)', x='Date') 
+    p1 <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)),], Bug %in% rhino), aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.6), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c(0, 10, 20, 30, 40, 50, 60)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank())  + labs(y='Detection (%)', x='Date')
     p2 <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)),], Bug %in% rhino), aes(x=YearWeek, y=12*Rate, group=1)) + geom_line(color='black', lwd=2) + geom_line(aes(x=YearWeek, y=12*NormalizedBurn/100, group=2), subset(ili.burn.nat, as.character(ili.burn.nat$YearWeek) >='2013-26'), color='purple', lwd=2) + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0,0.6), breaks=c(0, 0.12, 0.24, 0.36, 0.48, 0.60), labels=c('0','1','2','3','4','5')) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI (black, %), FilmArray Utilization (red)')
     
     # Get the ggplot grobs
@@ -993,6 +1042,8 @@ if(TRUE) {
     png('Figures/RhinoPercentDetectionWithOverlayTrend.png', height=800, width=1400)
     grid.draw(overlay.rhino)
     dev.off()
+    
+    p.HRV.National <- ggplot(subset(prevalence.nat.individual.wrap[with(prevalence.nat.individual.wrap, order(ShortName, decreasing=TRUE)),], Bug %in% rhino & YearWeek >= '2014-26'), aes(x=YearWeek)) + geom_area(aes(y=Prevalence, fill=ShortName, group=ShortName, order=ShortName), stat='identity', position='stack') + scale_fill_manual(values=bug.individual.Pal, name='') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.6), breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6), labels=c(0, 10, 20, 30, 40, 50, 60)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank())  + labs(y='Detection (%)', x='Date')
   }
   # - Adeno-------------------------------------------------------------------------------------------------------
   if(TRUE) {
