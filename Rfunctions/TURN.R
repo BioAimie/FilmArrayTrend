@@ -3,6 +3,7 @@
 # 2. a column on which to filter the dataFrame
 # 3. the value of the filter
 # 4. a calendar frame that is a placeholder containing all dates... this could be in calendar or epi-date format... must contain YearWeek and Days
+# 5. a threshold number of runs in the rolling three-week period to eliminate periods where there is little activity
 # The function performs the following:
 # ..........
 # The function outputs....

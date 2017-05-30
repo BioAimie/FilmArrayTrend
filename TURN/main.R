@@ -16,7 +16,7 @@ library(tidyr)
 require(dateManip)
 
 # load custom functions
-source('../Rfunctions/TURN.R')
+source('../Rfunctions/TURN_v3.R')
 source('~/WebHub/AnalyticsWebHub/Rfunctions/createPaletteOfVariableLength.R')
 
 # dual axes for ILI overlay plots
@@ -76,47 +76,37 @@ cdc.trend.rate.nat <- with(cdc.trend.rate, aggregate(Rate~YearWeek, FUN=mean))
 
 # ------------------------------------------ ANALYSIS -----------------------------------------------------------------------------
 ggplot(runs.reg.date, aes(x=YearWeek, y=Run, fill=Panel)) + geom_bar(stat='identity') + facet_wrap(~CustomerSiteId, scale='free_y')
-
 sites <- as.character(unique(runs.reg.date$CustomerSiteId))
 
 # these vars were created using the 52-week version of the function without if clauses to handle RunsR2 = 1 or replacing NaNs in the fits
 site.turn <- do.call(rbind, lapply(1:length(sites), function(x) turn(runs.reg.date, 'CustomerSiteId', sites[x], 'RP', calendar.df, 30)))
-site.turn.adj <- site.turn
-site.turn.adj[!(is.na(site.turn.adj$TURN)) & site.turn.adj$TURN==0.0, 'TURN'] <- NA
 natn.turn <- with(site.turn, aggregate(TURN~YearWeek, FUN=mean))
-natn.turn.adj <- with(site.turn.adj, aggregate(TURN~YearWeek, FUN=mean))
-ggplot(site.turn.adj, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=natn.turn.adj, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId)
-ggplot(natn.turn, aes(x=YearWeek, y=TURN, group='NationalTURN')) + geom_line() + scale_x_discrete(breaks=natn.turn[seq(1, length(natn.turn$YearWeek), 12), 'YearWeek'])
+ggplot(site.turn, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=natn.turn, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId, scale='free_y') + labs(title='TURN_v1')
 
-# a is with the TURN.R above altered to be 26 weeks rather than 52 (by site) and b is the average
-# try the overlay with TURN by site and the national average to figure out what's going on
-a[!(is.na(a$TURN)) & a$TURN == 0.0, 'TURN'] <- NA
-b <- with(a, aggregate(TURN~YearWeek, FUN=mean))
-ggplot(a, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=b, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId)
-ggplot(b, aes(x=YearWeek, y=TURN, group='abvNationalTURN', color='abvNationalTURN')) + geom_line(size=1.5) + geom_line(data=natn.turn, size=1.5, aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN')) + geom_line(data=cdc.trend.rate.nat[as.character(cdc.trend.rate.nat$YearWeek) > '2013-25', ], aes(x=YearWeek, y=70*Rate, group='ILI',color='ILI'), size=1.5) + scale_x_discrete(breaks=b[seq(1, length(b$YearWeek), 12), 'YearWeek']) + scale_color_manual(values=c('red','black','blue'))
-
-# d is the TURN.R altered to be 26 weeks for the first half year and then extended to 52 weeks later when possible
-# also, NaN values in the fits have been adjusted to NA and if RunsR2 = 1 that's handled separately
-# try the same as above
-d <- do.call(rbind, lapply(1:length(sites), function(x) turn(runs.reg.date, 'CustomerSiteId', sites[x], 'RP', calendar.df, 30)))
-f <- with(d, aggregate(TURN~YearWeek, FUN=mean))
-ggplot(d, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=f, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId)
-ggplot(d, aes(x=YearWeek, y=TURN, group='abvNationalTURN', color='abvNationalTURN')) + geom_line(size=1.5) + geom_line(data=f, size=1.5, aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN')) + geom_line(data=cdc.trend.rate.nat[as.character(cdc.trend.rate.nat$YearWeek) > '2013-25', ], aes(x=YearWeek, y=70*Rate, group='ILI',color='ILI'), size=1.5) + scale_x_discrete(breaks=d[seq(1, length(d$YearWeek), 12), 'YearWeek']) + scale_color_manual(values=c('red','black','blue'))
-
-# compare the models:
-ggplot(f, aes(x=YearWeek, y=TURN, group='v3', color='v3')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='v1', color='v1'), data=natn.turn.adj, size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='v2', color='v2'), data=b, size=1.5) + scale_color_manual(values = c('black','blue','red'))
- # note - v3 is under v1 for the section where you can't see it at all
-
-f <- data.frame(f, Splined = smooth.spline(x=seq(1, length(f$YearWeek), 1), y=f$TURN, cv=FALSE)$y)
-ggplot(f, aes(x=YearWeek, y=Splined, group='v3', color='v3')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='v1', color='v1'), data=natn.turn.adj, size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='v2', color='v2'), data=b, size=1.5) + scale_color_manual(values = c('black','blue','red'))
+# make an aggregate count of negative runs by period, customer, and region
+neg.runs <- with(runs.reg.date[runs.reg.date$Panel=='RP' & runs.reg.date$Positive==0, ], aggregate(Run~YearWeek+CustomerSiteId, FUN=sum))
+base.df <- expand.grid(YearWeek = unique(neg.runs$YearWeek), CustomerSiteId = unique(neg.runs$CustomerSiteId))
+neg.runs <- merge(base.df, neg.runs, by=c('YearWeek','CustomerSiteId'), all.x=TRUE)
+neg.runs[is.na(neg.runs$Run),'Run'] <- 0
+neg.runs <- neg.runs[with(neg.runs, order(CustomerSiteId, YearWeek)), ]
+year.weeks <- as.character(unique(base.df$YearWeek))[order(as.character(unique(base.df$YearWeek)))]
+neg.roll <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(2:(length(year.weeks)), function(y) data.frame(CustomerSiteId = sites[x], YearWeek = year.weeks[y], Negatives = sum(neg.runs[neg.runs$CustomerSiteId==sites[x],'Run'][(y-1):(y+1)]))))))
+neg.roll <- merge(neg.roll, names.df[,c('CustomerSiteId','CensusRegionNational','CensusRegionLocal')], by='CustomerSiteId')
+site.overview <- merge(site.turn[,c('CustomerSiteId','YearWeek','SpecRuns','SpecPositives','TURN')], neg.roll, by=c('CustomerSiteId','YearWeek'))
+colnames(site.overview)[3:4] <- c('Runs','Positives')
+site.overview$PositiveRate <- with(site.overview, Positives/Runs)
+site.overview$NegativeRate <- with(site.overview, Negatives/Runs)
+# check for Rotavirus at children's hospitals
+peds.sites <- unique(c(names.df[grep('Child', names.df$Name), 'CustomerSiteId'], names.df[grep('Child', names.df$Note), 'CustomerSiteId']))
+peds.overview <- site.overview[site.overview$CustomerSiteId %in% peds.sites, ]
+rota.nat.nrevss <- read.csv('../DataSources/NREVSS/Rotavirus_National.csv', header=TRUE)
+rota.nat.nrevss$Date <- as.Date(as.character(rota.nat.nrevss$Date), format = '%m/%d/%Y')
+rota.nat.nrevss <- merge(rota.nat.nrevss, calendar.df, by='Date')
 
 
-# PRINT OUT ALL THE FIGURES
-plots <- ls()[grep('^p\\.',ls())]
-for(i in 1:length(plots)) {
-  
-  imgName <- paste(substring(plots[i],3),'.png',sep='')
-  png(file=paste('Figures', imgName, sep='/'), width=1200, height=800, units='px')
-  print(eval(parse(text = plots[i])))
-  dev.off()
-}
+ggplot(with(subset(peds.overview, as.character(YearWeek) >= '2014-01'), aggregate(NegativeRate~YearWeek, FUN=mean)), aes(x=YearWeek, y=NegativeRate)) + geom_point() + scale_x_discrete(breaks = unique(peds.overview$YearWeek)[seq(1, length(unique(peds.overview$YearWeek)), 12)])
+
+# Rotavirus isn't RP, so get rid of this...
+
+# add in Google Flu
+
