@@ -4,6 +4,7 @@ setwd(workDir)
 # load libraries
 library(RODBC)
 library(lubridate)
+library(xlsx)
 library(ggplot2)
 library(grid)
 library(gridExtra)
@@ -54,7 +55,12 @@ regions.df <- sqlQuery(PMScxn,query)
 odbcClose(PMScxn)
 
 # read in data from Excel files
-cdc.reg.df <- read.csv('../DataSources/RegionalILI.csv', header=TRUE, sep=',')
+cdc.reg.df <- read.csv('../DataSources/Epidemics/CensusRegionalILI.csv', header=TRUE, sep=',')
+cdc.hhs.df <- read.csv('../DataSources/Epidemics/HHSregionalILI.csv', header=TRUE, sep=',')
+#### READ IN ADDITIONAL STUFF!!!!
+
+
+goog.flu <- read.xlsx('../DataSources/Epidemics/GoogleFlu.xlsx', sheetName='Sheet1', colIndex = c(1,2,3))
 
 # make an epi calendar
 calendar.df <- transformToEpiWeeks(createCalendarLikeMicrosoft(2012, 'Week'))
@@ -96,17 +102,14 @@ site.overview <- merge(site.turn[,c('CustomerSiteId','YearWeek','SpecRuns','Spec
 colnames(site.overview)[3:4] <- c('Runs','Positives')
 site.overview$PositiveRate <- with(site.overview, Positives/Runs)
 site.overview$NegativeRate <- with(site.overview, Negatives/Runs)
-# check for Rotavirus at children's hospitals
-peds.sites <- unique(c(names.df[grep('Child', names.df$Name), 'CustomerSiteId'], names.df[grep('Child', names.df$Note), 'CustomerSiteId']))
-peds.overview <- site.overview[site.overview$CustomerSiteId %in% peds.sites, ]
-rota.nat.nrevss <- read.csv('../DataSources/NREVSS/Rotavirus_National.csv', header=TRUE)
-rota.nat.nrevss$Date <- as.Date(as.character(rota.nat.nrevss$Date), format = '%m/%d/%Y')
-rota.nat.nrevss <- merge(rota.nat.nrevss, calendar.df, by='Date')
-
-
-ggplot(with(subset(peds.overview, as.character(YearWeek) >= '2014-01'), aggregate(NegativeRate~YearWeek, FUN=mean)), aes(x=YearWeek, y=NegativeRate)) + geom_point() + scale_x_discrete(breaks = unique(peds.overview$YearWeek)[seq(1, length(unique(peds.overview$YearWeek)), 12)])
-
 # Rotavirus isn't RP, so get rid of this...
+# # check for Rotavirus at children's hospitals
+# peds.sites <- unique(c(names.df[grep('Child', names.df$Name), 'CustomerSiteId'], names.df[grep('Child', names.df$Note), 'CustomerSiteId']))
+# peds.overview <- site.overview[site.overview$CustomerSiteId %in% peds.sites, ]
+# rota.nat.nrevss <- read.csv('../DataSources/NREVSS/Rotavirus_National.csv', header=TRUE)
+# rota.nat.nrevss$Date <- as.Date(as.character(rota.nat.nrevss$Date), format = '%m/%d/%Y')
+# rota.nat.nrevss <- merge(rota.nat.nrevss, calendar.df, by='Date') 
+# ggplot(with(subset(peds.overview, as.character(YearWeek) >= '2014-01'), aggregate(NegativeRate~YearWeek, FUN=mean)), aes(x=YearWeek, y=NegativeRate)) + geom_point() + scale_x_discrete(breaks = unique(peds.overview$YearWeek)[seq(1, length(unique(peds.overview$YearWeek)), 12)])
 
 # add in Google Flu
 
