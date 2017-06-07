@@ -13,7 +13,7 @@ SELECT
 INTO #master
 FROM [FADataWarehouse].[dbo].[RunData] R WITH(NOLOCK) LEFT JOIN [FADataWarehouse].[dbo].[SummarizedPositiveAssayResults] P WITH(NOLOCK)
 	ON R.[RunDataId] = P.[RunDataId]
-WHERE R.[RunStatus] = 'Completed' AND R.[PositiveAssays] BETWEEN 0 AND 4 AND R.[PouchResult] <> 'Fail'
+WHERE R.[RunStatus] = 'Completed' AND R.[PositiveAssays] BETWEEN 0 AND 4 AND R.[PouchResult] = 'Pass'
 GROUP BY
 	R.[RunDataId],
 	R.[PouchTitle],
