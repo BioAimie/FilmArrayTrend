@@ -66,8 +66,6 @@ turn <- function(dataFrame, filterCol, filter, panel, calFrame, threshold=30) {
   ##################### DEMO
   # return(rollFrame)
   ##########################
-  # with the rolled panel runs (e.g. RP runs), find the derivative for using the central difference method (or forward, backward at the ends)
-  
   
   # with the smoothed data, normalize the test utlization rate by accounting for changes in install base and additional running of panels
   # require at least half a year of data and then expand after 52 weeks
@@ -76,60 +74,55 @@ turn <- function(dataFrame, filterCol, filter, panel, calFrame, threshold=30) {
   for(p in 26:52) {
     
     periodFrame <- rollFrame[1:p, ]
-    ##################### DEMO
-    # return(periodFrame)
-    # turn(runs.reg.date, 'CustomerSiteId','24','RP', calendar.df, 30)
-    ##########################
-    # find the lower 10% quantiles of panel runs and percent positives
-    spec.base <- quantile(periodFrame[periodFrame$Gap==0, 'SpecRuns'], probs = 0.50)
-    post.base <- quantile(periodFrame[periodFrame$Gap==0, 'SpecPositives'], probs = 0.50)
     
     # find the R2 values
-    mod.runs <- lm(SpecRuns~Runs, data=periodFrame)
-    mod.inst <- lm(SpecRuns~Instruments, data=periodFrame)
-    mod.pans <- lm(SpecRuns~Panels, data=periodFrame)
+    mod.runs <- lm(SpecRuns~Instruments, data=periodFrame)
+    mod.post <- lm(SpecPositives~Instruments, data=periodFrame)
     r.runs <- ifelse(is.nan(summary(mod.runs)$r.squared), 0, summary(mod.runs)$r.squared)
-    r.inst <- ifelse(is.nan(summary(mod.inst)$r.squared), 0, summary(mod.inst)$r.squared)
-    r.pans <- ifelse(is.nan(summary(mod.pans)$r.squared), 0, summary(mod.pans)$r.squared)
+    r.post <- ifelse(is.nan(summary(mod.post)$r.squared), 0, summary(mod.post)$r.squared)
     
     # bind the data together
-    temp.dat <- data.frame(rollFrame[p, ],
-                           RunBaseline = spec.base, PositiveBaseline = post.base,
-                           RunRatio = rollFrame[p, 'SpecRuns']/spec.base, PositiveRatio = rollFrame[p, 'SpecPositives']/post.base,
-                           InstR2 = r.inst)
-    #                        RunsR2 = r.runs, InstR2 = r.inst, PansR2 = r.pans)
-    ##################### DEMO
-    # return(temp.dat)
-    # turn(runs.reg.date, 'CustomerSiteId','5','RP', calendar.df, 30)
-    # turn(runs.reg.date, 'CustomerSiteId','7','RP', calendar.df, 30)
-    # turn(runs.reg.date, 'CustomerSiteId','24','RP', calendar.df, 30)
-    ##########################
+    temp.dat <- data.frame(rollFrame[p, ], runsR2 = r.runs, postR2 = r.post)
+
+    # if there aren't "enough" runs, there shouldn't be a TURN
     if(temp.dat$SpecRuns < threshold) {
       
       temp.dat$TURN <- NA
+      temp.dat$TPRN <- NA
     }
     # otherwise, weight the panel runs per day per instrument and per runs... this should help with the panel growth as well
     else {
       
-      # temp.dat$TURN <- with(temp.dat, threshold*(RunsR2*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments + PansR2*SpecRuns/RunBaseline/Days/Panels)/(RunsR2+InstR2+PansR2))
-      # temp.dat$TURN <- with(temp.dat, threshold*(RunsR2*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments)/(RunsR2+InstR2))
-      # temp.dat$TURN <- with(temp.dat, threshold*(InstR2*SpecRuns/RunBaseline/Days/Instruments + PansR2*SpecRuns/RunBaseline/Days/Panels)/(InstR2+PansR2))
-      # temp.dat$TURN <- with(temp.dat, threshold*((1-InstR2)*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments))
-      temp.dat$TURN <- with(temp.dat, (1-InstR2)*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments)
+      # temp.dat$TURN <- with(temp.dat, (1-InstR2)*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments)
+      temp.dat$TURN <- with(temp.dat, (1-runsR2)*SpecRuns/Days + runsR2*SpecRuns/Days/Instruments)
+      temp.dat$TPRN <- with(temp.dat, (1-postR2)*SpecPositives/Days + postR2*SpecPositives/Days/Instruments)
     }
     
-    # the runs are also normalized by the baseline (which is the lowest tenth quantile in the rolling period), and this could be skewed
-    # if there is a summer outbreak (typically the baseine would be in the summer, thus why half a year of data are required)... to account
-    # for this, we'd expect that the number of positive tests (or PositiveRatio) Winter/Summer would be lower than than the RunRatio in the same
-    # timeframe, because usually the rate of positive tests is lower in the summer time. Therefore, if the positive ratio is less than the run ratio
-    # we shoudl correct for this (check to make sure the positive ratio is > 10% because it could be that they are running validations)
-    # temp.dat$Correction <- NA
-    # if(!(is.na(temp.dat$TURN)) & (temp.dat$PositiveRatio < temp.dat$RunRatio) & temp.dat$PositiveRatio > 0.10) {
-    #   
-    #   temp.dat$TURN <- temp.dat$TURN*temp.dat$RunRatio/temp.dat$PositiveRatio
-    #   temp.dat$Correction <- 'Yes'
-    # }
+    medFrame <- rbind(medFrame, temp.dat)
+  }
+  
+  for(p in 53:length(periods)) {
     
+    periodFrame <- rollFrame[(p-52):p, ]
+    
+    mod.runs <- lm(SpecRuns~Instruments, data=periodFrame)
+    mod.post <- lm(SpecPositives~Instruments, data=periodFrame)
+    r.runs <- ifelse(is.nan(summary(mod.runs)$r.squared), 0, summary(mod.runs)$r.squared)
+    r.post <- ifelse(is.nan(summary(mod.post)$r.squared), 0, summary(mod.post)$r.squared)
+    
+    temp.dat <- data.frame(rollFrame[p, ], runsR2 = r.runs, postR2 = r.post)
+
+    if(temp.dat$SpecRuns < threshold) {
+      
+      temp.dat$TURN <- NA
+      temp.dat$TPRN <- NA
+    } else {
+      
+      # temp.dat$TURN <- with(temp.dat, (1-InstR2)*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments)
+      temp.dat$TURN <- with(temp.dat, (1-runsR2)*SpecRuns/Days + runsR2*SpecRuns/Days/Instruments)
+      temp.dat$TPRN <- with(temp.dat, (1-postR2)*SpecPositives/Days + postR2*SpecPositives/Days/Instruments)
+    }
+
     medFrame <- rbind(medFrame, temp.dat)
   }
   ##################### DEMO
@@ -141,76 +134,41 @@ turn <- function(dataFrame, filterCol, filter, panel, calFrame, threshold=30) {
   # turn(runs.reg.date, 'CustomerSiteId','24','RP', calendar.df, 30)
   # ggplot(a, aes(x=YearWeek, y=Runs, group='Runs', color='Runs')) + geom_line(lwd=1.5) + geom_line(data=a, aes(x=YearWeek, y=SpecRuns, group='RP Runs', color='RP Runs'), lwd=1.5)  + geom_line(data=a, aes(x=YearWeek, y=SpecPositives, group='RP Positives', color='RP Positives'), lwd=1.5) + geom_line(data=b, aes(x=YearWeek, y=30*TURN, group='TURN', color='TURN'), lwd=1.5) + scale_color_manual(values=c('blue','purple','black','red'))
   ##########################
-  
-  for(p in 53:length(periods)) { # can change to 26
-    
-    periodFrame <- rollFrame[(p-52):p, ] # can change to 25
-    
-    # find the lower 10% quantiles of panel runs and percent positives
-    spec.base <- quantile(periodFrame[periodFrame$Gap==0, 'SpecRuns'], probs = 0.50)
-    post.base <- quantile(periodFrame[periodFrame$Gap==0, 'SpecPositives'], probs = 0.50)
-    
-    # find the coefficient and R2 values
-    mod.runs <- lm(SpecRuns~Runs, data=periodFrame)
-    mod.inst <- lm(SpecRuns~Instruments, data=periodFrame)
-    mod.pans <- lm(SpecRuns~Panels, data=periodFrame)
-    r.runs <- ifelse(is.nan(summary(mod.runs)$r.squared), 0, summary(mod.runs)$r.squared)
-    r.inst <- ifelse(is.nan(summary(mod.inst)$r.squared), 0, summary(mod.inst)$r.squared)
-    r.pans <- ifelse(is.nan(summary(mod.pans)$r.squared), 0, summary(mod.pans)$r.squared)
-    
-    # bind the data together
-    temp.dat <- data.frame(rollFrame[p, ],
-                           RunBaseline = spec.base, PositiveBaseline = post.base,
-                           RunRatio = rollFrame[p, 'SpecRuns']/spec.base, PositiveRatio = rollFrame[p, 'SpecPositives']/post.base,
-                           InstR2 = r.inst) #,
-    #                        RunsR2 = r.runs, InstR2 = r.inst, PansR2 = r.pans)
-    
-    if(temp.dat$SpecRuns < threshold) {
-      
-      temp.dat$TURN <- NA
-    }
-    else {
-      
-      # temp.dat$TURN <- with(temp.dat, threshold*(RunsR2*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments + PansR2*SpecRuns/RunBaseline/Days/Panels)/(RunsR2+InstR2+PansR2))
-      # temp.dat$TURN <- with(temp.dat, threshold*(RunsR2*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments)/(RunsR2+InstR2))
-      # temp.dat$TURN <- with(temp.dat, threshold*(InstR2*SpecRuns/RunBaseline/Days/Instruments + PansR2*SpecRuns/RunBaseline/Days/Panels)/(InstR2+PansR2))
-      # temp.dat$TURN <- with(temp.dat, threshold*((1-InstR2)*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments))
-      temp.dat$TURN <- with(temp.dat, (1-InstR2)*SpecRuns/RunBaseline/Days + InstR2*SpecRuns/RunBaseline/Days/Instruments)
-    }
-    
-    # temp.dat$Correction <- NA
-    # if(!(is.na(temp.dat$TURN)) & (temp.dat$PositiveRatio < temp.dat$RunRatio) & temp.dat$PositiveRatio > 0.10) {
-    #   
-    #   temp.dat$TURN <- temp.dat$TURN*temp.dat$RunRatio/temp.dat$PositiveRatio
-    #   temp.dat$Correction <- 'Yes'
-    # }
-    
-    medFrame <- rbind(medFrame, temp.dat)
-  }
-  
   # with the test utilization normalized for instrument install base growth, now we must find a baseline such that severity can be measured 
   # relativly from year to year
   medFrame$BaselineTURN <- NA
+  medFrame$BaselineTPRN <- NA
   for(i in 1:nrow(medFrame)) {
     
-    if(i < 26) {
-      
-      medFrame[i, 'BaselineTURN'] <- 1
-    } else if (i < 53) {
+    if (i < 53) {
       
       periodFrame <- medFrame[1:i, ]
-      medFrame[i, 'BaselineTURN'] <- quantile(periodFrame[periodFrame$Gap!=1, 'TURN'], probs=0.1, na.rm=TRUE)
+      medFrame[i, 'BaselineTURN'] <- quantile(periodFrame[periodFrame$Gap!=1, 'TURN'], probs=0.5, na.rm=TRUE)
+      medFrame[i, 'BaselineTPRN'] <- quantile(periodFrame[periodFrame$Gap!=1, 'TPRN'], probs=0.5, na.rm=TRUE)
     } else {
       
       periodFrame <- medFrame[(i-52):i, ]
-      medFrame[i, 'BaselineTURN'] <- quantile(periodFrame[periodFrame$Gap!=1, 'TURN'], probs=0.1, na.rm=TRUE)
-    }
+      medFrame[i, 'BaselineTURN'] <- quantile(periodFrame[periodFrame$Gap!=1, 'TURN'], probs=0.5, na.rm=TRUE)
+      medFrame[i, 'BaselineTPRN'] <- quantile(periodFrame[periodFrame$Gap!=1, 'TPRN'], probs=0.5, na.rm=TRUE)
+    }      
     
-    medFrame$adjTURN <- medFrame$TURN/medFrame$BaselineTURN
+    medFrame$adjTURN <- medFrame$TURN/medFrame$BaselineTURN 
+    medFrame$adjTPRN <- medFrame$TPRN/medFrame$BaselineTPRN 
   }
   
+  # medFrame[1:25, 'adjTURN'] <- medFrame[1:25, 'TURN']
+  # medFrame[1:25, 'adjTPRN'] <- medFrame[1:25, 'TPRN']
+  
+  ######################## WHAT ABOUT THIS POSSIBILITY??? NEED TO FIND A PLACE WHERE WE KNOW THIS 
+  ######################## HAPPENED.... MAYBE USE MIDWEST CHILDREN'S HOSPITALS (26, maybe 13) IN 
+  ######################## 2014 (EV-D68) BY CHECKING HRV/TEST DETECTION RATE AND COMPARING IT TO
+  ######################## REGULAR DETECTION RATE IN "OFF-SEASON"
+  # the runs are also normalized by the baseline (which is the lowest tenth quantile in the rolling period), and this could be skewed
+  # if there is a summer outbreak (typically the baseine would be in the summer, thus why half a year of data are required)... to account
+  # for this, we'd expect that the number of positive tests (or PositiveRatio) Winter/Summer would be lower than than the RunRatio in the same
+  # timeframe, because usually the rate of positive tests is lower in the summer time. Therefore, if the positive ratio is less than the run ratio
+  # we should correct for this (check to make sure the positive ratio is > 10% because it could be that they are running validations)
    
-  # medFrame <- medFrame[with(medFrame, order(YearWeek)), ]
-  # medFrame[!(is.na(medFrame$TURN)) & medFrame$TURN==0.0, 'TURN'] <- NA
+
   return(medFrame)
 }

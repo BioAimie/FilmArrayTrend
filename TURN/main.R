@@ -17,7 +17,7 @@ library(tidyr)
 require(dateManip)
 
 # load custom functions
-source('../Rfunctions/TURN_v3.R')
+source('../Rfunctions/TURN_omega.R')
 source('~/WebHub/AnalyticsWebHub/Rfunctions/createPaletteOfVariableLength.R')
 
 # dual axes for ILI overlay plots
@@ -105,6 +105,7 @@ cdc.trend.rate.nat <- with(cdc.trend.rate, aggregate(Rate~YearWeek, FUN=mean))
 # these vars were created using the 52-week version of the function without if clauses to handle RunsR2 = 1 or replacing NaNs in the fits
 # TURN
 sites <- as.character(unique(runs.reg.date$CustomerSiteId))
+sites <- sites[order(as.numeric(sites))]
 site.turn <- do.call(rbind, lapply(1:length(sites), function(x) turn(runs.reg.date, 'CustomerSiteId', sites[x], 'RP', calendar.df, 30)))
 regn.turn <- merge(site.turn[,c('CustomerSiteId','YearWeek','TURN')], names.df[,c('CustomerSiteId','CensusRegionNational')], by='CustomerSiteId') # merge(site.turn[,c('CustomerSiteId','YearWeek','TURN')], unique(runs.reg[,c('CustomerSiteId','Region')]), by='CustomerSiteId')
 regn.turn <- with(regn.turn, aggregate(TURN~YearWeek+CensusRegionNational, FUN=mean)) # with(regn.turn, aggregate(TURN~YearWeek+Region, FUN=mean))
@@ -117,7 +118,47 @@ ili.turn.mrg <- merge(regn.turn, cdc.trend.rate.reg, by=c('YearWeek','CensusRegi
 dateBreaks <- c('2013-27','2013-40','2014-01', '2014-14','2014-27','2014-40','2015-01', '2015-14','2015-27','2015-40','2016-01','2016-14','2016-27','2016-40','2017-01','2017-14','2017-27')
 dateLabels <- c('Jul-2013','-','Jan-2014','-','Jul-2014','-','Jan-2015','-','Jul-2015','-','Jan-2016','-','Jul-2016','-','Jan-2017','-','Jul-2017')
 
-# ggplot(site.turn, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=natn.turn, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId, scale='free_y') + labs(title='TURN_v3') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + theme(axis.text.x=element_text(angle=90, hjust=1))
+# site.turn.adj <- do.call(rbind, lapply(1:length(sites), function(x) turn(runs.reg.date, 'CustomerSiteId', sites[x], 'RP', calendar.df, 30)))
+# site.turn.adj$CustomerSiteId <- as.numeric(site.turn.adj$CustomerSiteId)
+# regn.turn.adj <- merge(site.turn.adj[,c('CustomerSiteId','YearWeek','adjTURN')], names.df[,c('CustomerSiteId','CensusRegionNational')], by='CustomerSiteId') # merge(site.turn[,c('CustomerSiteId','YearWeek','TURN')], unique(runs.reg[,c('CustomerSiteId','Region')]), by='CustomerSiteId')
+# regn.turn.adj <- with(regn.turn.adj, aggregate(adjTURN~YearWeek+CensusRegionNational, FUN=mean)) # with(regn.turn, aggregate(TURN~YearWeek+Region, FUN=mean))
+# natn.turn.adj <- with(site.turn.adj, aggregate(adjTURN~YearWeek, FUN=mean))
+
+ggplot(site.turn, aes(x=YearWeek, y=TURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=TURN, group='NationalTURN', color='NationalTURN'), data=natn.turn, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId, scale='free_y') + labs(title='TURN_v3') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + theme(axis.text.x=element_text(angle=90, hjust=1))
+# ggplot(site.turn.adj, aes(x=YearWeek, y=adjTURN, group='SiteTURN', color='SiteTURN')) + geom_line(size=1.5) + geom_line(aes(x=YearWeek, y=adjTURN, group='NationalTURN', color='NationalTURN'), data=natn.turn.adj, size=1.5) + scale_color_manual(values=c('black','blue')) + facet_wrap(~CustomerSiteId, scale='free_y') + labs(title='TURN_omega') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + theme(axis.text.x=element_text(angle=90, hjust=1))
+
+####################################
+# WORK ON A WAY TO HANDLE DATA WHERE THE DERIVATIVE OF DETECTION IS ABNORMAL (ESD)... AS MAY OCCUR AT SITES WITH BIG TURN SPIKES???
+# COULD BE INCLUDED INTO TURN_omega.R
+a <- subset(site.turn.adj, CustomerSiteId==39)
+a[2:(nrow(a)-1),'dD'] <- sapply(2:(nrow(a)-1), function(x) (a[(x+1),'Detection']-a[(x-1),'Detection'])/2)
+b <- a[!(is.nan(a$dD)) & !(is.na(a$dD)), 'dD']
+hist(b, 30) # the distribution is approximately normal with some outliers
+# ESD test - one iteration
+b <- c(-0.25, 0.68, 0.94, 1.15, 1.20, 1.26, 1.26, 1.34, 1.38, 1.43, 1.49, 1.49, 1.55, 1.56, 1.58, 1.65, 1.69, 1.70, 1.76, 1.77, 1.81, 1.91, 1.94, 1.96, 1.99, 2.06, 2.09, 2.10, 2.14, 2.15, 2.23, 2.24, 2.26, 2.35, 2.37, 2.40, 2.47, 2.54, 2.62, 2.64, 2.90, 2.92, 2.92, 2.93, 3.21, 3.26, 3.30, 3.59, 3.68, 4.30, 4.64, 5.34, 5.42, 6.01)
+esd.test <- c()
+n <- length(b)
+# s <- sd(b)
+# xbar <- mean(b)
+alpha <- 0.05
+for(i in 1:10) {
+  
+  s <- sd(b)
+  xbar <- mean(b)
+  R <- max(abs(b-xbar))/s
+  p <- 1 - alpha/(2*(n-i+1))
+  v <- n - i - 1
+  t <- qt(p = p, df = v)
+  lambda <- (n-i)*t/sqrt((n-i-1+t^2)*(n-i+1))
+  R > lambda # FIND THE MAX i FOR WHICH R > lambda
+  temp <- data.frame(Outliers = i, testValue = R, criticalValue = lambda)
+  esd.test <- rbind(esd.test, temp)
+  
+  # adjust b to remove the observation
+  remove.index <- which(abs(b-mean(b)) == max(abs(b-mean(b))))
+  b <- b[!(abs(b-mean(b)) == max(abs(b-mean(b))))]
+}
+####################################
 
 p1 <- ggplot(ili.turn.mrg, aes(x=YearWeek, y=Rate, color='ILI (CDC)', group='ILI (CDC)')) + geom_line(data=ili.turn.mrg, aes(x=YearWeek, y=TURN/100, color='TURN', group='TURN'), lwd=1.5) + geom_line(lwd=1.5) + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.08), breaks=c(0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08), labels=c(0, 1, 2, 3, 4, 5, 6, 7, 8)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(color='transparent', fill='white'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + labs(y='ILI (%)', x='Date') + scale_color_manual(values=c('black','red'), name='') + facet_wrap(~CensusRegionNational)
 p2 <- ggplot(ili.turn.mrg, aes(x=YearWeek, y=TURN/100, color='TURN', group='TURN'), lwd=1.5) + geom_line(color='red') + scale_x_discrete(breaks = dateBreaks, labels = dateLabels) + scale_y_continuous(limits=c(0, 0.08), breaks=c(0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08), labels=c(0, 1, 2, 3, 4, 5, 6, 7, 8)) + theme(plot.title=element_text(hjust=0.5),text=element_text(size=22, face='bold'), axis.text=element_text(size=22, color='black', face='bold'), axis.text.x=element_text(angle=90, hjust=1), legend.position='bottom', panel.background=element_rect(fill='transparent', color='transparent'), panel.grid=element_blank(), axis.ticks.x=element_blank()) + scale_x_discrete(breaks = dateBreaks[5:length(dateBreaks)], labels = dateBreaks[5:length(dateBreaks)]) + labs(y='') + facet_wrap(~CensusRegionNational)
@@ -205,7 +246,6 @@ site.bugs[is.na(site.bugs$Positive), 'Positive'] <- 0
 site.bugs <- site.bugs[with(site.bugs, order(CustomerSiteId, YearWeek, Target)),]
 bugs <- as.character(unique(site.bugs$Target))
 year.weeks <- as.character(unique(site.bugs$YearWeek))
-sites <- sites[order(as.numeric(sites))]
 site.bugs.roll <- do.call(rbind, lapply(1:length(sites), function(x) do.call(rbind, lapply(1:length(bugs), function(y) do.call(rbind, lapply(2:(length(year.weeks)-1), function(z) data.frame(YearWeek = year.weeks[z], CustomerSiteId = sites[x], Target = bugs[y], Positives = sum(site.bugs[site.bugs$CustomerSiteId==sites[x] & site.bugs$Target==bugs[y], 'Positive'][(z-1):(z+1)]))))))))
 site.prev <- merge(site.bugs.roll, site.turn[,c('YearWeek','CustomerSiteId','SpecRuns')], by=c('YearWeek','CustomerSiteId'))
 site.prev <- merge(site.prev, abvs.df, by.x='Target', by.y='Organism')
