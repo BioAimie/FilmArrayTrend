@@ -13,13 +13,14 @@ SELECT
 FROM [FADataWarehouse].[dbo].[CustomerSites] S INNER JOIN [FADataWarehouse].[dbo].[Customers] C
 	ON S.[CustomerId] = C.[CustomerId] INNER JOIN [FADataWarehouse].[dbo].[EpiRegions] R
 		ON C.[Province] = R.[StateAbv]
-ORDER BY S.[CustomerSiteId]
+ORDER BY S.[CustomerSiteId] --R.[CDCRegion], R.[CensusRegionNational] --S.[CustomerSiteId]
 /*
-SELECT 
-	[CensusRegionNational],
-	SUM([Record])
+SELECT
+	--[CensusRegionNational],
+	[hhsRegion],
+	SUM([Record]) AS [SitesInArea]
 FROM #master
-GROUP BY [CensusRegionNational]
+GROUP BY [hhsRegion]--[CensusRegionNational]
 
 DROP TABLE #master
 */
