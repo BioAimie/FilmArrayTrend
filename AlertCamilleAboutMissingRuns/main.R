@@ -13,7 +13,7 @@ if(nrow(results.df) > 0) {
   
   write.csv(results.df, '~/RunsNotUpdating.csv', row.names = FALSE)
   
-  from <- 'aimie.faucett@biofiredx.com'
+  from <- 'anna.hoffee@biofiredx.com'
   to <- 'camille.cook@biofiredx.com'
   subject <- 'Institutions not Uploading Runs'
   body <- 'Based on analysis of run data, the following institutions may not be uploading their runs (see attachment).'
